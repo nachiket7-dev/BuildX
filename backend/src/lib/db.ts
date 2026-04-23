@@ -1,6 +1,10 @@
 import { Pool } from 'pg';
 import crypto from 'crypto';
+import dns from 'dns';
 import type { Blueprint } from './types';
+
+// Force Node to prefer IPv4 over IPv6. This MUST run before new Pool()
+dns.setDefaultResultOrder('ipv4first');
 
 // ─── Init ──────────────────────────────────────────────────
 
