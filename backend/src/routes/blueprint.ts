@@ -35,7 +35,7 @@ router.post(
 
     try {
       const blueprint = await generateBlueprint(idea);
-      const id = saveBlueprint(idea, blueprint, req.user?.userId);
+      const id = await saveBlueprint(idea, blueprint, req.user?.userId);
       console.log(`[Blueprint] Success: ${blueprint.appName} (id: ${id})`);
       res.json({ success: true, data: blueprint, id });
     } catch (err) {
@@ -80,7 +80,7 @@ router.post(
 
       if (!clientDisconnected) {
         // Save to database
-        const id = saveBlueprint(idea, blueprint, req.user?.userId);
+        const id = await saveBlueprint(idea, blueprint, req.user?.userId);
         console.log(`[Blueprint:stream] Success: ${blueprint.appName} (id: ${id})`);
         sendSSE(res, 'saved', { id });
         endSSE(res);
@@ -102,12 +102,12 @@ router.post(
 // ─────────────────────────────────────────────────────────────
 router.post(
   '/export',
-  (req: Request, res: Response): void => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       // Option 1: Blueprint ID in query param
       const id = req.query.id as string | undefined;
       if (id) {
-        const result = getBlueprint(id);
+        const result = await getBlueprint(id);
         if (!result) {
           res.status(404).json({ error: 'Blueprint not found' });
           return;
@@ -192,8 +192,8 @@ router.post(
 // GET /api/blueprint/list
 // Returns: { success, data: BlueprintListItem[] }
 // ─────────────────────────────────────────────────────────────
-router.get('/list', (_req: Request, res: Response) => {
-  const items = listBlueprints(30);
+router.get('/list', async (_req: Request, res: Response): Promise<void> => {
+  const items = await listBlueprints(30);
   res.json({ success: true, data: items });
 });
 
@@ -219,7 +219,7 @@ router.get('/health', (_req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────
 router.get(
   '/:id',
-  (req: Request, res: Response): void => {
+  async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
 
     if (!id || id.length < 6 || id.length > 16) {
@@ -227,7 +227,7 @@ router.get(
       return;
     }
 
-    const result = getBlueprint(id);
+    const result = await getBlueprint(id);
     if (!result) {
       res.status(404).json({ error: 'Blueprint not found' });
       return;
@@ -252,7 +252,7 @@ router.get(
 // ─────────────────────────────────────────────────────────────
 router.get(
   '/:id/meta',
-  (req: Request, res: Response): void => {
+  async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
 
     if (!id || id.length < 6 || id.length > 16) {
@@ -260,7 +260,7 @@ router.get(
       return;
     }
 
-    const meta = getBlueprintMeta(id);
+    const meta = await getBlueprintMeta(id);
     if (!meta) {
       res.status(404).json({ error: 'Blueprint not found' });
       return;

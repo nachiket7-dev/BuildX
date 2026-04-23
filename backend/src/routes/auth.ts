@@ -28,7 +28,7 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
   }
 
   // Check if email already exists
-  const existing = getUserByEmail(email.toLowerCase().trim());
+  const existing = await getUserByEmail(email.toLowerCase().trim());
   if (existing) {
     res.status(409).json({ error: 'An account with this email already exists' });
     return;
@@ -36,10 +36,10 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const id = createUser(name.trim(), email.toLowerCase().trim(), hashedPassword);
+    const id = await createUser(name.trim(), email.toLowerCase().trim(), hashedPassword);
 
     // Claim any blueprints created before auth was added
-    const claimed = claimUnownedBlueprints(id);
+    const claimed = await claimUnownedBlueprints(id);
     const token = generateToken({ userId: id, email: email.toLowerCase().trim() });
 
     console.log(`[Auth] New user: ${name.trim()} (${email.toLowerCase().trim()})${claimed ? ` — claimed ${claimed} blueprints` : ''}`);
@@ -67,7 +67,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const user = getUserByEmail(email.toLowerCase().trim());
+  const user = await getUserByEmail(email.toLowerCase().trim());
   if (!user) {
     res.status(401).json({ error: 'Invalid email or password' });
     return;
@@ -80,7 +80,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   }
 
   // Claim any blueprints created before auth was added
-  const claimed = claimUnownedBlueprints(user.id);
+  const claimed = await claimUnownedBlueprints(user.id);
   const token = generateToken({ userId: user.id, email: user.email });
 
   console.log(`[Auth] Login: ${user.name} (${user.email})${claimed ? ` — claimed ${claimed} blueprints` : ''}`);
@@ -96,15 +96,15 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 // Headers: Authorization: Bearer <token>
 // Returns: { success, user: { id, name, email } }
 // ─────────────────────────────────────────────────────────────
-router.get('/me', requireAuth, (req: Request, res: Response): void => {
-  const user = getUserById(req.user!.userId);
+router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const user = await getUserById(req.user!.userId);
   if (!user) {
     res.status(404).json({ error: 'User not found' });
     return;
   }
 
   // Claim any unclaimed blueprints on every auth check
-  claimUnownedBlueprints(req.user!.userId);
+  await claimUnownedBlueprints(req.user!.userId);
 
   res.json({
     success: true,
@@ -117,8 +117,8 @@ router.get('/me', requireAuth, (req: Request, res: Response): void => {
 // Headers: Authorization: Bearer <token>
 // Returns: { success, data: BlueprintListItem[] }
 // ─────────────────────────────────────────────────────────────
-router.get('/my-blueprints', requireAuth, (req: Request, res: Response): void => {
-  const items = listUserBlueprints(req.user!.userId);
+router.get('/my-blueprints', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const items = await listUserBlueprints(req.user!.userId);
   res.json({ success: true, data: items });
 });
 
@@ -126,13 +126,13 @@ router.get('/my-blueprints', requireAuth, (req: Request, res: Response): void =>
 // PATCH /api/auth/blueprint/:id/rename
 // Body: { title: string }
 // ─────────────────────────────────────────────────────────────
-router.patch('/blueprint/:id/rename', requireAuth, (req: Request, res: Response): void => {
+router.patch('/blueprint/:id/rename', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const { title } = req.body;
   if (!title || typeof title !== 'string' || title.trim().length < 1) {
     res.status(400).json({ error: 'Title is required' });
     return;
   }
-  const ok = renameBlueprint(req.params.id, req.user!.userId, title.trim());
+  const ok = await renameBlueprint(req.params.id, req.user!.userId, title.trim());
   if (!ok) {
     res.status(404).json({ error: 'Blueprint not found or not owned by you' });
     return;
@@ -143,8 +143,8 @@ router.patch('/blueprint/:id/rename', requireAuth, (req: Request, res: Response)
 // ─────────────────────────────────────────────────────────────
 // DELETE /api/auth/blueprint/:id
 // ─────────────────────────────────────────────────────────────
-router.delete('/blueprint/:id', requireAuth, (req: Request, res: Response): void => {
-  const ok = deleteBlueprint(req.params.id, req.user!.userId);
+router.delete('/blueprint/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const ok = await deleteBlueprint(req.params.id, req.user!.userId);
   if (!ok) {
     res.status(404).json({ error: 'Blueprint not found or not owned by you' });
     return;
