@@ -16,7 +16,7 @@ BuildX is a production-ready full-stack application powered by **Groq + Llama 3.
 | Validation | Zod (backend input + AI output) |
 | AI | Groq API · Llama 3.3 70B (FREE) |
 | Deploy FE | Vercel |
-| Deploy BE | Railway |
+| Deploy BE | Render |
 
 ---
 
@@ -124,13 +124,19 @@ npm run dev
 
 ## 🌐 Deployment
 
-### Backend → Railway
+### Backend → Render
 
-1. New project on [railway.app](https://railway.app), connect GitHub repo
-2. Set root directory to `backend`
-3. Add env var: `GROQ_API_KEY=gsk_...`
-4. Set `ALLOWED_ORIGINS` to your Vercel frontend URL
-5. Railway uses `railway.toml` — zero extra config
+1. Create a new **Web Service** on [render.com](https://render.com)
+2. Connect your GitHub repository
+3. Set **Root Directory** to `backend`
+4. Set **Environment** to `Node`
+5. Set **Build Command** to `npm install && npm run build`
+6. Set **Start Command** to `npm start`
+7. Add Environment Variables:
+   - `GROQ_API_KEY`: your key from Groq
+   - `DATABASE_URL`: your PostgreSQL connection string
+   - `ALLOWED_ORIGINS`: your Vercel frontend URL
+   - `JWT_SECRET`: a random secure string for tokens
 
 ### Frontend → Vercel
 
