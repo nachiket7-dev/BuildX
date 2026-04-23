@@ -35,7 +35,6 @@ buildx/
 │   │   └── routes/
 │   │       └── blueprint.ts    # POST /api/blueprint/generate
 │   ├── .env.example
-│   ├── railway.toml
 │   └── tsconfig.json
 │
 ├── frontend/
