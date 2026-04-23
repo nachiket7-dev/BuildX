@@ -1,5 +1,10 @@
 import 'dotenv/config';
+import dns from 'dns';
 import app from './app';
+
+// Force Node to prefer IPv4 over IPv6 when resolving Supabase database URLs
+// This fixes the ENETUNREACH error on networks without IPv6 support (like Render Free)
+dns.setDefaultResultOrder('ipv4first');
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
