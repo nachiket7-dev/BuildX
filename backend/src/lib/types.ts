@@ -7,6 +7,7 @@ export const BlueprintRequestSchema = z.object({
     .min(10, 'Idea must be at least 10 characters')
     .max(1000, 'Idea must be under 1000 characters')
     .trim(),
+  model: z.string().optional(),
 });
 
 export type BlueprintRequest = z.infer<typeof BlueprintRequestSchema>;

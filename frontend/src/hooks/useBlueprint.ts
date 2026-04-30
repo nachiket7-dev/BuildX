@@ -7,7 +7,7 @@ interface UseBlueprintResult {
   blueprintId: string | null;
   isLoading: boolean;
   error: string | null;
-  generate: (idea: string) => void;
+  generate: (idea: string, model?: string) => void;
   reset: () => void;
 }
 
@@ -17,7 +17,8 @@ interface UseBlueprintResult {
  */
 export function useBlueprint(): UseBlueprintResult {
   const mutation = useMutation({
-    mutationFn: generateBlueprint,
+    mutationFn: ({ idea, model }: { idea: string; model?: string }) =>
+      generateBlueprint(idea, model),
   });
 
   return {
@@ -25,7 +26,7 @@ export function useBlueprint(): UseBlueprintResult {
     blueprintId: mutation.data?.id ?? null,
     isLoading: mutation.isPending,
     error: mutation.error ? (mutation.error as Error).message : null,
-    generate: (idea: string) => mutation.mutate(idea),
+    generate: (idea: string, model?: string) => mutation.mutate({ idea, model }),
     reset: () => mutation.reset(),
   };
 }

@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EXAMPLE_IDEAS } from '../lib/utils';
+import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
+import { useAuth } from '../hooks/useAuth';
+import { AuthModal } from './AuthModal';
 
 interface HeroProps {
   onGenerate: (idea: string) => void;
@@ -106,11 +109,20 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
   const [idea, setIdea] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
+  const { selectedModel, setSelectedModel } = useModel();
+  const { user } = useAuth();
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = idea.trim();
     if (trimmed.length < 10 || isLoading) return;
+    // Gate GPT-OSS 120B behind auth
+    if (selectedModel === 'gpt-oss-120b' && !user) {
+      setShowAuthModal(true);
+      return;
+    }
     onGenerate(trimmed);
   }
 
@@ -176,7 +188,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
   return (
     <>
       {/* ─── Section 1: Hero ─────────────────────────────── */}
-      <section className="px-6 pt-20 pb-16 max-w-3xl mx-auto text-center">
+      <section className="px-4 sm:px-6 pt-12 sm:pt-20 pb-12 sm:pb-16 max-w-3xl mx-auto text-center">
         {/* Eyebrow */}
         <div
           className="inline-flex items-center gap-2 font-mono-custom text-xs rounded-full px-4 py-1.5 mb-8 border animate-fade-slide-up"
@@ -198,7 +210,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
         <h1
           className="font-display font-extrabold tracking-tight mb-5 animate-fade-slide-up"
           style={{
-            fontSize: 'clamp(36px, 6vw, 62px)',
+            fontSize: 'clamp(28px, 7vw, 62px)',
             lineHeight: 1.05,
             letterSpacing: '-2px',
             color: 'var(--text)',
@@ -240,7 +252,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
           style={{ animationDelay: '0.3s', animationFillMode: 'both' }}
         >
           <div
-            className="card p-7 mb-5 transition-all duration-300 text-left"
+            className="card p-5 sm:p-7 mb-5 transition-all duration-300 text-left"
             style={{
               boxShadow:
                 idea.length > 0
@@ -275,12 +287,100 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
 
             <div className="flex items-center justify-between mt-5 flex-wrap gap-3">
               <span className="font-mono-custom text-xs" style={{ color: 'var(--text3)' }}>
-                {idea.length} chars · ⌘↵ to generate
+                {idea.length} chars <span className="hidden sm:inline">· ⌘↵ to generate</span>
               </span>
 
-              <button
-                type="submit"
-                disabled={!canSubmit}
+              <div className="flex items-center gap-3">
+                {/* Model Selector */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowModelDropdown(!showModelDropdown)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-150 group"
+                    style={{
+                      background: showModelDropdown ? 'var(--surface2)' : 'transparent',
+                      borderColor: showModelDropdown ? 'var(--border2)' : 'var(--border)',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!showModelDropdown) (e.currentTarget as HTMLElement).style.background = 'var(--surface2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!showModelDropdown) (e.currentTarget as HTMLElement).style.background = 'transparent';
+                    }}
+                  >
+                    <div
+                      className="w-1.5 h-1.5 rounded-full animate-pulse-dot"
+                      style={{ background: 'var(--green)', boxShadow: '0 0 8px var(--green)' }}
+                    />
+                    <span className="font-mono-custom text-[11px] sm:text-xs transition-colors" style={{ color: 'var(--text2)' }}>
+                      {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label || 'Model'}
+                    </span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" strokeWidth="2" className={`transition-transform ${showModelDropdown ? 'rotate-180' : ''}`}>
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+
+                  {showModelDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowModelDropdown(false)} />
+                      <div
+                        className="absolute bottom-full right-0 mb-2 w-[220px] rounded-xl border z-50 overflow-hidden animate-fade-slide-up shadow-2xl"
+                        style={{ background: 'var(--surface)', borderColor: 'var(--border2)' }}
+                      >
+                        <div className="px-3 py-2 text-[10px] font-mono-custom tracking-wider uppercase" style={{ color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>
+                          AI Model
+                        </div>
+                        <div className="p-1">
+                          {AVAILABLE_MODELS.map((model) => {
+                            const isGptLocked = model.id === 'gpt-oss-120b' && !user;
+                            return (
+                            <button
+                              type="button"
+                              key={model.id}
+                              onClick={() => {
+                                setSelectedModel(model.id);
+                                setShowModelDropdown(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center justify-between group transition-colors"
+                              style={{
+                                background: selectedModel === model.id ? 'var(--surface2)' : 'transparent',
+                                color: selectedModel === model.id ? 'var(--text)' : 'var(--text2)'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (selectedModel !== model.id) (e.currentTarget as HTMLElement).style.background = 'var(--surface3)';
+                              }}
+                              onMouseLeave={(e) => {
+                                if (selectedModel !== model.id) (e.currentTarget as HTMLElement).style.background = 'transparent';
+                              }}
+                              title={isGptLocked ? 'Sign in to use GPT-OSS 120B' : undefined}
+                            >
+                              <span className="font-mono-custom text-xs flex items-center gap-1.5">
+                                {model.label}
+                                {isGptLocked && <span>🔒</span>}
+                              </span>
+                              {model.badge && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded border font-mono-custom whitespace-nowrap"
+                                  style={{
+                                    background: isGptLocked ? 'rgba(245,158,11,0.1)' : 'var(--accent-glow)',
+                                    borderColor: isGptLocked ? 'rgba(245,158,11,0.3)' : 'var(--border2)',
+                                    color: isGptLocked ? 'rgb(245,158,11)' : 'var(--accent2)'
+                                  }}
+                                >
+                                  {isGptLocked ? 'Sign in required' : model.badge}
+                                </span>
+                              )}
+                            </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!canSubmit}
                 className="flex items-center gap-2.5 rounded-[10px] px-6 py-3 font-display font-semibold text-sm text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
                   background: 'var(--accent)',
@@ -305,6 +405,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                 </svg>
                 Generate Blueprint
               </button>
+              </div>
             </div>
           </div>
         </form>
@@ -321,15 +422,15 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
           // quick examples
         </div>
         <div
-          className="flex flex-wrap justify-center gap-2 animate-fade-slide-up"
-          style={{ animationDelay: '0.45s', animationFillMode: 'both' }}
+          className="flex flex-nowrap sm:flex-wrap overflow-x-auto sm:justify-center gap-2 animate-fade-slide-up pb-2 sm:pb-0"
+          style={{ animationDelay: '0.45s', animationFillMode: 'both', scrollbarWidth: 'none' }}
         >
           {EXAMPLE_IDEAS.map(({ label, idea: exampleIdea }) => (
             <button
               key={label}
               onClick={() => fillExample(exampleIdea)}
               disabled={isLoading}
-              className="font-mono-custom text-xs px-3.5 py-1.5 rounded-full border transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="font-mono-custom text-xs px-3.5 py-1.5 rounded-full border transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 whitespace-nowrap"
               style={{
                 color: 'var(--text2)',
                 borderColor: 'var(--border2)',
@@ -355,14 +456,14 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
       </section>
 
       {/* ─── Section 2: Stats ────────────────────────────── */}
-      <section className="px-6 py-16 max-w-4xl mx-auto">
+      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto">
         <div
           className="grid grid-cols-2 md:grid-cols-4 gap-4"
         >
           {STATS.map(({ value, suffix, label }) => (
             <div
               key={label}
-              className="card p-5 text-center hover:scale-[1.03] transition-transform duration-200"
+              className="card p-3 sm:p-5 text-center hover:scale-[1.03] transition-transform duration-200"
             >
               <div
                 className="font-display font-extrabold text-3xl mb-1"
@@ -386,7 +487,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
       </section>
 
       {/* ─── Section 3: Features ─────────────────────────── */}
-      <section className="px-6 py-16 max-w-4xl mx-auto">
+      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto">
         <div className="text-center mb-12">
           <div
             className="font-mono-custom text-xs uppercase tracking-widest mb-3"
@@ -413,7 +514,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
       </section>
 
       {/* ─── Section 4: How it works ─────────────────────── */}
-      <section className="px-6 py-16 max-w-3xl mx-auto">
+      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-3xl mx-auto">
         <div className="text-center mb-12">
           <div
             className="font-mono-custom text-xs uppercase tracking-widest mb-3"
@@ -440,7 +541,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             {
               step: '02',
               title: 'AI architects everything',
-              desc: 'Llama 3.3 70B generates schema, APIs, screens, and architecture in real-time.',
+              desc: 'Your chosen AI model generates schema, APIs, screens, and architecture in real-time.',
               color: 'var(--green)',
             },
             {
@@ -464,7 +565,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               >
                 {step}
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="font-display font-bold text-sm mb-1" style={{ color: 'var(--text)' }}>
                   {title}
                 </h3>
@@ -478,9 +579,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
       </section>
 
       {/* ─── Section 5: CTA ──────────────────────────────── */}
-      <section className="px-6 py-20 max-w-3xl mx-auto text-center">
+      <section className="px-4 sm:px-6 py-12 sm:py-20 max-w-3xl mx-auto text-center">
         <div
-          className="card p-12"
+          className="card p-8 sm:p-12"
           style={{
             background: 'linear-gradient(135deg, rgba(124,106,255,0.08), rgba(34,211,165,0.06))',
             borderColor: 'rgba(124,106,255,0.2)',
@@ -522,6 +623,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
           </button>
         </div>
       </section>
+
+      {/* Auth modal for GPT-OSS gate */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </>
   );
 }

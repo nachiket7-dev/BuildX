@@ -10,7 +10,8 @@ import { GalleryPage } from './components/GalleryPage';
 import { Sidebar } from './components/Sidebar';
 import { useStreamBlueprint } from './hooks/useStreamBlueprint';
 import { useRefinement } from './hooks/useRefinement';
-import { useAuthProvider, AuthContext, useAuth } from './hooks/useAuth';
+import { useAuth, useAuthProvider, AuthContext } from './hooks/useAuth';
+import { useModel } from './hooks/useModel';
 import type { Blueprint } from './lib/types';
 
 function BlueprintPage({ sidebarOffset = 0 }: { sidebarOffset?: number }) {
@@ -28,9 +29,12 @@ function BlueprintPage({ sidebarOffset = 0 }: { sidebarOffset?: number }) {
     loadSaved,
     reset,
   } = useStreamBlueprint();
+  const { selectedModel } = useModel();
 
   // Local override for refined blueprints
   const [refinedBlueprint, setRefinedBlueprint] = useState<Blueprint | null>(null);
+  // Track which model was used for the current generation
+  const [modelUsed, setModelUsed] = useState<string | null>(null);
 
   // The "active" blueprint is the refined one if available, otherwise the original
   const activeBlueprint = refinedBlueprint ?? blueprint;
@@ -49,7 +53,17 @@ function BlueprintPage({ sidebarOffset = 0 }: { sidebarOffset?: number }) {
 
   // Load saved blueprint from URL — handles sidebar switching
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      // Navigated to / — reset state so Hero shows
+      if (blueprint || loadedId) {
+        reset();
+        setRefinedBlueprint(null);
+        setModelUsed(null);
+        clearHistory();
+        setLoadedId(null);
+      }
+      return;
+    }
     if (isStreaming) return;
 
     // Already loaded this exact blueprint
@@ -58,6 +72,7 @@ function BlueprintPage({ sidebarOffset = 0 }: { sidebarOffset?: number }) {
     // Reset state for a new blueprint
     reset();
     setRefinedBlueprint(null);
+    setModelUsed(null);
     clearHistory();
     setLoadedId(id);
     loadSaved(id);
@@ -66,6 +81,7 @@ function BlueprintPage({ sidebarOffset = 0 }: { sidebarOffset?: number }) {
   const handleReset = () => {
     reset();
     setRefinedBlueprint(null);
+    setModelUsed(null);
     clearHistory();
     setLoadedId(null);
     navigate('/');
@@ -93,7 +109,7 @@ function BlueprintPage({ sidebarOffset = 0 }: { sidebarOffset?: number }) {
       )}
 
       <main className="flex-1 flex flex-col">
-        {showHero && <Hero onGenerate={generate} isLoading={isStreaming} />}
+        {showHero && <Hero onGenerate={(idea) => { setModelUsed(selectedModel); generate(idea, selectedModel); }} isLoading={isStreaming} />}
         {showStreaming && <StreamingView progress={progress} partialBlueprint={partialBlueprint} />}
         {showOutput && activeBlueprint && (
           <>
@@ -101,12 +117,13 @@ function BlueprintPage({ sidebarOffset = 0 }: { sidebarOffset?: number }) {
               blueprint={activeBlueprint}
               blueprintId={blueprintId}
               onReset={handleReset}
+              modelUsed={modelUsed ?? undefined}
             />
             {/* Floating refinement chat */}
             <RefinementChat
               messages={messages}
               isRefining={isRefining}
-              onSend={refine}
+              onSend={(msg) => refine(msg, selectedModel)}
               onClear={clearHistory}
               sidebarOffset={sidebarOffset}
             />
@@ -159,12 +176,11 @@ function AppContent() {
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       )}
 
-      {/* App shell — shifts right when sidebar is open */}
+      {/* App shell — shifts right when sidebar is open on desktop */}
       <div
-        className="relative z-10 flex flex-col min-h-screen transition-all duration-300"
-        style={{
-          marginLeft: user && sidebarOpen ? '280px' : '0',
-        }}
+        className={`relative z-10 flex flex-col min-h-screen transition-all duration-300 ${
+          user && sidebarOpen ? 'md:ml-[280px]' : ''
+        }`}
       >
         <Header
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
@@ -186,7 +202,7 @@ function AppContent() {
             borderTop: '1px solid var(--border)',
           }}
         >
-          AI-powered · Groq + Llama 3.3 70B · Turn any idea into a deployable blueprint
+          AI-powered · Multi-Model · Turn any idea into a deployable blueprint
         </footer>
       </div>
     </div>

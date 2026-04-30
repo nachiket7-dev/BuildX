@@ -1,11 +1,15 @@
-import { getGroqClient } from './groq';
+import { getGroqClient, resolveModel } from './groq';
 import type { Blueprint } from './types';
 import { BlueprintSchema } from './types';
 
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
-
+/**
+ * Strip reasoning model <think>...</think> blocks and extract the JSON object.
+ */
 function extractJSON(raw: string): string {
-  let cleaned = raw
+  // Remove <think>...</think> blocks (reasoning models like GPT-OSS 120B, Qwen 3)
+  let cleaned = raw.replace(/<think>[\s\S]*?<\/think>/gi, '');
+
+  cleaned = cleaned
     .replace(/^```json\s*/im, '')
     .replace(/^```\s*/im, '')
     .replace(/```\s*$/im, '')
@@ -84,18 +88,20 @@ function applyFallbacks(partial: Record<string, unknown>): Blueprint {
  * The current blueprint is included as context so the AI can make targeted modifications.
  */
 export async function refineBlueprint(
-  currentBlueprint: Blueprint,
-  userMessage: string
+  originalBlueprint: Blueprint,
+  refinementMessage: string,
+  requestedModel?: string
 ): Promise<Blueprint> {
   const client = getGroqClient();
+  const groqModel = resolveModel(requestedModel);
 
-  console.log(`[Refine] Request: "${userMessage.slice(0, 100)}"`);
+  console.log(`[Refine] model=${groqModel} | request="${refinementMessage.slice(0, 100)}"`);
 
   const systemPrompt = `You are BuildX — an AI product architect. You have previously generated a product blueprint.
 The user wants to MODIFY this blueprint based on their new request.
 
 CURRENT BLUEPRINT:
-${JSON.stringify(currentBlueprint, null, 2)}
+${JSON.stringify(originalBlueprint, null, 2)}
 
 RULES:
 1. Return ONLY a complete, valid JSON object with the SAME shape as the current blueprint
@@ -108,14 +114,14 @@ RULES:
 8. Use \\n for newlines in code strings`;
 
   const completion = await client.chat.completions.create({
-    model: GROQ_MODEL,
-    max_tokens: 6000,
+    model: groqModel,
+    max_tokens: 4500,
     temperature: 0.3,
     messages: [
       { role: 'system', content: systemPrompt },
       {
         role: 'user',
-        content: `Modification request: ${userMessage}\n\nReturn the COMPLETE updated blueprint as JSON. Keep unchanged sections as-is.`,
+        content: `Modification request: ${refinementMessage}\n\nReturn the COMPLETE updated blueprint as JSON. Keep unchanged sections as-is.`,
       },
     ],
   });

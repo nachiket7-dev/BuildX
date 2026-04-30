@@ -120,7 +120,7 @@ export function DiagramsPanel({ blueprint }: { blueprint: Blueprint }) {
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
         {DIAGRAM_TABS.map(({ id, label, icon }) => (
           <button
             key={id}

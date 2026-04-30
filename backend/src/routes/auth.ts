@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { createUser, getUserByEmail, getUserById, listUserBlueprints, renameBlueprint, deleteBlueprint, claimUnownedBlueprints } from '../lib/db';
+import { createUser, getUserByEmail, getUserById, listUserBlueprints, renameBlueprint, deleteBlueprint } from '../lib/db';
 import { generateToken, requireAuth } from '../lib/auth';
 
 const router = Router();
@@ -38,11 +38,9 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const id = await createUser(name.trim(), email.toLowerCase().trim(), hashedPassword);
 
-    // Claim any blueprints created before auth was added
-    const claimed = await claimUnownedBlueprints(id);
     const token = generateToken({ userId: id, email: email.toLowerCase().trim() });
 
-    console.log(`[Auth] New user: ${name.trim()} (${email.toLowerCase().trim()})${claimed ? ` — claimed ${claimed} blueprints` : ''}`);
+    console.log(`[Auth] New user: ${name.trim()} (${email.toLowerCase().trim()})`);
     res.status(201).json({
       success: true,
       token,
@@ -67,28 +65,31 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const user = await getUserByEmail(email.toLowerCase().trim());
-  if (!user) {
-    res.status(401).json({ error: 'Invalid email or password' });
-    return;
+  try {
+    const user = await getUserByEmail(email.toLowerCase().trim());
+    if (!user) {
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
+    }
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
+    }
+
+    const token = generateToken({ userId: user.id, email: user.email });
+
+    console.log(`[Auth] Login: ${user.name} (${user.email})`);
+    res.json({
+      success: true,
+      token,
+      user: { id: user.id, name: user.name, email: user.email },
+    });
+  } catch (err) {
+    console.error('[Auth] Login error:', (err as Error).message);
+    res.status(500).json({ error: 'Login failed' });
   }
-
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) {
-    res.status(401).json({ error: 'Invalid email or password' });
-    return;
-  }
-
-  // Claim any blueprints created before auth was added
-  const claimed = await claimUnownedBlueprints(user.id);
-  const token = generateToken({ userId: user.id, email: user.email });
-
-  console.log(`[Auth] Login: ${user.name} (${user.email})${claimed ? ` — claimed ${claimed} blueprints` : ''}`);
-  res.json({
-    success: true,
-    token,
-    user: { id: user.id, name: user.name, email: user.email },
-  });
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -103,9 +104,6 @@ router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void
     return;
   }
 
-  // Claim any unclaimed blueprints on every auth check
-  await claimUnownedBlueprints(req.user!.userId);
-
   res.json({
     success: true,
     user: { id: user.id, name: user.name, email: user.email },
@@ -118,8 +116,13 @@ router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void
 // Returns: { success, data: BlueprintListItem[] }
 // ─────────────────────────────────────────────────────────────
 router.get('/my-blueprints', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const items = await listUserBlueprints(req.user!.userId);
-  res.json({ success: true, data: items });
+  try {
+    const items = await listUserBlueprints(req.user!.userId);
+    res.json({ success: true, data: items });
+  } catch (err) {
+    console.error('[Auth] my-blueprints error:', (err as Error).message);
+    res.status(500).json({ error: 'Failed to load blueprints' });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -132,24 +135,34 @@ router.patch('/blueprint/:id/rename', requireAuth, async (req: Request, res: Res
     res.status(400).json({ error: 'Title is required' });
     return;
   }
-  const ok = await renameBlueprint(req.params.id, req.user!.userId, title.trim());
-  if (!ok) {
-    res.status(404).json({ error: 'Blueprint not found or not owned by you' });
-    return;
+  try {
+    const ok = await renameBlueprint(req.params.id, req.user!.userId, title.trim());
+    if (!ok) {
+      res.status(404).json({ error: 'Blueprint not found or not owned by you' });
+      return;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Auth] rename error:', (err as Error).message);
+    res.status(500).json({ error: 'Failed to rename blueprint' });
   }
-  res.json({ success: true });
 });
 
 // ─────────────────────────────────────────────────────────────
 // DELETE /api/auth/blueprint/:id
 // ─────────────────────────────────────────────────────────────
 router.delete('/blueprint/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const ok = await deleteBlueprint(req.params.id, req.user!.userId);
-  if (!ok) {
-    res.status(404).json({ error: 'Blueprint not found or not owned by you' });
-    return;
+  try {
+    const ok = await deleteBlueprint(req.params.id, req.user!.userId);
+    if (!ok) {
+      res.status(404).json({ error: 'Blueprint not found or not owned by you' });
+      return;
+    }
+    res.status(204).send();
+  } catch (err) {
+    console.error('[Auth] delete error:', (err as Error).message);
+    res.status(500).json({ error: 'Failed to delete blueprint' });
   }
-  res.json({ success: true });
 });
 
 export default router;

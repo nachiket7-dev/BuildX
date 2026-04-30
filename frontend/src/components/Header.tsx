@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Logo } from './Logo';
 import { AuthModal } from './AuthModal';
 import { useAuth } from '../hooks/useAuth';
+import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -14,13 +15,14 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen }: Head
   const location = useLocation();
   const isGallery = location.pathname === '/gallery';
   const { user, logout } = useAuth();
+  const { selectedModel } = useModel();
   const [showAuth, setShowAuth] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
   return (
     <>
       <header
-        className="flex items-center justify-between px-8 py-4 sticky top-0 z-50"
+        className="flex items-center justify-between px-4 sm:px-8 py-3 sm:py-4 sticky top-0 z-50"
         style={{
           borderBottom: '1px solid var(--border)',
           backdropFilter: 'blur(12px)',
@@ -47,7 +49,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen }: Head
           </Link>
         </div>
 
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3 sm:gap-5">
           {/* Gallery link */}
           <Link
             to="/gallery"
@@ -62,7 +64,8 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen }: Head
               if (!isGallery) (e.target as HTMLElement).style.color = 'var(--text3)';
             }}
           >
-            Gallery
+            <span className="hidden sm:inline">Gallery</span>
+            <span className="sm:hidden">🖼️</span>
           </Link>
 
           {/* Status dot */}
@@ -72,7 +75,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen }: Head
               style={{ background: 'var(--green)', boxShadow: '0 0 8px var(--green)' }}
             />
             <span className="font-mono-custom text-xs hidden sm:inline" style={{ color: 'var(--text3)' }}>
-              Groq + Llama 3.3
+              {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label || 'Groq AI'}
             </span>
           </div>
 
@@ -163,7 +166,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen }: Head
           ) : (
             <button
               onClick={() => setShowAuth(true)}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-xl border font-mono-custom text-xs transition-all duration-150"
+              className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-xl border font-mono-custom text-xs transition-all duration-150"
               style={{
                 background: 'var(--accent-glow)',
                 borderColor: 'rgba(124,106,255,0.25)',

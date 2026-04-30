@@ -48,7 +48,7 @@ export function useAuthProvider(): AuthState {
 
   const clearError = useCallback(() => setError(null), []);
 
-  // Verify token on mount — also triggers claimUnownedBlueprints on the backend
+  // Verify token on mount
   useEffect(() => {
     if (!token) {
       setAuthReady(true);

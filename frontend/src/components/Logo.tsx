@@ -29,7 +29,7 @@ export function Logo({ size = 'md' }: LogoProps) {
         BuildX
       </span>
       <span
-        className={`${s.badge} font-mono-custom rounded-full border`}
+        className={`${s.badge} hidden sm:inline-block font-mono-custom rounded-full border`}
         style={{
           background: 'var(--accent-glow)',
           borderColor: 'rgba(124,106,255,0.3)',

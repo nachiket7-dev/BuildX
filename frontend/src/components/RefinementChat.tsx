@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { ChatMessage } from '../hooks/useRefinement';
+import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
 
 interface RefinementChatProps {
   messages: ChatMessage[];
@@ -21,8 +22,18 @@ const SUGGESTIONS = [
 export function RefinementChat({ messages, isRefining, onSend, onClear, sidebarOffset = 0 }: RefinementChatProps) {
   const [input, setInput] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { selectedModel, setSelectedModel } = useModel();
+
+  // Track window width for responsive maxHeight
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -49,11 +60,13 @@ export function RefinementChat({ messages, isRefining, onSend, onClear, sidebarO
 
   return (
     <div
-      className="fixed bottom-0 right-0 z-50 transition-all duration-300"
-      style={{ pointerEvents: 'none', left: `${sidebarOffset}px` }}
+      className={`fixed bottom-0 right-0 left-0 z-50 transition-all duration-300 ${
+        sidebarOffset > 0 ? 'md:pl-[280px]' : ''
+      }`}
+      style={{ pointerEvents: 'none' }}
     >
       <div
-        className="max-w-5xl mx-auto px-6 pb-6"
+        className="max-w-5xl mx-auto px-3 sm:px-6 pb-3 sm:pb-6"
         style={{ pointerEvents: 'auto' }}
       >
         <div
@@ -112,7 +125,7 @@ export function RefinementChat({ messages, isRefining, onSend, onClear, sidebarO
           {/* Expandable content */}
           <div
             style={{
-              maxHeight: isExpanded ? '400px' : '0px',
+              maxHeight: isExpanded ? (isMobile ? '55vh' : '400px') : '0px',
               opacity: isExpanded ? 1 : 0,
               transition: 'max-height 0.3s ease, opacity 0.2s ease',
               overflow: 'hidden',
@@ -201,7 +214,7 @@ export function RefinementChat({ messages, isRefining, onSend, onClear, sidebarO
             )}
 
             {/* Input bar */}
-            <form onSubmit={handleSubmit} className="px-4 py-3 flex gap-2">
+            <form onSubmit={handleSubmit} className="px-3 sm:px-4 py-3 flex gap-2">
               <input
                 ref={inputRef}
                 type="text"
@@ -214,7 +227,7 @@ export function RefinementChat({ messages, isRefining, onSend, onClear, sidebarO
                     : 'e.g. "Add a payments system with Stripe"'
                 }
                 maxLength={500}
-                className="flex-1 px-4 py-2.5 rounded-xl border text-sm transition-all duration-150 disabled:opacity-50"
+                className="flex-1 min-w-0 px-3 sm:px-4 py-2.5 rounded-xl border text-sm transition-all duration-150 disabled:opacity-50"
                 style={{
                   background: 'rgba(255, 255, 255, 0.04)',
                   borderColor: 'rgba(255, 255, 255, 0.1)',
@@ -232,7 +245,7 @@ export function RefinementChat({ messages, isRefining, onSend, onClear, sidebarO
                 <button
                   type="button"
                   onClick={onClear}
-                  className="px-3 py-2.5 rounded-xl border text-xs transition-all duration-150"
+                  className="px-3 py-2.5 rounded-xl border text-xs transition-all duration-150 flex-shrink-0"
                   style={{
                     background: 'rgba(255, 255, 255, 0.03)',
                     borderColor: 'rgba(255, 255, 255, 0.08)',
@@ -243,10 +256,86 @@ export function RefinementChat({ messages, isRefining, onSend, onClear, sidebarO
                   ✕
                 </button>
               )}
+
+              {/* Model Selector — hidden on mobile to save space */}
+              <div className="relative hidden sm:block">
+                <button
+                  type="button"
+                  onClick={() => setShowModelDropdown(!showModelDropdown)}
+                  className="px-3 py-2.5 rounded-xl border flex items-center justify-center transition-all duration-150 group h-full"
+                  style={{
+                    background: showModelDropdown ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.03)',
+                    borderColor: showModelDropdown ? 'rgba(124, 106, 255, 0.4)' : 'rgba(255, 255, 255, 0.08)',
+                    color: 'var(--text3)',
+                  }}
+                  title="Select AI Model"
+                  onMouseEnter={(e) => {
+                    if (!showModelDropdown) (e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.05)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!showModelDropdown) (e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.03)';
+                  }}
+                >
+                  <span className="font-mono-custom text-[11px] sm:text-xs">
+                    {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label.split(' ')[0] || 'Model'}
+                  </span>
+                </button>
+
+                {showModelDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowModelDropdown(false)} />
+                    <div
+                      className="absolute bottom-full right-0 mb-2 w-[220px] rounded-xl border z-50 overflow-hidden animate-fade-slide-up shadow-2xl"
+                      style={{ background: 'var(--surface)', borderColor: 'var(--border2)' }}
+                    >
+                      <div className="px-3 py-2 text-[10px] font-mono-custom tracking-wider uppercase" style={{ color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>
+                        AI Model
+                      </div>
+                      <div className="p-1">
+                        {AVAILABLE_MODELS.map((model) => (
+                          <button
+                            type="button"
+                            key={model.id}
+                            onClick={() => {
+                              setSelectedModel(model.id);
+                              setShowModelDropdown(false);
+                            }}
+                            className="w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center justify-between group transition-colors"
+                            style={{
+                              background: selectedModel === model.id ? 'var(--surface2)' : 'transparent',
+                              color: selectedModel === model.id ? 'var(--text)' : 'var(--text2)'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (selectedModel !== model.id) (e.currentTarget as HTMLElement).style.background = 'var(--surface3)';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (selectedModel !== model.id) (e.currentTarget as HTMLElement).style.background = 'transparent';
+                            }}
+                          >
+                            <span className="font-mono-custom text-xs">{model.label}</span>
+                            {model.badge && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded border font-mono-custom whitespace-nowrap"
+                                style={{
+                                  background: 'var(--accent-glow)',
+                                  borderColor: 'var(--border2)',
+                                  color: 'var(--accent2)'
+                                }}
+                              >
+                                {model.badge}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
               <button
                 type="submit"
                 disabled={!input.trim() || isRefining}
-                className="px-5 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150 disabled:opacity-30"
+                className="px-4 sm:px-5 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150 disabled:opacity-30 flex-shrink-0"
                 style={{
                   background: 'rgba(124, 106, 255, 0.2)',
                   borderColor: 'rgba(124, 106, 255, 0.3)',

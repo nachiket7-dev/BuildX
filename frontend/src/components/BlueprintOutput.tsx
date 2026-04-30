@@ -12,17 +12,23 @@ import {
 } from './BlueprintPanels';
 import { DiagramsPanel } from './DiagramsPanel';
 import { complexityColor } from '../lib/utils';
+import { useAuth } from '../hooks/useAuth';
+import { AVAILABLE_MODELS } from '../hooks/useModel';
 
 interface BlueprintOutputProps {
   blueprint: Blueprint;
   blueprintId: string | null;
   onReset: () => void;
+  modelUsed?: string;
 }
 
-export function BlueprintOutput({ blueprint, blueprintId, onReset }: BlueprintOutputProps) {
+export function BlueprintOutput({ blueprint, blueprintId, onReset, modelUsed }: BlueprintOutputProps) {
   const [activeTab, setActiveTab] = useState<TabId>('features');
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const { user, token } = useAuth();
+  const [isPublic, setIsPublic] = useState(false);
+  const [togglingVisibility, setTogglingVisibility] = useState(false);
 
   async function handleDownload() {
     setDownloading(true);
@@ -68,8 +74,31 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset }: BlueprintOu
     });
   }
 
+  async function handleToggleVisibility() {
+    if (!blueprintId || !token) return;
+    setTogglingVisibility(true);
+    try {
+      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+      const res = await fetch(`${BASE_URL}/api/blueprint/${blueprintId}/visibility`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_public: !isPublic }),
+      });
+      if (res.ok) {
+        setIsPublic(!isPublic);
+      }
+    } catch {
+      // silent
+    } finally {
+      setTogglingVisibility(false);
+    }
+  }
+
   return (
-    <section className="px-6 pb-24 max-w-5xl mx-auto animate-fade-slide-up">
+    <section className="px-4 sm:px-6 pb-24 max-w-5xl mx-auto animate-fade-slide-up">
       {/* Output header */}
       <div className="flex items-start justify-between gap-6 py-8 flex-wrap">
         <div className="flex-1 min-w-0">
@@ -111,16 +140,29 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset }: BlueprintOu
             >
               {blueprint.schema.length} tables · {blueprint.endpoints.length} endpoints · {blueprint.screens.length} screens
             </span>
+            {modelUsed && (
+              <span
+                className="font-mono-custom text-xs px-3 py-1 rounded-full border"
+                style={{
+                  color: 'var(--accent2)',
+                  borderColor: 'rgba(124,106,255,0.3)',
+                  background: 'var(--accent-glow)',
+                }}
+              >
+                🧠 {AVAILABLE_MODELS.find(m => m.id === modelUsed)?.label || modelUsed}
+              </span>
+            )}
           </div>
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap">
           {/* Share button */}
           {blueprintId && (
             <button
               onClick={handleShare}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-[10px] border text-sm transition-all duration-150"
+              title="Share blueprint link"
+              className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-[10px] border text-xs sm:text-sm transition-all duration-150"
               style={{
                 background: copied ? 'var(--green-dim)' : 'var(--accent-glow)',
                 borderColor: copied ? 'rgba(34,211,165,0.3)' : 'rgba(124,106,255,0.3)',
@@ -132,7 +174,7 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset }: BlueprintOu
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  Copied!
+                  <span className="hidden sm:inline">Copied!</span>
                 </>
               ) : (
                 <>
@@ -141,9 +183,27 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset }: BlueprintOu
                     <polyline points="16 6 12 2 8 6" />
                     <line x1="12" y1="2" x2="12" y2="15" />
                   </svg>
-                  Share
+                  <span className="hidden sm:inline">Share</span>
                 </>
               )}
+            </button>
+          )}
+
+          {/* Visibility toggle — only for blueprint owners */}
+          {blueprintId && user && (
+            <button
+              onClick={handleToggleVisibility}
+              disabled={togglingVisibility}
+              title={isPublic ? 'Make blueprint private' : 'Make blueprint public'}
+              className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-[10px] border text-xs sm:text-sm transition-all duration-150 disabled:opacity-50"
+              style={{
+                background: isPublic ? 'var(--green-dim)' : 'var(--surface2)',
+                borderColor: isPublic ? 'rgba(34,211,165,0.3)' : 'var(--border2)',
+                color: isPublic ? 'var(--green)' : 'var(--text3)',
+              }}
+            >
+              {isPublic ? '🌐' : '🔒'}
+              <span className="hidden sm:inline">{isPublic ? 'Public' : 'Private'}</span>
             </button>
           )}
 
@@ -151,7 +211,8 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset }: BlueprintOu
           <button
             onClick={handleDownload}
             disabled={downloading}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-[10px] border text-sm transition-all duration-150 disabled:opacity-50"
+            title="Download project scaffold"
+            className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-[10px] border text-xs sm:text-sm transition-all duration-150 disabled:opacity-50"
             style={{
               background: 'var(--green-dim)',
               borderColor: 'rgba(34,211,165,0.3)',
@@ -161,7 +222,7 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset }: BlueprintOu
             {downloading ? (
               <>
                 <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin-slow" />
-                Exporting...
+                <span className="hidden sm:inline">Exporting...</span>
               </>
             ) : (
               <>
@@ -170,7 +231,7 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset }: BlueprintOu
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                Download Project
+                <span className="hidden sm:inline">Download</span>
               </>
             )}
           </button>
@@ -178,7 +239,8 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset }: BlueprintOu
           {/* New blueprint button */}
           <button
             onClick={onReset}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-[10px] border text-sm transition-all duration-150"
+            title="Start new blueprint"
+            className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-[10px] border text-xs sm:text-sm transition-all duration-150"
             style={{
               background: 'var(--surface2)',
               borderColor: 'var(--border2)',
@@ -200,7 +262,7 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset }: BlueprintOu
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 5l-7 7 7 7" />
             </svg>
-            New Blueprint
+            <span className="hidden sm:inline">New</span>
           </button>
         </div>
       </div>
