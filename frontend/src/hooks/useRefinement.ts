@@ -11,7 +11,7 @@ interface UseRefinementResult {
   messages: ChatMessage[];
   isRefining: boolean;
   error: string | null;
-  refine: (message: string) => void;
+  refine: (message: string, model: string) => void;
   clearHistory: () => void;
 }
 
@@ -24,7 +24,7 @@ export function useRefinement(
   const [error, setError] = useState<string | null>(null);
 
   const refine = useCallback(
-    async (message: string) => {
+    async (message: string, model: string) => {
       if (!blueprint || isRefining) return;
 
       setError(null);
@@ -40,10 +40,14 @@ export function useRefinement(
 
       try {
         const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+        const token = localStorage.getItem('buildx_token');
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
         const response = await fetch(`${BASE_URL}/api/blueprint/refine`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ blueprint, message }),
+          headers,
+          body: JSON.stringify({ blueprint, message, model }),
         });
 
         if (!response.ok) {

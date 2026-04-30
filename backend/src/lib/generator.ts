@@ -1,4 +1,4 @@
-import { getGroqClient } from './groq';
+import { getGroqClient, resolveModel } from './groq';
 import { Blueprint, BlueprintSchema } from './types';
 import { Response } from 'express';
 import {
@@ -9,8 +9,6 @@ import {
   detectNewSections,
   SectionKey,
 } from './stream';
-
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 const SYSTEM_PROMPT = `You are BuildX — an elite AI product architect, full-stack engineer, and UX designer.
 Transform a plain-English app idea into a complete, actionable product blueprint.
@@ -84,18 +82,32 @@ Requirements:
 6. screens must have 6-10 screens with detailed component lists
 7. code values must be real working code, not stubs`;
 
+/**
+ * Strip reasoning model <think>...</think> blocks and extract the JSON object.
+ * Handles GPT-OSS 120B, DeepSeek R1, Qwen 3 (thinking mode), etc.
+ */
 function extractJSON(raw: string): string {
-  let cleaned = raw
+  // 1. Remove <think>...</think> blocks (reasoning models)
+  let cleaned = raw.replace(/<think>[\s\S]*?<\/think>/gi, '');
+
+  // 2. Remove markdown code fences
+  cleaned = cleaned
     .replace(/^```json\s*/im, '')
     .replace(/^```\s*/im, '')
     .replace(/```\s*$/im, '')
     .trim();
+
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
   if (start === -1 || end === -1 || end <= start) {
     throw new Error('No valid JSON object found in AI response. Got: ' + cleaned.slice(0, 200));
   }
   return cleaned.slice(start, end + 1);
+}
+
+/** Model-aware token limits — reasoning models need more headroom for <think> tokens */
+function getMaxTokens(groqModel: string): number {
+  return groqModel === 'openai/gpt-oss-120b' ? 7000 : 4500;
 }
 
 const VALID_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
@@ -183,22 +195,26 @@ function parseAndValidate(rawText: string): Blueprint {
 
 // ─── Non-streaming generation (original) ──────────────────
 
-export async function generateBlueprint(idea: string): Promise<Blueprint> {
+export async function generateBlueprint(idea: string, requestedModel?: string): Promise<Blueprint> {
   const client = getGroqClient();
+  const groqModel = resolveModel(requestedModel);
+  const maxTokens = getMaxTokens(groqModel);
 
-  console.log(`[Groq] Calling ${GROQ_MODEL} for: "${idea.slice(0, 80)}"`);
+  console.log(`[Groq] model=${groqModel} | max_tokens=${maxTokens} | idea="${idea.slice(0, 80)}"`);
+
+  const messages = [
+    { role: 'system' as const, content: SYSTEM_PROMPT },
+    {
+      role: 'user' as const,
+      content: `App idea: ${idea}\n\nRespond with ONLY the JSON object. No markdown, no explanation.`,
+    },
+  ];
 
   const completion = await client.chat.completions.create({
-    model: GROQ_MODEL,
-    max_tokens: 6000,
+    model: groqModel,
+    max_tokens: maxTokens,
     temperature: 0.4,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: `App idea: ${idea}\n\nRespond with ONLY the JSON object. No markdown, no explanation.`,
-      },
-    ],
+    messages,
   });
 
   const rawText = completion.choices[0]?.message?.content;
@@ -213,34 +229,53 @@ export async function generateBlueprint(idea: string): Promise<Blueprint> {
     console.warn('[Groq] Response truncated — hit max_tokens. JSON may be incomplete.');
   }
 
-  return parseAndValidate(rawText);
+  // Auto-retry once with temperature: 0 if parsing fails
+  try {
+    return parseAndValidate(rawText);
+  } catch (firstErr) {
+    console.warn('[Groq] JSON parse failed, retrying with temperature: 0');
+    const retry = await client.chat.completions.create({
+      model: groqModel,
+      max_tokens: maxTokens,
+      temperature: 0,
+      messages,
+    });
+    const retryText = retry.choices[0]?.message?.content;
+    if (!retryText) throw firstErr;
+    return parseAndValidate(retryText);
+  }
 }
 
 // ─── Streaming generation (SSE) ───────────────────────────
 
 export async function generateBlueprintStream(
   idea: string,
-  res: Response
+  res: Response,
+  requestedModel?: string
 ): Promise<Blueprint> {
   const client = getGroqClient();
+  const groqModel = resolveModel(requestedModel);
+  const maxTokens = getMaxTokens(groqModel);
 
-  console.log(`[Groq:stream] Calling ${GROQ_MODEL} for: "${idea.slice(0, 80)}"`);
+  console.log(`[Groq:stream] model=${groqModel} | max_tokens=${maxTokens} | idea="${idea.slice(0, 80)}"`);
+
+  const messages = [
+    { role: 'system' as const, content: SYSTEM_PROMPT },
+    {
+      role: 'user' as const,
+      content: `App idea: ${idea}\n\nRespond with ONLY the JSON object. No markdown, no explanation.`,
+    },
+  ];
 
   initSSE(res);
   sendSSE(res, 'status', { message: 'Connecting to AI model...' });
 
   const stream = await client.chat.completions.create({
-    model: GROQ_MODEL,
-    max_tokens: 6000,
+    model: groqModel,
+    max_tokens: maxTokens,
     temperature: 0.4,
     stream: true,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: `App idea: ${idea}\n\nRespond with ONLY the JSON object. No markdown, no explanation.`,
-      },
-    ],
+    messages,
   });
 
   let buffer = '';
@@ -257,6 +292,9 @@ export async function generateBlueprintStream(
     charCount += content.length;
     chunkIndex++;
 
+    // Strip <think> blocks from buffer for partial parsing
+    const cleanedBuffer = buffer.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
     // Send progress every 5 chunks
     if (chunkIndex % 5 === 0) {
       sendSSE(res, 'progress', { chars: charCount });
@@ -264,7 +302,7 @@ export async function generateBlueprintStream(
 
     // Try partial parse every 10 chunks to detect new sections
     if (chunkIndex % 10 === 0) {
-      const partial = tryParsePartial(buffer);
+      const partial = tryParsePartial(cleanedBuffer);
       if (partial) {
         const newSections = detectNewSections(lastParsed, partial);
         for (const key of newSections) {
@@ -278,10 +316,25 @@ export async function generateBlueprintStream(
     }
   }
 
-  console.log(`[Groq:stream] ${charCount} chars received.`);
+  console.log(`[Groq:stream] model=${groqModel} | ${charCount} chars received.`);
 
-  // Final parse and validate
-  const blueprint = parseAndValidate(buffer);
+  // Final parse and validate — auto-retry once with temperature: 0 if parsing fails
+  let blueprint: Blueprint;
+  try {
+    blueprint = parseAndValidate(buffer);
+  } catch (firstErr) {
+    console.warn('[Groq:stream] JSON parse failed, retrying with temperature: 0');
+    sendSSE(res, 'status', { message: 'Retrying with higher precision...' });
+    const retry = await client.chat.completions.create({
+      model: groqModel,
+      max_tokens: maxTokens,
+      temperature: 0,
+      messages,
+    });
+    const retryText = retry.choices[0]?.message?.content;
+    if (!retryText) throw firstErr;
+    blueprint = parseAndValidate(retryText);
+  }
 
   // Emit any sections that weren't caught during streaming
   sendSSE(res, 'complete', blueprint);

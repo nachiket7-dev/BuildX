@@ -43,7 +43,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center px-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center px-4 overflow-y-auto py-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -56,7 +56,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-md rounded-2xl border p-8 animate-fade-slide-up"
+        className="relative w-full max-w-md my-auto rounded-2xl border p-8 animate-fade-slide-up"
         style={{
           background: 'var(--surface)',
           borderColor: 'rgba(124, 106, 255, 0.2)',

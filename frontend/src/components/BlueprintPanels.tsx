@@ -157,11 +157,11 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
                     (e.currentTarget as HTMLElement).style.background = 'transparent';
                   }}
                 >
-                  <span className="font-mono-custom" style={{ color: 'var(--text)' }}>
+                  <span className="font-mono-custom min-w-0 truncate" style={{ color: 'var(--text)' }}>
                     {col.name}
                   </span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono-custom" style={{ color: 'var(--text3)' }}>
+                  <div className="flex items-center gap-2 text-right flex-shrink-0 max-w-[55%]">
+                    <span className="font-mono-custom break-all" style={{ color: 'var(--text3)' }}>
                       {col.type}
                     </span>
                     {col.note && (
@@ -349,10 +349,10 @@ export function ArchPanel({ blueprint }: { blueprint: Blueprint }) {
 
 type CodeTab = 'frontend' | 'backend' | 'sql';
 
-const CODE_TABS: { id: CodeTab; label: string; lang: string }[] = [
-  { id: 'frontend', label: 'React · Frontend', lang: 'tsx' },
-  { id: 'backend', label: 'Express · Backend', lang: 'ts' },
-  { id: 'sql', label: 'SQL Schema', lang: 'sql' },
+const CODE_TABS: { id: CodeTab; label: string; shortLabel: string; lang: string }[] = [
+  { id: 'frontend', label: 'React · Frontend', shortLabel: 'FE', lang: 'tsx' },
+  { id: 'backend', label: 'Express · Backend', shortLabel: 'BE', lang: 'ts' },
+  { id: 'sql', label: 'SQL Schema', shortLabel: 'SQL', lang: 'sql' },
 ];
 
 export function CodePanel({ blueprint }: { blueprint: Blueprint }) {
@@ -378,7 +378,7 @@ export function CodePanel({ blueprint }: { blueprint: Blueprint }) {
       {/* Code tabs + copy button */}
       <div className="flex items-end justify-between mb-0 flex-wrap gap-2">
         <div className="flex gap-1">
-          {CODE_TABS.map(({ id, label }) => (
+          {CODE_TABS.map(({ id, label, shortLabel }) => (
             <button
               key={id}
               onClick={() => setActiveCode(id)}
@@ -389,7 +389,8 @@ export function CodePanel({ blueprint }: { blueprint: Blueprint }) {
                 color: activeCode === id ? 'var(--accent2)' : 'var(--text3)',
               }}
             >
-              {label}
+              <span className="sm:hidden">{shortLabel}</span>
+              <span className="hidden sm:inline">{label}</span>
             </button>
           ))}
         </div>

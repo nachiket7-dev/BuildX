@@ -236,4 +236,9 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+
+  /* Hide scrollbar for horizontal-scroll elements on mobile */
+  .overflow-x-auto::-webkit-scrollbar {
+    display: none;
+  }
 }

@@ -219,7 +219,15 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
             </div>
           )}
 
-          {groups.map(({ label, items: groupItems }) => (
+          {groups.map(({ label, items: groupItems }) => {
+            // Compute flat start index for this group
+            let flatStartIdx = 0;
+            for (const g of groups) {
+              if (g.label === label) break;
+              flatStartIdx += g.items.length;
+            }
+
+            return (
             <div key={label} className="mb-4">
               <div
                 className="font-mono-custom text-[10px] uppercase tracking-wider px-3 py-1.5"
@@ -228,7 +236,11 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 {label}
               </div>
 
-              {groupItems.map((item) => (
+              {groupItems.map((item, groupIdx) => {
+                const flatIdx = flatStartIdx + groupIdx;
+                const isNearBottom = flatIdx >= items.length - 3;
+
+                return (
                 <div
                   key={item.id}
                   className="group relative"
@@ -307,7 +319,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                         onClick={() => setMenuId(null)}
                       />
                       <div
-                        className="absolute right-2 top-full z-20 w-36 rounded-lg border p-1 shadow-lg"
+                        className={`absolute right-2 z-20 w-36 rounded-lg border p-1 shadow-lg ${isNearBottom ? 'bottom-full' : 'top-full'}`}
                         style={{
                           background: 'var(--surface2)',
                           borderColor: 'var(--border2)',
@@ -352,9 +364,11 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                     </>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Footer */}

@@ -1,11 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { BlueprintRequestSchema, BlueprintSchema } from '../lib/types';
 import { generateBlueprint, generateBlueprintStream } from '../lib/generator';
-import { saveBlueprint, getBlueprint, getBlueprintMeta, listBlueprints, saveChatMessage, getChatMessages } from '../lib/db';
+import { saveBlueprint, getBlueprint, getBlueprintMeta, listBlueprints, saveChatMessage, getChatMessages, checkAndIncrementUsage, updateBlueprintVisibility } from '../lib/db';
 import { sendSSE, endSSE } from '../lib/stream';
 import { streamScaffoldZip } from '../lib/scaffold';
 import { refineBlueprint } from '../lib/refine';
-import { optionalAuth } from '../lib/auth';
+import { resolveModel } from '../lib/groq';
+import { optionalAuth, requireAuth } from '../lib/auth';
 
 const router = Router();
 
@@ -30,12 +31,27 @@ router.post(
       return;
     }
 
-    const { idea } = parseResult.data;
+    const { idea, model } = parseResult.data;
+    const groqModel = resolveModel(model);
     console.log(`[Blueprint] Generating for idea: "${idea.slice(0, 80)}..."`);
 
+    if (groqModel === 'openai/gpt-oss-120b') {
+      if (!req.user?.userId) {
+        res.status(401).json({ error: 'You must be logged in to use GPT-OSS 120B.' });
+        return;
+      }
+      try {
+        await checkAndIncrementUsage(req.user.userId, groqModel, 5);
+      } catch (err) {
+        res.status(429).json({ error: (err as Error).message });
+        return;
+      }
+    }
+
     try {
-      const blueprint = await generateBlueprint(idea);
-      const id = await saveBlueprint(idea, blueprint, req.user?.userId);
+      const blueprint = await generateBlueprint(idea, model);
+      const isPublic = !req.user?.userId; // anonymous = public, logged-in = private
+      const id = await saveBlueprint(idea, blueprint, req.user?.userId, isPublic);
       console.log(`[Blueprint] Success: ${blueprint.appName} (id: ${id})`);
       res.json({ success: true, data: blueprint, id });
     } catch (err) {
@@ -66,8 +82,22 @@ router.post(
       return;
     }
 
-    const { idea } = parseResult.data;
+    const { idea, model } = parseResult.data;
+    const groqModel = resolveModel(model);
     console.log(`[Blueprint:stream] Generating for idea: "${idea.slice(0, 80)}..."`);
+
+    if (groqModel === 'openai/gpt-oss-120b') {
+      if (!req.user?.userId) {
+        res.status(401).json({ error: 'You must be logged in to use GPT-OSS 120B.' });
+        return;
+      }
+      try {
+        await checkAndIncrementUsage(req.user.userId, groqModel, 5);
+      } catch (err) {
+        res.status(429).json({ error: (err as Error).message });
+        return;
+      }
+    }
 
     // Handle client disconnect
     let clientDisconnected = false;
@@ -76,11 +106,12 @@ router.post(
     });
 
     try {
-      const blueprint = await generateBlueprintStream(idea, res);
+      const blueprint = await generateBlueprintStream(idea, res, model);
 
       if (!clientDisconnected) {
         // Save to database
-        const id = await saveBlueprint(idea, blueprint, req.user?.userId);
+        const isPublic = !req.user?.userId;
+        const id = await saveBlueprint(idea, blueprint, req.user?.userId, isPublic);
         console.log(`[Blueprint:stream] Success: ${blueprint.appName} (id: ${id})`);
         sendSSE(res, 'saved', { id });
         endSSE(res);
@@ -144,8 +175,9 @@ router.post(
 // ─────────────────────────────────────────────────────────────
 router.post(
   '/refine',
+  optionalAuth,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { blueprint, message } = req.body;
+    const { blueprint, message, model } = req.body;
 
     // Validate message
     if (!message || typeof message !== 'string' || message.trim().length < 3) {
@@ -177,8 +209,21 @@ router.post(
       return;
     }
 
+    if (resolveModel(model) === 'openai/gpt-oss-120b') {
+      if (!req.user?.userId) {
+        res.status(401).json({ error: 'You must be logged in to use GPT-OSS 120B.' });
+        return;
+      }
+      try {
+        await checkAndIncrementUsage(req.user.userId, resolveModel(model), 5);
+      } catch (err) {
+        res.status(429).json({ error: (err as Error).message });
+        return;
+      }
+    }
+
     try {
-      const refined = await refineBlueprint(bpResult.data, message.trim());
+      const refined = await refineBlueprint(bpResult.data, message.trim(), model);
       console.log(`[Refine] Success: ${refined.appName}`);
       res.json({ success: true, data: refined });
     } catch (err) {
@@ -192,9 +237,13 @@ router.post(
 // GET /api/blueprint/list
 // Returns: { success, data: BlueprintListItem[] }
 // ─────────────────────────────────────────────────────────────
-router.get('/list', async (_req: Request, res: Response): Promise<void> => {
-  const items = await listBlueprints(30);
-  res.json({ success: true, data: items });
+router.get('/list', async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const items = await listBlueprints(30);
+    res.json({ success: true, data: items });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -219,7 +268,7 @@ router.get('/health', (_req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────
 router.get(
   '/:id',
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const { id } = req.params;
 
     if (!id || id.length < 6 || id.length > 16) {
@@ -227,22 +276,26 @@ router.get(
       return;
     }
 
-    const result = await getBlueprint(id);
-    if (!result) {
-      res.status(404).json({ error: 'Blueprint not found' });
-      return;
-    }
+    try {
+      const result = await getBlueprint(id);
+      if (!result) {
+        res.status(404).json({ error: 'Blueprint not found' });
+        return;
+      }
 
-    res.json({
-      success: true,
-      data: {
-        ...result.parsedBlueprint,
-        id: result.id,
-        idea: result.idea,
-        views: result.views,
-        createdAt: result.createdAt,
-      },
-    });
+      res.json({
+        success: true,
+        data: {
+          ...result.parsedBlueprint,
+          id: result.id,
+          idea: result.idea,
+          views: result.views,
+          createdAt: result.createdAt,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 );
 
@@ -252,7 +305,7 @@ router.get(
 // ─────────────────────────────────────────────────────────────
 router.get(
   '/:id/meta',
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const { id } = req.params;
 
     if (!id || id.length < 6 || id.length > 16) {
@@ -260,14 +313,48 @@ router.get(
       return;
     }
 
-    const meta = await getBlueprintMeta(id);
-    if (!meta) {
-      res.status(404).json({ error: 'Blueprint not found' });
+    try {
+      const meta = await getBlueprintMeta(id);
+      if (!meta) {
+        res.status(404).json({ error: 'Blueprint not found' });
+        return;
+      }
+
+      res.json({ success: true, data: meta });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────
+// PATCH /api/blueprint/:id/visibility
+// Body: { is_public: boolean }
+// ─────────────────────────────────────────────────────────────
+router.patch('/:id/visibility', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { is_public } = req.body;
+  if (typeof is_public !== 'boolean') {
+    res.status(400).json({ error: 'is_public must be a boolean' });
+    return;
+  }
+
+  const { id } = req.params;
+  if (!id || id.length < 6 || id.length > 16) {
+    res.status(400).json({ error: 'Invalid blueprint ID' });
+    return;
+  }
+
+  try {
+    const ok = await updateBlueprintVisibility(id, req.user!.userId, is_public);
+    if (!ok) {
+      res.status(404).json({ error: 'Blueprint not found or not owned by you' });
       return;
     }
 
-    res.json({ success: true, data: meta });
+    res.json({ success: true, is_public });
+  } catch (err) {
+    next(err);
   }
-);
+});
 
 export default router;

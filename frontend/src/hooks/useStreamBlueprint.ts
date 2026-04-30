@@ -10,7 +10,7 @@ interface UseStreamBlueprintResult {
   error: string | null;
   blueprintId: string | null;
   progress: number; // 0-100
-  generate: (idea: string) => void;
+  generate: (idea: string, model: string) => void;
   loadSaved: (id: string) => void;
   reset: () => void;
 }
@@ -31,7 +31,7 @@ export function useStreamBlueprint(): UseStreamBlueprintResult {
   const [progress, setProgress] = useState(0);
   const abortRef = useRef(false);
 
-  const generate = useCallback(async (idea: string) => {
+  const generate = useCallback(async (idea: string, model: string) => {
     setIsStreaming(true);
     setIsComplete(false);
     setError(null);
@@ -42,7 +42,7 @@ export function useStreamBlueprint(): UseStreamBlueprintResult {
     abortRef.current = false;
 
     try {
-      const stream = generateBlueprintStream(idea);
+      const stream = generateBlueprintStream(idea, model);
       let sectionsReceived = 0;
 
       for await (const event of stream) {

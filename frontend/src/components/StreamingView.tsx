@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PartialBlueprint } from '../lib/types';
+import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
 
 interface StreamingViewProps {
   progress: number;
@@ -39,6 +40,8 @@ function getStepStatus(
 
 export function StreamingView({ progress, partialBlueprint }: StreamingViewProps) {
   const appName = partialBlueprint.appName;
+  const { selectedModel } = useModel();
+  const modelLabel = AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label || 'AI';
 
   return (
     <section className="flex-1 flex items-center justify-center px-6 py-16">
@@ -68,7 +71,7 @@ export function StreamingView({ progress, partialBlueprint }: StreamingViewProps
           className="font-mono-custom text-sm text-center mb-4"
           style={{ color: 'var(--text3)' }}
         >
-          Streaming from Llama 3.3 70B
+          Streaming from {modelLabel}
         </p>
 
         {/* Real progress bar */}

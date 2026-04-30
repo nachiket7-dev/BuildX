@@ -37,11 +37,11 @@ function getAuthHeaders(): Record<string, string> {
 
 // ─── Non-streaming generation (fallback) ──────────────────
 
-export async function generateBlueprint(idea: string): Promise<{ blueprint: Blueprint; id: string }> {
+export async function generateBlueprint(idea: string, model?: string): Promise<{ blueprint: Blueprint; id: string }> {
   try {
     const response = await apiClient.post<ApiResponse<Blueprint> & { id: string }>(
       '/api/blueprint/generate',
-      { idea },
+      { idea, model },
       { headers: getAuthHeaders() }
     );
     return { blueprint: response.data.data, id: response.data.id };
@@ -57,13 +57,13 @@ export interface SSEEvent {
   data: unknown;
 }
 
-export async function* generateBlueprintStream(idea: string): AsyncGenerator<SSEEvent> {
+export async function* generateBlueprintStream(idea: string, model: string): AsyncGenerator<SSEEvent> {
   const url = `${BASE_URL}/api/blueprint/generate-stream`;
 
   const response = await fetch(url, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ idea }),
+    body: JSON.stringify({ idea, model }),
   });
 
   if (!response.ok) {

@@ -11,6 +11,7 @@ dns.setDefaultResultOrder('ipv4first');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  max: 10,
 });
 
 // Create tables if they don't exist
@@ -32,7 +33,8 @@ async function initDb() {
         blueprint  TEXT NOT NULL,
         user_id    TEXT REFERENCES users(id),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        views      INTEGER NOT NULL DEFAULT 0
+        views      INTEGER NOT NULL DEFAULT 0,
+        is_public  BOOLEAN NOT NULL DEFAULT false
       );
 
       CREATE TABLE IF NOT EXISTS chat_messages (
@@ -43,12 +45,34 @@ async function initDb() {
         content      TEXT NOT NULL,
         created_at   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS model_usage (
+        user_id TEXT NOT NULL REFERENCES users(id),
+        model TEXT NOT NULL,
+        date DATE NOT NULL DEFAULT CURRENT_DATE,
+        count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, model, date)
+      );
+    `);
+
+    // Migration: add is_public column if it doesn't exist (for existing databases)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'blueprints' AND column_name = 'is_public'
+        ) THEN
+          ALTER TABLE blueprints ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT false;
+        END IF;
+      END $$;
     `);
   } catch (err) {
     console.error('Failed to initialize database tables:', err);
-  } finally {
     client.release();
+    throw err; // Crash early — don't run with a broken DB
   }
+  client.release();
 }
 
 // Call init on startup
@@ -78,11 +102,29 @@ export interface SavedBlueprintMeta {
   views: number;
 }
 
-export async function saveBlueprint(idea: string, blueprint: Blueprint, userId?: string): Promise<string> {
+export async function checkAndIncrementUsage(userId: string, model: string, limit: number): Promise<void> {
+  const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  // Atomic upsert + check using RETURNING
+  const result = await pool.query(`
+    INSERT INTO model_usage (user_id, model, date, count)
+    VALUES ($1, $2, $3, 1)
+    ON CONFLICT (user_id, model, date)
+    DO UPDATE SET count = model_usage.count + 1
+    RETURNING count
+  `, [userId, model, date]);
+
+  const count = result.rows[0]?.count || 0;
+  if (count > limit) {
+    throw new Error(`Daily limit of ${limit} requests reached for model ${model}. Please try again tomorrow or use another model.`);
+  }
+}
+
+export async function saveBlueprint(idea: string, blueprint: Blueprint, userId?: string, isPublic: boolean = false): Promise<string> {
   const id = generateId();
   await pool.query(
-    'INSERT INTO blueprints (id, idea, blueprint, user_id) VALUES ($1, $2, $3, $4)',
-    [id, idea, JSON.stringify(blueprint), userId || null]
+    'INSERT INTO blueprints (id, idea, blueprint, user_id, is_public) VALUES ($1, $2, $3, $4, $5)',
+    [id, idea, JSON.stringify(blueprint), userId || null, isPublic]
   );
   return id;
 }
@@ -134,7 +176,7 @@ export interface BlueprintListItem {
 
 export async function listBlueprints(limit: number = 20): Promise<BlueprintListItem[]> {
   const result = await pool.query(
-    'SELECT id, idea, blueprint, created_at as "createdAt", views FROM blueprints ORDER BY created_at DESC LIMIT $1',
+    'SELECT id, idea, blueprint, created_at as "createdAt", views FROM blueprints WHERE is_public = true ORDER BY created_at DESC LIMIT $1',
     [limit]
   );
   
@@ -160,6 +202,14 @@ export async function listBlueprints(limit: number = 20): Promise<BlueprintListI
       views: row.views,
     };
   });
+}
+
+export async function updateBlueprintVisibility(blueprintId: string, userId: string, isPublic: boolean): Promise<boolean> {
+  const result = await pool.query(
+    'UPDATE blueprints SET is_public = $1 WHERE id = $2 AND user_id = $3',
+    [isPublic, blueprintId, userId]
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function closeDb(): Promise<void> {
@@ -285,12 +335,3 @@ export async function deleteBlueprint(id: string, userId: string): Promise<boole
   return (result.rowCount ?? 0) > 0;
 }
 
-// ─── Migration: claim unclaimed blueprints ────────────────
-
-export async function claimUnownedBlueprints(userId: string): Promise<number> {
-  const result = await pool.query(
-    'UPDATE blueprints SET user_id = $1 WHERE user_id IS NULL',
-    [userId]
-  );
-  return result.rowCount ?? 0;
-}
