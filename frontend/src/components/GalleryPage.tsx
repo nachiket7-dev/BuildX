@@ -61,10 +61,10 @@ export function GalleryPage() {
   const isPersonal = !!user;
 
   return (
-    <section className="px-6 py-12 max-w-5xl mx-auto">
+    <section className="px-4 sm:px-6 py-8 sm:py-12 max-w-5xl mx-auto overflow-hidden">
       {/* Page header */}
-      <div className="mb-10">
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-2">
+      <div className="mb-8 sm:mb-10">
+        <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3 sm:gap-4 mb-2">
           <div>
             <div
               className="font-mono-custom text-xs uppercase tracking-widest mb-2"
@@ -73,7 +73,7 @@ export function GalleryPage() {
               {isPersonal ? '// my blueprints' : '// blueprint gallery'}
             </div>
             <h1
-              className="font-display font-extrabold text-3xl"
+              className="font-display font-extrabold text-2xl sm:text-3xl"
               style={{ color: 'var(--text)', letterSpacing: '-1px' }}
             >
               {isPersonal ? 'My Blueprints' : 'Recent Blueprints'}
@@ -81,7 +81,7 @@ export function GalleryPage() {
           </div>
           <Link
             to="/"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-[10px] border text-sm font-medium transition-all duration-150"
+            className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-[10px] border text-xs sm:text-sm font-medium transition-all duration-150 flex-shrink-0"
             style={{
               background: 'var(--accent)',
               borderColor: 'rgba(124,106,255,0.4)',
@@ -154,7 +154,7 @@ export function GalleryPage() {
 
       {/* Blueprint grid */}
       {!loading && items.length > 0 && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {items.map((item, i) => (
             <Link
               key={item.id}

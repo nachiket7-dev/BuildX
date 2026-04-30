@@ -188,10 +188,10 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
   return (
     <>
       {/* ─── Section 1: Hero ─────────────────────────────── */}
-      <section className="px-4 sm:px-6 pt-12 sm:pt-20 pb-12 sm:pb-16 max-w-3xl mx-auto text-center">
+      <section className="w-full px-4 sm:px-6 pt-12 sm:pt-20 pb-12 sm:pb-16 max-w-3xl mx-auto text-center overflow-hidden">
         {/* Eyebrow */}
         <div
-          className="inline-flex items-center gap-2 font-mono-custom text-xs rounded-full px-4 py-1.5 mb-8 border animate-fade-slide-up"
+          className="inline-flex items-center gap-2 font-mono-custom text-[10px] sm:text-xs rounded-full px-3 sm:px-4 py-1.5 mb-6 sm:mb-8 border animate-fade-slide-up max-w-full"
           style={{
             color: 'var(--accent2)',
             borderColor: 'rgba(124,106,255,0.25)',
@@ -200,19 +200,18 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
           }}
         >
           <div
-            className="w-1.5 h-1.5 rounded-full"
+            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
             style={{ background: 'var(--accent)' }}
           />
-          Idea → Full-Stack Blueprint in seconds
+          <span className="truncate">Idea → Full-Stack Blueprint in seconds</span>
         </div>
 
         {/* Headline */}
         <h1
-          className="font-display font-extrabold tracking-tight mb-5 animate-fade-slide-up"
+          className="font-display font-extrabold tracking-tight mb-5 animate-fade-slide-up max-w-full text-lg sm:text-4xl md:text-5xl lg:text-6xl"
           style={{
-            fontSize: 'clamp(28px, 7vw, 62px)',
-            lineHeight: 1.05,
-            letterSpacing: '-2px',
+            lineHeight: 1.15,
+            letterSpacing: '-0.5px',
             color: 'var(--text)',
             animationDelay: '0.1s',
             animationFillMode: 'both',
@@ -233,7 +232,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
         </h1>
 
         <p
-          className="text-base mb-12 mx-auto max-w-lg animate-fade-slide-up"
+          className="text-[11px] sm:text-sm md:text-base mb-8 sm:mb-12 mx-auto max-w-lg animate-fade-slide-up"
           style={{
             color: 'var(--text2)',
             lineHeight: 1.7,
@@ -252,7 +251,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
           style={{ animationDelay: '0.3s', animationFillMode: 'both' }}
         >
           <div
-            className="card p-5 sm:p-7 mb-5 transition-all duration-300 text-left"
+            className="card p-4 sm:p-7 mb-5 transition-all duration-300 text-left"
             style={{
               boxShadow:
                 idea.length > 0
@@ -285,18 +284,18 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               }}
             />
 
-            <div className="flex items-center justify-between mt-5 flex-wrap gap-3">
-              <span className="font-mono-custom text-xs" style={{ color: 'var(--text3)' }}>
+            <div className="flex items-center justify-between mt-4 sm:mt-5 flex-wrap gap-2 sm:gap-3">
+              <span className="font-mono-custom text-[11px] sm:text-xs" style={{ color: 'var(--text3)' }}>
                 {idea.length} chars <span className="hidden sm:inline">· ⌘↵ to generate</span>
               </span>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 {/* Model Selector */}
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() => setShowModelDropdown(!showModelDropdown)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-150 group"
+                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border transition-all duration-150 group"
                     style={{
                       background: showModelDropdown ? 'var(--surface2)' : 'transparent',
                       borderColor: showModelDropdown ? 'var(--border2)' : 'var(--border)',
@@ -313,7 +312,8 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       style={{ background: 'var(--green)', boxShadow: '0 0 8px var(--green)' }}
                     />
                     <span className="font-mono-custom text-[11px] sm:text-xs transition-colors" style={{ color: 'var(--text2)' }}>
-                      {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label || 'Model'}
+                      <span className="sm:hidden">{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label.split(' ')[0] || 'Model'}</span>
+                      <span className="hidden sm:inline">{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label || 'Model'}</span>
                     </span>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" strokeWidth="2" className={`transition-transform ${showModelDropdown ? 'rotate-180' : ''}`}>
                       <polyline points="6 9 12 15 18 9" />
@@ -324,7 +324,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowModelDropdown(false)} />
                       <div
-                        className="absolute bottom-full right-0 mb-2 w-[220px] rounded-xl border z-50 overflow-hidden animate-fade-slide-up shadow-2xl"
+                        className="absolute bottom-full right-0 mb-2 w-[200px] sm:w-[220px] rounded-xl border z-50 overflow-hidden animate-fade-slide-up shadow-2xl"
                         style={{ background: 'var(--surface)', borderColor: 'var(--border2)' }}
                       >
                         <div className="px-3 py-2 text-[10px] font-mono-custom tracking-wider uppercase" style={{ color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>
@@ -381,7 +381,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                 <button
                   type="submit"
                   disabled={!canSubmit}
-                className="flex items-center gap-2.5 rounded-[10px] px-6 py-3 font-display font-semibold text-sm text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 sm:gap-2.5 rounded-[10px] px-4 sm:px-6 py-2.5 sm:py-3 font-display font-semibold text-xs sm:text-sm text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
                   background: 'var(--accent)',
                   boxShadow: canSubmit ? '0 0 24px var(--accent-glow)' : 'none',
@@ -403,7 +403,8 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="white">
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                 </svg>
-                Generate Blueprint
+                <span className="hidden sm:inline">Generate Blueprint</span>
+                <span className="sm:hidden">Generate</span>
               </button>
               </div>
             </div>
@@ -456,9 +457,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
       </section>
 
       {/* ─── Section 2: Stats ────────────────────────────── */}
-      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto">
+      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto overflow-hidden">
         <div
-          className="grid grid-cols-2 md:grid-cols-4 gap-4"
+          className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4"
         >
           {STATS.map(({ value, suffix, label }) => (
             <div
@@ -466,7 +467,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               className="card p-3 sm:p-5 text-center hover:scale-[1.03] transition-transform duration-200"
             >
               <div
-                className="font-display font-extrabold text-3xl mb-1"
+                className="font-display font-extrabold text-2xl sm:text-3xl mb-1"
                 style={{
                   background: 'linear-gradient(135deg, var(--accent2), var(--green))',
                   WebkitBackgroundClip: 'text',
@@ -487,7 +488,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
       </section>
 
       {/* ─── Section 3: Features ─────────────────────────── */}
-      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto">
+      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto overflow-hidden">
         <div className="text-center mb-12">
           <div
             className="font-mono-custom text-xs uppercase tracking-widest mb-3"
@@ -496,7 +497,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             // capabilities
           </div>
           <h2
-            className="font-display font-extrabold text-3xl mb-4"
+            className="font-display font-extrabold text-2xl sm:text-3xl mb-4"
             style={{ color: 'var(--text)', letterSpacing: '-1px' }}
           >
             Everything you need to ship faster
@@ -506,7 +507,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {FEATURES.map((feat, i) => (
             <FeatureCard key={feat.title} {...feat} delay={i * 80} />
           ))}
@@ -514,7 +515,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
       </section>
 
       {/* ─── Section 4: How it works ─────────────────────── */}
-      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-3xl mx-auto">
+      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-3xl mx-auto overflow-hidden">
         <div className="text-center mb-12">
           <div
             className="font-mono-custom text-xs uppercase tracking-widest mb-3"
@@ -523,7 +524,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             // workflow
           </div>
           <h2
-            className="font-display font-extrabold text-3xl mb-4"
+            className="font-display font-extrabold text-2xl sm:text-3xl mb-4"
             style={{ color: 'var(--text)', letterSpacing: '-1px' }}
           >
             Three steps. Zero friction.
@@ -553,10 +554,10 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
           ].map(({ step, title, desc, color }) => (
             <div
               key={step}
-              className="card p-6 flex items-start gap-5 hover:scale-[1.01] transition-transform duration-200"
+              className="card p-4 sm:p-6 flex items-start gap-3 sm:gap-5 hover:scale-[1.01] transition-transform duration-200"
             >
               <div
-                className="font-display font-extrabold text-2xl flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center"
+                className="font-display font-extrabold text-lg sm:text-2xl flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center"
                 style={{
                   background: `${color}15`,
                   color,
@@ -579,7 +580,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
       </section>
 
       {/* ─── Section 5: CTA ──────────────────────────────── */}
-      <section className="px-4 sm:px-6 py-12 sm:py-20 max-w-3xl mx-auto text-center">
+      <section className="px-4 sm:px-6 py-12 sm:py-20 max-w-3xl mx-auto text-center overflow-hidden">
         <div
           className="card p-8 sm:p-12"
           style={{
@@ -588,7 +589,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
           }}
         >
           <h2
-            className="font-display font-extrabold text-2xl mb-3"
+            className="font-display font-extrabold text-xl sm:text-2xl mb-3"
             style={{ color: 'var(--text)', letterSpacing: '-1px' }}
           >
             Ready to build something amazing?
@@ -601,7 +602,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               window.scrollTo({ top: 0, behavior: 'smooth' });
               textareaRef.current?.focus();
             }}
-            className="inline-flex items-center gap-2.5 rounded-[10px] px-8 py-3.5 font-display font-semibold text-sm text-white transition-all duration-200"
+            className="inline-flex items-center gap-2 sm:gap-2.5 rounded-[10px] px-6 sm:px-8 py-3 sm:py-3.5 font-display font-semibold text-xs sm:text-sm text-white transition-all duration-200"
             style={{
               background: 'var(--accent)',
               boxShadow: '0 0 24px var(--accent-glow)',

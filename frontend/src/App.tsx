@@ -108,7 +108,7 @@ function BlueprintPage({ sidebarOffset = 0 }: { sidebarOffset?: number }) {
         </div>
       )}
 
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col w-full overflow-x-hidden">
         {showHero && <Hero onGenerate={(idea) => { setModelUsed(selectedModel); generate(idea, selectedModel); }} isLoading={isStreaming} />}
         {showStreaming && <StreamingView progress={progress} partialBlueprint={partialBlueprint} />}
         {showOutput && activeBlueprint && (
@@ -151,7 +151,7 @@ function AppContent() {
   }, [user]);
 
   return (
-    <div className="min-h-screen flex flex-col relative">
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden">
       {/* Background effects */}
       <div className="grid-bg" />
       <div
@@ -178,7 +178,7 @@ function AppContent() {
 
       {/* App shell — shifts right when sidebar is open on desktop */}
       <div
-        className={`relative z-10 flex flex-col min-h-screen transition-all duration-300 ${
+        className={`relative z-10 flex flex-col min-h-screen transition-all duration-300 overflow-x-hidden ${
           user && sidebarOpen ? 'md:ml-[280px]' : ''
         }`}
       >
@@ -196,7 +196,7 @@ function AppContent() {
 
         {/* Footer */}
         <footer
-          className="text-center py-6 font-mono-custom text-xs"
+          className="text-center py-4 sm:py-6 px-4 font-mono-custom text-[10px] sm:text-xs"
           style={{
             color: 'var(--text3)',
             borderTop: '1px solid var(--border)',
