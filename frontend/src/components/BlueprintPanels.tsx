@@ -145,7 +145,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
               {table.columns.map((col, i) => (
                 <div
                   key={col.name}
-                  className="flex items-center justify-between px-5 py-2 text-xs"
+                  className="flex items-center justify-between px-3 sm:px-5 py-2 text-[10px] sm:text-xs"
                   style={{
                     borderBottom:
                       i < table.columns.length - 1 ? '1px solid var(--border)' : 'none',
@@ -157,10 +157,10 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
                     (e.currentTarget as HTMLElement).style.background = 'transparent';
                   }}
                 >
-                  <span className="font-mono-custom min-w-0 truncate" style={{ color: 'var(--text)' }}>
+                  <span className="font-mono-custom min-w-0 truncate flex-1" style={{ color: 'var(--text)' }}>
                     {col.name}
                   </span>
-                  <div className="flex items-center gap-2 text-right flex-shrink-0 max-w-[55%]">
+                  <div className="flex items-center gap-1 sm:gap-2 text-right flex-shrink-0 max-w-[50%] sm:max-w-[55%]">
                     <span className="font-mono-custom break-all" style={{ color: 'var(--text3)' }}>
                       {col.type}
                     </span>
@@ -197,7 +197,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
         {blueprint.endpoints.map((ep, i) => (
           <div
             key={`${ep.method}-${ep.path}-${i}`}
-            className="flex items-start gap-3 px-4 py-3 rounded-[10px] border transition-colors duration-150"
+            className="flex items-start gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-[10px] border transition-colors duration-150"
             style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.borderColor = 'var(--border2)';
@@ -319,11 +319,11 @@ export function ArchPanel({ blueprint }: { blueprint: Blueprint }) {
         >
           // request flow
         </div>
-        <div className="flex items-center flex-wrap gap-2">
+        <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
           {flowSteps.map((step, i) => (
             <React.Fragment key={i}>
               <div
-                className="font-mono-custom text-xs px-3.5 py-2 rounded-lg"
+                className="font-mono-custom text-[10px] sm:text-xs px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg"
                 style={{
                   background: 'var(--surface2)',
                   border: '1px solid var(--border)',
@@ -382,7 +382,7 @@ export function CodePanel({ blueprint }: { blueprint: Blueprint }) {
             <button
               key={id}
               onClick={() => setActiveCode(id)}
-              className="font-mono-custom text-xs px-4 py-2 rounded-t-lg border border-b-0 transition-all duration-150"
+              className="font-mono-custom text-[10px] sm:text-xs px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-t-lg border border-b-0 transition-all duration-150"
               style={{
                 background: activeCode === id ? 'var(--surface3)' : 'var(--surface2)',
                 borderColor: activeCode === id ? 'var(--border2)' : 'var(--border)',

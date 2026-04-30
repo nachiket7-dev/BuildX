@@ -98,9 +98,9 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset, modelUsed }: 
   }
 
   return (
-    <section className="px-4 sm:px-6 pb-24 max-w-5xl mx-auto animate-fade-slide-up">
+    <section className="px-4 sm:px-6 pb-24 max-w-5xl mx-auto animate-fade-slide-up overflow-hidden">
       {/* Output header */}
-      <div className="flex items-start justify-between gap-6 py-8 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 sm:gap-6 py-6 sm:py-8">
         <div className="flex-1 min-w-0">
           <h2
             className="font-display font-extrabold tracking-tight mb-2"
@@ -114,9 +114,9 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset, modelUsed }: 
           >
             {blueprint.description}
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             <span
-              className="font-mono-custom text-xs px-3 py-1 rounded-full border"
+              className="font-mono-custom text-[10px] sm:text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border"
               style={{
                 color: 'var(--blue)',
                 borderColor: 'rgba(96,165,250,0.3)',
@@ -126,12 +126,12 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset, modelUsed }: 
               👥 {blueprint.targetUsers}
             </span>
             <span
-              className={`font-mono-custom text-xs px-3 py-1 rounded-full border ${complexityColor(blueprint.complexity)}`}
+              className={`font-mono-custom text-[10px] sm:text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border ${complexityColor(blueprint.complexity)}`}
             >
               ⚡ {blueprint.complexity} Complexity
             </span>
             <span
-              className="font-mono-custom text-xs px-3 py-1 rounded-full border"
+              className="font-mono-custom text-[10px] sm:text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border"
               style={{
                 color: 'var(--green)',
                 borderColor: 'rgba(34,211,165,0.3)',
@@ -142,7 +142,7 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset, modelUsed }: 
             </span>
             {modelUsed && (
               <span
-                className="font-mono-custom text-xs px-3 py-1 rounded-full border"
+                className="font-mono-custom text-[10px] sm:text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border"
                 style={{
                   color: 'var(--accent2)',
                   borderColor: 'rgba(124,106,255,0.3)',
@@ -156,7 +156,7 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset, modelUsed }: 
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2 flex-shrink-0 flex-wrap">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap -order-1 sm:order-none">
           {/* Share button */}
           {blueprintId && (
             <button

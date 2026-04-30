@@ -34,19 +34,45 @@
 
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   body {
     background-color: var(--bg);
     color: var(--text);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    font-size: 15.5px;
+    font-size: 14px;
     line-height: 1.7;
     min-height: 100vh;
     overflow-x: hidden;
+    width: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing: -0.01em;
+  }
+
+  #root {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* Prevent ANY element from exceeding viewport width */
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  @media (max-width: 640px) {
+    section, main, div, header, footer, form, article, aside, nav {
+      max-width: 100vw;
+    }
+  }
+
+  @media (min-width: 640px) {
+    body {
+      font-size: 15.5px;
+    }
   }
 
   /* Custom scrollbar */
