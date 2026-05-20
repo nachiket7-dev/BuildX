@@ -67,6 +67,43 @@ async function initDb() {
         END IF;
       END $$;
     `);
+
+    // Enable RLS and setup policies for the users table
+    await client.query(`
+      DO $$
+      BEGIN
+        -- Enable RLS on users table
+        ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+        -- If supabase roles and auth schema exist, set grants and policies
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+          EXECUTE 'REVOKE ALL ON users FROM anon';
+        END IF;
+
+        IF EXISTS (
+          SELECT 1 FROM pg_roles WHERE rolname = 'authenticated'
+        ) AND EXISTS (
+          SELECT 1 FROM pg_proc JOIN pg_namespace ON pg_proc.pronamespace = pg_namespace.oid WHERE pg_namespace.nspname = 'auth' AND pg_proc.proname = 'uid'
+        ) THEN
+          EXECUTE 'REVOKE ALL ON users FROM authenticated';
+          EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON users TO authenticated';
+          
+          -- Setup policies
+          DROP POLICY IF EXISTS "Users can view their own profile" ON users;
+          CREATE POLICY "Users can view their own profile" ON users FOR SELECT TO authenticated USING (auth.uid()::text = id);
+
+          DROP POLICY IF EXISTS "Users can insert their own profile" ON users;
+          CREATE POLICY "Users can insert their own profile" ON users FOR INSERT TO authenticated WITH CHECK (auth.uid()::text = id);
+
+          DROP POLICY IF EXISTS "Users can update their own profile" ON users;
+          CREATE POLICY "Users can update their own profile" ON users FOR UPDATE TO authenticated USING (auth.uid()::text = id) WITH CHECK (auth.uid()::text = id);
+        END IF;
+
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+          EXECUTE 'GRANT ALL ON users TO service_role';
+        END IF;
+      END $$;
+    `);
   } catch (err) {
     console.error('Failed to initialize database tables:', err);
     client.release();
