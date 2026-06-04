@@ -1,6 +1,8 @@
-import { getGroqClient, resolveModel } from './groq';
+import { getGroqClient, resolveModel, getMaxTokens } from './groq';
+import { extractJSON } from './jsonExtract';
 import { Blueprint, BlueprintSchema } from './types';
 import { Response } from 'express';
+import { coerceBlueprintInput } from './normalizeBlueprint';
 import {
   initSSE,
   sendSSE,
@@ -82,34 +84,6 @@ Requirements:
 6. screens must have 6-10 screens with detailed component lists
 7. code values must be real working code, not stubs`;
 
-/**
- * Strip reasoning model <think>...</think> blocks and extract the JSON object.
- * Handles GPT-OSS 120B, DeepSeek R1, Qwen 3 (thinking mode), etc.
- */
-function extractJSON(raw: string): string {
-  // 1. Remove <think>...</think> blocks (reasoning models)
-  let cleaned = raw.replace(/<think>[\s\S]*?<\/think>/gi, '');
-
-  // 2. Remove markdown code fences
-  cleaned = cleaned
-    .replace(/^```json\s*/im, '')
-    .replace(/^```\s*/im, '')
-    .replace(/```\s*$/im, '')
-    .trim();
-
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error('No valid JSON object found in AI response. Got: ' + cleaned.slice(0, 200));
-  }
-  return cleaned.slice(start, end + 1);
-}
-
-/** Model-aware token limits — reasoning models need more headroom for <think> tokens */
-function getMaxTokens(groqModel: string): number {
-  return groqModel === 'openai/gpt-oss-120b' ? 7000 : 4500;
-}
-
 const VALID_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 type ValidMethod = typeof VALID_METHODS[number];
 
@@ -125,54 +99,6 @@ function safeComplexity(c: unknown): 'Low' | 'Medium' | 'High' {
   return 'Medium';
 }
 
-function applyFallbacks(partial: Record<string, unknown>): Blueprint {
-  const f = (partial.features as Record<string, unknown>) ?? {};
-  const a = (partial.architecture as Record<string, unknown>) ?? {};
-  const code = (partial.code as Record<string, unknown>) ?? {};
-  const effort = (partial.effort as Record<string, unknown>) ?? {};
-  const endpoints = Array.isArray(partial.endpoints) ? partial.endpoints : [];
-
-  return {
-    appName: String(partial.appName ?? 'Untitled App'),
-    description: String(partial.description ?? 'No description provided.'),
-    targetUsers: String(partial.targetUsers ?? 'General users'),
-    complexity: safeComplexity(partial.complexity),
-    features: {
-      authentication: Array.isArray(f.authentication) ? f.authentication.map(String) : [],
-      core: Array.isArray(f.core) ? f.core.map(String) : [],
-      admin: Array.isArray(f.admin) ? f.admin.map(String) : [],
-      optional: Array.isArray(f.optional) ? f.optional.map(String) : [],
-    },
-    schema: Array.isArray(partial.schema) ? partial.schema as Blueprint['schema'] : [],
-    endpoints: endpoints.map((ep: Record<string, unknown>) => ({
-      method: safeMethod(ep.method),
-      path: String(ep.path ?? '/'),
-      description: String(ep.description ?? ''),
-      auth: Boolean(ep.auth),
-    })),
-    screens: Array.isArray(partial.screens) ? partial.screens as Blueprint['screens'] : [],
-    architecture: {
-      frontend: String(a.frontend ?? 'React + TypeScript'),
-      backend: String(a.backend ?? 'Node.js + Express'),
-      database: String(a.database ?? 'PostgreSQL'),
-      auth: String(a.auth ?? 'JWT'),
-      hosting: String(a.hosting ?? 'Vercel + Railway'),
-      flow: String(a.flow ?? 'Frontend → API → Database'),
-    },
-    code: {
-      frontend: String(code.frontend ?? '// No frontend code generated'),
-      backend: String(code.backend ?? '// No backend code generated'),
-      sql: String(code.sql ?? '-- No SQL generated'),
-    },
-    effort: {
-      time: String(effort.time ?? 'Estimate unavailable'),
-      complexity: String(effort.complexity ?? 'Medium'),
-      cost: String(effort.cost ?? 'Contact for estimate'),
-      team: String(effort.team ?? '2-3 developers'),
-    },
-  };
-}
-
 function parseAndValidate(rawText: string): Blueprint {
   const rawJSON = extractJSON(rawText);
 
@@ -184,13 +110,7 @@ function parseAndValidate(rawText: string): Blueprint {
     throw new Error('AI returned malformed JSON. Please try again.');
   }
 
-  const result = BlueprintSchema.safeParse(parsed);
-  if (!result.success) {
-    console.warn('[Groq] Zod issues (using fallbacks):', result.error.issues.slice(0, 5));
-    return applyFallbacks(parsed as Record<string, unknown>);
-  }
-
-  return result.data;
+  return coerceBlueprintInput(parsed);
 }
 
 // ─── Non-streaming generation (original) ──────────────────
