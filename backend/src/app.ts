@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import blueprintRouter from './routes/blueprint';
 import authRouter from './routes/auth';
+import { getDatabaseStatus } from './lib/db';
 
 const app = express();
 
@@ -20,7 +21,7 @@ app.use(
       // Allow requests with no origin (e.g. curl, Postman)
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error(`CORS: origin '${origin}' not allowed`));
+      callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -50,15 +51,23 @@ const blueprintLimiter = rateLimit({
 app.use(limiter);
 
 // ─── Body parsing ─────────────────────────────────────────
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ─── Health check ─────────────────────────────────────────
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({
-    status: 'ok',
+  const db = getDatabaseStatus();
+  const dbOk = db.mode === 'postgresql';
+  res.status(dbOk || db.mode === 'fallback' ? 200 : 503).json({
+    status: dbOk ? 'ok' : db.mode === 'fallback' ? 'degraded' : 'misconfigured',
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || '1.0.0',
+    database: {
+      mode: db.mode,
+      ok: dbOk,
+      error: db.error,
+      fallbackAllowed: db.fallbackAllowed,
+    },
   });
 });
 

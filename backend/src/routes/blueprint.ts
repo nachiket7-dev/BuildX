@@ -1,256 +1,86 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { BlueprintRequestSchema, BlueprintSchema } from '../lib/types';
-import { generateBlueprint, generateBlueprintStream } from '../lib/generator';
-import { saveBlueprint, getBlueprint, getBlueprintMeta, listBlueprints, saveChatMessage, getChatMessages, checkAndIncrementUsage, updateBlueprintVisibility } from '../lib/db';
+import { generateBlueprint } from '../lib/generator';
+import { generateBlueprintAgentic } from '../lib/orchestrator';
+import {
+  saveBlueprint,
+  getBlueprintForUser,
+  getBlueprintMeta,
+  listBlueprints,
+  getUsageCount,
+  assertWithinUsageLimit,
+  incrementUsage,
+  updateBlueprintVisibility,
+  updateBlueprintJson,
+} from '../lib/db';
 import { sendSSE, endSSE } from '../lib/stream';
 import { streamScaffoldZip } from '../lib/scaffold';
 import { refineBlueprint } from '../lib/refine';
+import { coerceBlueprintInput } from '../lib/normalizeBlueprint';
 import { resolveModel } from '../lib/groq';
-import { optionalAuth, requireAuth } from '../lib/auth';
+import { requireAuth } from '../lib/auth';
 
 const router = Router();
 
-// ─────────────────────────────────────────────────────────────
-// POST /api/blueprint/generate
-// Body: { idea: string }
-// Returns: { success, data: Blueprint, id: string }
-// ─────────────────────────────────────────────────────────────
-router.post(
-  '/generate',
-  optionalAuth,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const parseResult = BlueprintRequestSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      res.status(400).json({
-        error: 'Invalid request',
-        details: parseResult.error.issues.map((i) => ({
-          field: i.path.join('.'),
-          message: i.message,
-        })),
-      });
-      return;
-    }
+const GPT_OSS_MODEL = 'openai/gpt-oss-120b';
 
-    const { idea, model } = parseResult.data;
-    const groqModel = resolveModel(model);
-    console.log(`[Blueprint] Generating for idea: "${idea.slice(0, 80)}..."`);
+const GPT_OSS_DAILY_LIMIT = 5;
 
-    if (groqModel === 'openai/gpt-oss-120b') {
-      if (!req.user?.userId) {
-        res.status(401).json({ error: 'You must be logged in to use GPT-OSS 120B.' });
-        return;
-      }
-      try {
-        await checkAndIncrementUsage(req.user.userId, groqModel, 5);
-      } catch (err) {
-        res.status(429).json({ error: (err as Error).message });
-        return;
-      }
-    }
+async function assertPremiumUsageAllowed(userId: string, model?: string): Promise<void> {
+  const groqModel = resolveModel(model);
+  if (groqModel !== GPT_OSS_MODEL) return;
+  const count = await getUsageCount(userId, groqModel);
+  assertWithinUsageLimit(count, groqModel, GPT_OSS_DAILY_LIMIT);
+}
 
-    try {
-      const blueprint = await generateBlueprint(idea, model);
-      const isPublic = !req.user?.userId; // anonymous = public, logged-in = private
-      const id = await saveBlueprint(idea, blueprint, req.user?.userId, isPublic);
-      console.log(`[Blueprint] Success: ${blueprint.appName} (id: ${id})`);
-      res.json({ success: true, data: blueprint, id });
-    } catch (err) {
-      console.error('[Blueprint] Error:', (err as Error).message);
-      next(err);
-    }
+async function recordPremiumUsageIfNeeded(userId: string, model?: string): Promise<void> {
+  const groqModel = resolveModel(model);
+  if (groqModel === GPT_OSS_MODEL) {
+    await incrementUsage(userId, groqModel);
   }
-);
+}
 
-// ─────────────────────────────────────────────────────────────
-// POST /api/blueprint/generate-stream
-// Body: { idea: string }
-// Returns: SSE stream with section events + complete event
-// ─────────────────────────────────────────────────────────────
-router.post(
-  '/generate-stream',
-  optionalAuth,
-  async (req: Request, res: Response): Promise<void> => {
-    const parseResult = BlueprintRequestSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      res.status(400).json({
-        error: 'Invalid request',
-        details: parseResult.error.issues.map((i) => ({
-          field: i.path.join('.'),
-          message: i.message,
-        })),
-      });
-      return;
-    }
+function isClientAborted(req: Request): boolean {
+  return Boolean(req.aborted || (req.socket as { destroyed?: boolean }).destroyed);
+}
 
-    const { idea, model } = parseResult.data;
-    const groqModel = resolveModel(model);
-    console.log(`[Blueprint:stream] Generating for idea: "${idea.slice(0, 80)}..."`);
+/** Detects Groq 429 rate-limit / token-per-minute / context-length errors. */
+function isGroqRateLimit(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('rate limit') ||
+    m.includes('rate_limit') ||
+    m.includes('tokens per minute') ||
+    m.includes('tpm') ||
+    m.includes('token limit') ||
+    m.includes('quota') ||
+    m.includes('too large') ||
+    m.includes('maximum context length') ||
+    m.includes('reduce') && m.includes('max_tokens')
+  );
+}
 
-    if (groqModel === 'openai/gpt-oss-120b') {
-      if (!req.user?.userId) {
-        res.status(401).json({ error: 'You must be logged in to use GPT-OSS 120B.' });
-        return;
-      }
-      try {
-        await checkAndIncrementUsage(req.user.userId, groqModel, 5);
-      } catch (err) {
-        res.status(429).json({ error: (err as Error).message });
-        return;
-      }
-    }
-
-    // Handle client disconnect
-    let clientDisconnected = false;
-    req.on('close', () => {
-      clientDisconnected = true;
-    });
-
-    try {
-      const blueprint = await generateBlueprintStream(idea, res, model);
-
-      if (!clientDisconnected) {
-        // Save to database
-        const isPublic = !req.user?.userId;
-        const id = await saveBlueprint(idea, blueprint, req.user?.userId, isPublic);
-        console.log(`[Blueprint:stream] Success: ${blueprint.appName} (id: ${id})`);
-        sendSSE(res, 'saved', { id });
-        endSSE(res);
-      }
-    } catch (err) {
-      console.error('[Blueprint:stream] Error:', (err as Error).message);
-      if (!clientDisconnected) {
-        sendSSE(res, 'error', { message: (err as Error).message });
-        endSSE(res);
-      }
-    }
+/** Converts raw Groq SDK error text into a clear, actionable user message. */
+function toFriendlyGroqError(message: string): string {
+  if (isGroqRateLimit(message)) {
+    return (
+      'The AI provider hit a token/rate limit for this request. ' +
+      'This usually means too many tokens were requested in a short window. ' +
+      'Please wait ~60 seconds and try again, or pick a smaller/faster model. ' +
+      'If this keeps happening, your Groq free-tier limit may be exhausted for the minute.'
+    );
   }
-);
-
-// ─────────────────────────────────────────────────────────────
-// POST /api/blueprint/export
-// Body: Blueprint JSON  OR  query: ?id=xxxx
-// Returns: ZIP file download
-// ─────────────────────────────────────────────────────────────
-router.post(
-  '/export',
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      // Option 1: Blueprint ID in query param
-      const id = req.query.id as string | undefined;
-      if (id) {
-        const result = await getBlueprint(id);
-        if (!result) {
-          res.status(404).json({ error: 'Blueprint not found' });
-          return;
-        }
-        console.log(`[Scaffold] Exporting blueprint ${id}: ${result.parsedBlueprint.appName}`);
-        streamScaffoldZip(result.parsedBlueprint, res);
-        return;
-      }
-
-      // Option 2: Full blueprint in request body
-      const parseResult = BlueprintSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        res.status(400).json({
-          error: 'Invalid blueprint data. Provide a valid blueprint JSON or ?id=xxx query param.',
-        });
-        return;
-      }
-
-      console.log(`[Scaffold] Exporting blueprint: ${parseResult.data.appName}`);
-      streamScaffoldZip(parseResult.data, res);
-    } catch (err) {
-      console.error('[Scaffold] Error:', (err as Error).message);
-      if (!res.headersSent) {
-        res.status(500).json({ error: 'Failed to generate project scaffold' });
-      }
-    }
+  if (message.toLowerCase().includes('api key') || message.includes('401')) {
+    return 'AI provider authentication failed. Verify the GROQ_API_KEY on the server.';
   }
-);
+  return message;
+}
 
-// ─────────────────────────────────────────────────────────────
-// POST /api/blueprint/refine
-// Body: { blueprint: Blueprint, message: string }
-// Returns: { success, data: Blueprint }
-// ─────────────────────────────────────────────────────────────
-router.post(
-  '/refine',
-  optionalAuth,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { blueprint, message, model } = req.body;
+function validateBlueprintId(id: string): boolean {
+  return Boolean(id && id.length >= 6 && id.length <= 16);
+}
 
-    // Validate message
-    if (!message || typeof message !== 'string' || message.trim().length < 3) {
-      res.status(400).json({
-        error: 'Invalid request',
-        details: [{ field: 'message', message: 'Refinement message must be at least 3 characters' }],
-      });
-      return;
-    }
-
-    if (message.length > 500) {
-      res.status(400).json({
-        error: 'Invalid request',
-        details: [{ field: 'message', message: 'Refinement message must be under 500 characters' }],
-      });
-      return;
-    }
-
-    // Validate blueprint
-    const bpResult = BlueprintSchema.safeParse(blueprint);
-    if (!bpResult.success) {
-      res.status(400).json({
-        error: 'Invalid blueprint data',
-        details: bpResult.error.issues.slice(0, 3).map((i) => ({
-          field: i.path.join('.'),
-          message: i.message,
-        })),
-      });
-      return;
-    }
-
-    if (resolveModel(model) === 'openai/gpt-oss-120b') {
-      if (!req.user?.userId) {
-        res.status(401).json({ error: 'You must be logged in to use GPT-OSS 120B.' });
-        return;
-      }
-      try {
-        await checkAndIncrementUsage(req.user.userId, resolveModel(model), 5);
-      } catch (err) {
-        res.status(429).json({ error: (err as Error).message });
-        return;
-      }
-    }
-
-    try {
-      const refined = await refineBlueprint(bpResult.data, message.trim(), model);
-      console.log(`[Refine] Success: ${refined.appName}`);
-      res.json({ success: true, data: refined });
-    } catch (err) {
-      console.error('[Refine] Error:', (err as Error).message);
-      next(err);
-    }
-  }
-);
-
-// ─────────────────────────────────────────────────────────────
-// GET /api/blueprint/list
-// Returns: { success, data: BlueprintListItem[] }
-// ─────────────────────────────────────────────────────────────
-router.get('/list', async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const items = await listBlueprints(30);
-    res.json({ success: true, data: items });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ─────────────────────────────────────────────────────────────
-// GET /api/blueprint/health
-// Quick check that the blueprint service + Groq key is configured
-// NOTE: Must be defined BEFORE /:id to avoid being caught by it
-// ─────────────────────────────────────────────────────────────
+// Public health check (no auth)
 router.get('/health', (_req: Request, res: Response) => {
   const hasKey = Boolean(process.env.GROQ_API_KEY);
   res.json({
@@ -262,76 +92,276 @@ router.get('/health', (_req: Request, res: Response) => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────
-// GET /api/blueprint/:id
-// Returns: { success, data: SavedBlueprint }
-// ─────────────────────────────────────────────────────────────
-router.get(
-  '/:id',
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { id } = req.params;
+// All routes below require authentication
+router.use(requireAuth);
 
-    if (!id || id.length < 6 || id.length > 16) {
-      res.status(400).json({ error: 'Invalid blueprint ID' });
+router.post(
+  '/generate',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const parseResult = BlueprintRequestSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        error: 'Invalid request',
+        details: parseResult.error.issues.map((i) => ({
+          field: i.path.join('.'),
+          message: i.message,
+        })),
+      });
+      return;
+    }
+
+    const { idea, model } = parseResult.data;
+    const userId = req.user!.userId;
+    console.log(`[Blueprint] Generating for idea: "${idea.slice(0, 80)}..."`);
+
+    try {
+      await assertPremiumUsageAllowed(userId, model);
+      const blueprint = await generateBlueprint(idea, model);
+      await recordPremiumUsageIfNeeded(userId, model);
+      const id = await saveBlueprint(idea, blueprint, userId, false);
+      console.log(`[Blueprint] Success: ${blueprint.appName} (id: ${id})`);
+      res.json({ success: true, data: blueprint, id });
+    } catch (err) {
+      if ((err as Error).message.includes('Daily limit')) {
+        res.status(429).json({ error: (err as Error).message });
+        return;
+      }
+      console.error('[Blueprint] Error:', (err as Error).message);
+      next(err);
+    }
+  }
+);
+
+router.post('/generate-stream', async (req: Request, res: Response): Promise<void> => {
+  const parseResult = BlueprintRequestSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({
+      error: 'Invalid request',
+      details: parseResult.error.issues.map((i) => ({
+        field: i.path.join('.'),
+        message: i.message,
+      })),
+    });
+    return;
+  }
+
+  const { idea, model } = parseResult.data;
+  const userId = req.user!.userId;
+  console.log(`[Blueprint:stream] Generating for idea: "${idea.slice(0, 80)}..."`);
+
+  let streamStarted = false;
+
+  try {
+    await assertPremiumUsageAllowed(userId, model);
+    const blueprint = await generateBlueprintAgentic(idea, res, model);
+    streamStarted = true;
+
+    if (isClientAborted(req)) {
       return;
     }
 
     try {
-      const result = await getBlueprint(id);
+      const id = await saveBlueprint(idea, blueprint, userId, false);
+      await recordPremiumUsageIfNeeded(userId, model);
+      console.log(`[Blueprint:stream] Success: ${blueprint.appName} (id: ${id})`);
+      sendSSE(res, 'saved', { id });
+      endSSE(res);
+    } catch (saveErr) {
+      console.error('[Blueprint:stream] Save error:', (saveErr as Error).message);
+      if (!res.writableEnded) {
+        sendSSE(res, 'error', {
+          message: 'Blueprint generated but could not be saved. Check your database connection.',
+        });
+        endSSE(res);
+      }
+    }
+  } catch (err) {
+    const rawMessage = (err as Error).message || 'Unknown error';
+    console.error('[Blueprint:stream] Error:', rawMessage);
+    if (rawMessage.includes('Daily limit')) {
+      if (!res.headersSent) {
+        res.status(429).json({ error: rawMessage });
+      } else if (!res.writableEnded) {
+        sendSSE(res, 'error', { message: rawMessage });
+        endSSE(res);
+      }
+      return;
+    }
+    const friendlyMessage = toFriendlyGroqError(rawMessage);
+    if (streamStarted && !res.writableEnded) {
+      sendSSE(res, 'error', { message: friendlyMessage });
+      endSSE(res);
+    } else if (!res.headersSent) {
+      const status = isGroqRateLimit(rawMessage) ? 429 : 500;
+      res.status(status).json({ error: friendlyMessage });
+    }
+  }
+});
+
+router.post('/export', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const id = req.query.id as string | undefined;
+
+    if (id) {
+      if (!validateBlueprintId(id)) {
+        res.status(400).json({ error: 'Invalid blueprint ID' });
+        return;
+      }
+      const result = await getBlueprintForUser(id, userId, { incrementViews: false });
       if (!result) {
         res.status(404).json({ error: 'Blueprint not found' });
         return;
       }
-
-      res.json({
-        success: true,
-        data: {
-          ...result.parsedBlueprint,
-          id: result.id,
-          idea: result.idea,
-          views: result.views,
-          createdAt: result.createdAt,
-        },
-      });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-// ─────────────────────────────────────────────────────────────
-// GET /api/blueprint/:id/meta
-// Returns: { id, idea, createdAt, views } — for link previews
-// ─────────────────────────────────────────────────────────────
-router.get(
-  '/:id/meta',
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { id } = req.params;
-
-    if (!id || id.length < 6 || id.length > 16) {
-      res.status(400).json({ error: 'Invalid blueprint ID' });
+      console.log(`[Scaffold] Exporting blueprint ${id}: ${result.parsedBlueprint.appName}`);
+      streamScaffoldZip(result.parsedBlueprint, res);
       return;
     }
 
-    try {
-      const meta = await getBlueprintMeta(id);
-      if (!meta) {
-        res.status(404).json({ error: 'Blueprint not found' });
-        return;
-      }
+    const parseResult = BlueprintSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        error: 'Invalid blueprint data. Provide a valid blueprint JSON or ?id=xxx query param.',
+      });
+      return;
+    }
 
-      res.json({ success: true, data: meta });
-    } catch (err) {
-      next(err);
+    console.log(`[Scaffold] Exporting blueprint: ${parseResult.data.appName}`);
+    streamScaffoldZip(parseResult.data, res);
+  } catch (err) {
+    console.error('[Scaffold] Error:', (err as Error).message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to generate project scaffold' });
     }
   }
-);
+});
 
-// ─────────────────────────────────────────────────────────────
-// PATCH /api/blueprint/:id/visibility
-// Body: { is_public: boolean }
-// ─────────────────────────────────────────────────────────────
-router.patch('/:id/visibility', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/refine', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { blueprint, message, model, id: blueprintId } = req.body;
+  const userId = req.user!.userId;
+
+  if (!message || typeof message !== 'string' || message.trim().length < 3) {
+    res.status(400).json({
+      error: 'Invalid request',
+      details: [{ field: 'message', message: 'Refinement message must be at least 3 characters' }],
+    });
+    return;
+  }
+
+  if (message.length > 500) {
+    res.status(400).json({
+      error: 'Invalid request',
+      details: [{ field: 'message', message: 'Refinement message must be under 500 characters' }],
+    });
+    return;
+  }
+
+  if (!blueprint || typeof blueprint !== 'object') {
+    res.status(400).json({ error: 'Blueprint is required for refinement' });
+    return;
+  }
+
+  const coercedBlueprint = coerceBlueprintInput(blueprint);
+
+  if (blueprintId && !validateBlueprintId(blueprintId)) {
+    res.status(400).json({ error: 'Invalid blueprint ID' });
+    return;
+  }
+
+  try {
+    await assertPremiumUsageAllowed(userId, model);
+    const refined = await refineBlueprint(coercedBlueprint, message.trim(), model);
+    await recordPremiumUsageIfNeeded(userId, model);
+
+    if (blueprintId) {
+      const saved = await updateBlueprintJson(blueprintId, userId, refined);
+      if (!saved) {
+        res.status(404).json({ error: 'Blueprint not found or not owned by you' });
+        return;
+      }
+    }
+
+    console.log(`[Refine] Success: ${refined.appName}`);
+    res.json({ success: true, data: refined });
+  } catch (err) {
+    const message = (err as Error).message;
+    if (message.includes('Daily limit')) {
+      res.status(429).json({ error: message });
+      return;
+    }
+    console.error('[Refine] Error:', message);
+    if (
+      message.includes('JSON') ||
+      message.includes('malformed') ||
+      message.includes('empty response') ||
+      message.includes('No valid JSON')
+    ) {
+      res.status(502).json({ error: message });
+      return;
+    }
+    next(err);
+  }
+});
+
+router.get('/list', async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const items = await listBlueprints(30);
+    res.json({ success: true, data: items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/meta', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { id } = req.params;
+  if (!validateBlueprintId(id)) {
+    res.status(400).json({ error: 'Invalid blueprint ID' });
+    return;
+  }
+
+  try {
+    const meta = await getBlueprintMeta(id, req.user!.userId);
+    if (!meta) {
+      res.status(404).json({ error: 'Blueprint not found' });
+      return;
+    }
+    res.json({ success: true, data: meta });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { id } = req.params;
+  if (!validateBlueprintId(id)) {
+    res.status(400).json({ error: 'Invalid blueprint ID' });
+    return;
+  }
+
+  try {
+    const result = await getBlueprintForUser(id, req.user!.userId);
+    if (!result) {
+      res.status(404).json({ error: 'Blueprint not found' });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...result.parsedBlueprint,
+        id: result.id,
+        idea: result.idea,
+        views: result.views,
+        createdAt: result.createdAt,
+        isPublic: result.isPublic,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/:id/visibility', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { is_public } = req.body;
   if (typeof is_public !== 'boolean') {
     res.status(400).json({ error: 'is_public must be a boolean' });
@@ -339,7 +369,7 @@ router.patch('/:id/visibility', requireAuth, async (req: Request, res: Response,
   }
 
   const { id } = req.params;
-  if (!id || id.length < 6 || id.length > 16) {
+  if (!validateBlueprintId(id)) {
     res.status(400).json({ error: 'Invalid blueprint ID' });
     return;
   }
@@ -350,7 +380,6 @@ router.patch('/:id/visibility', requireAuth, async (req: Request, res: Response,
       res.status(404).json({ error: 'Blueprint not found or not owned by you' });
       return;
     }
-
     res.json({ success: true, is_public });
   } catch (err) {
     next(err);
