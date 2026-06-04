@@ -5,24 +5,30 @@ import type { SchemaTable, ApiEndpoint, Architecture } from './types';
  * Detects foreign key relationships from column names ending in _id.
  */
 export function generateERDiagram(schema: SchemaTable[]): string {
-  if (!schema.length) return 'erDiagram\n  NO_TABLES["No tables defined"]';
+  if (!schema || !schema.length) return 'erDiagram\n  NO_TABLES["No tables defined"]';
 
   let diagram = 'erDiagram\n';
 
   // Sanitize table name for Mermaid (no spaces/special chars)
-  const sanitize = (name: string) => name.replace(/[^a-zA-Z0-9_]/g, '_');
+  const sanitize = (name: string) => (name || 'collection').replace(/[^a-zA-Z0-9_]/g, '_');
 
-  // Collect all table names for FK detection
-  const tableNames = new Set(schema.map((t) => sanitize(t.table)));
+  // Collect all table names for FK detection (both sanitized and lowercase for matching)
+  const tableNames = new Set(schema.map((t) => sanitize(t.table || '')));
+  const tableNamesLower = new Map<string, string>();
+  for (const t of schema) {
+    const sName = sanitize(t.table || '');
+    tableNamesLower.set(sName.toLowerCase(), sName);
+  }
 
   // Track relationships to avoid duplicates
   const relationships = new Set<string>();
 
+  // 1. Declare all table columns in structured single-block styles
   for (const table of schema) {
-    const tName = sanitize(table.table);
+    const tName = sanitize(table.table || '');
+    diagram += `  ${tName} {\n`;
 
-    // Add columns
-    for (const col of table.columns) {
+    for (const col of (table.columns || [])) {
       const colName = col.name.replace(/[^a-zA-Z0-9_]/g, '_');
       let colType = 'string';
 
@@ -37,25 +43,154 @@ export function generateERDiagram(schema: SchemaTable[]): string {
 
       const isPK = (col.type + ' ' + (col.note || '')).toUpperCase().includes('PRIMARY KEY') ||
                    (col.note || '').toUpperCase().includes('PK');
-      const isFK = col.name.endsWith('_id') || (col.note || '').toUpperCase().includes('FK');
+      const isFK = col.name.endsWith('_id') || 
+                   col.name.endsWith('Id') || 
+                   col.name.endsWith('ID') || 
+                   (col.note || '').toUpperCase().includes('FK') ||
+                   (col.type + ' ' + (col.note || '')).toLowerCase().includes('references');
 
       const constraint = isPK ? 'PK' : isFK ? 'FK' : '';
+      diagram += `    ${colType} ${colName}${constraint ? ' ' + constraint : ''}\n`;
+    }
+    diagram += `  }\n`;
+  }
 
-      diagram += `  ${tName} {\n    ${colType} ${colName}${constraint ? ' ' + constraint : ''}\n  }\n`;
+  // 2. Generate relationship connections with improved detection
+  // Helper: extract base name from FK column name
+  const extractBaseName = (colName: string): string => {
+    // Handle snake_case: user_id → user, category_id → category
+    if (colName.toLowerCase().endsWith('_id')) {
+      return colName.slice(0, -3);
+    }
+    // Handle camelCase: userId → user, categoryId → category
+    if (colName.endsWith('Id') && colName.length > 2) {
+      const base = colName.slice(0, -2);
+      // Convert camelCase to snake_case for matching
+      return base.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+    }
+    if (colName.endsWith('ID') && colName.length > 2) {
+      return colName.slice(0, -2).toLowerCase();
+    }
+    return '';
+  };
 
-      // Detect FK relationships
-      if (isFK && col.name.endsWith('_id')) {
-        const refTable = sanitize(col.name.replace(/_id$/, ''));
-        // Try singular → plural matching
-        const candidates = [refTable, refTable + 's', refTable + 'es'];
-        for (const candidate of candidates) {
-          if (tableNames.has(candidate)) {
-            const relKey = `${candidate}-${tName}`;
-            if (!relationships.has(relKey)) {
-              relationships.add(relKey);
-              diagram += `  ${candidate} ||--o{ ${tName} : "has"\n`;
+  // Helper: generate pluralization candidates
+  const generateCandidates = (base: string): string[] => {
+    const lower = base.toLowerCase();
+    const candidates = [
+      lower,
+      lower + 's',
+      lower + 'es',
+    ];
+    // user → users, category → categories
+    if (lower.endsWith('y')) {
+      candidates.push(lower.slice(0, -1) + 'ies');
+    }
+    // users → user, categories → category
+    if (lower.endsWith('ies')) {
+      candidates.push(lower.slice(0, -3) + 'y');
+    }
+    if (lower.endsWith('ses') || lower.endsWith('xes') || lower.endsWith('zes')) {
+      candidates.push(lower.slice(0, -2));
+    }
+    if (lower.endsWith('s') && !lower.endsWith('ss')) {
+      candidates.push(lower.slice(0, -1));
+    }
+    // Handle underscored names: order_item → order_items
+    if (lower.includes('_')) {
+      const parts = lower.split('_');
+      const lastPart = parts[parts.length - 1];
+      const prefix = parts.slice(0, -1).join('_');
+      candidates.push(prefix + '_' + lastPart + 's');
+      if (lastPart.endsWith('s')) {
+        candidates.push(prefix + '_' + lastPart.slice(0, -1));
+      }
+    }
+    return candidates;
+  };
+
+  // Helper: find matching table name (case-insensitive)
+  const findMatchingTable = (candidates: string[]): string | null => {
+    for (const candidate of candidates) {
+      const match = tableNamesLower.get(candidate);
+      if (match) return match;
+    }
+    return null;
+  };
+
+  for (const table of schema) {
+    const tName = sanitize(table.table || '');
+
+    for (const col of (table.columns || [])) {
+      const colName = col.name.replace(/[^a-zA-Z0-9_]/g, '_');
+      const isPK = (col.type + ' ' + (col.note || '')).toUpperCase().includes('PRIMARY KEY') ||
+                   (col.note || '').toUpperCase().includes('PK');
+      const isFK = col.name.endsWith('_id') || 
+                   col.name.endsWith('Id') || 
+                   col.name.endsWith('ID') || 
+                   (col.note || '').toUpperCase().includes('FK') ||
+                   (col.type + ' ' + (col.note || '')).toLowerCase().includes('references');
+
+      if (isFK) {
+        // Try explicit REFERENCES clause first
+        const noteStr = ((col.type || '') + ' ' + (col.note || '')).toLowerCase();
+        const refMatch = noteStr.match(/references\s+([a-zA-Z0-9_]+)/);
+        let matchedTable = '';
+
+        if (refMatch) {
+          const refName = sanitize(refMatch[1]);
+          if (tableNames.has(refName)) {
+            matchedTable = refName;
+          } else {
+            // Try case-insensitive match
+            const found = tableNamesLower.get(refName.toLowerCase());
+            if (found) matchedTable = found;
+          }
+        }
+
+        // Try column name-based detection if REFERENCES didn't work
+        if (!matchedTable) {
+          const baseName = extractBaseName(colName);
+          if (baseName) {
+            const candidates = generateCandidates(baseName);
+            const found = findMatchingTable(candidates);
+            if (found && found !== tName) {
+              matchedTable = found;
             }
-            break;
+          }
+        }
+
+        if (matchedTable && matchedTable !== tName) {
+          // Use a canonical key to avoid duplicate relationships
+          const relKey = [matchedTable, tName].sort().join('-') + '-' + colName;
+          const simpleKey = `${matchedTable}-${tName}`;
+          if (!relationships.has(simpleKey)) {
+            relationships.add(simpleKey);
+            diagram += `  ${matchedTable} ||--o{ ${tName} : "has"\n`;
+          }
+        }
+      }
+    }
+  }
+
+  // 3. If no relationships were detected at all, try to infer from table names
+  if (relationships.size === 0 && schema.length > 1) {
+    // Look for tables whose names suggest they're junction/child tables
+    for (const table of schema) {
+      const tName = sanitize(table.table || '');
+      const tLower = tName.toLowerCase();
+      
+      // Check if this table name contains another table's name (e.g., "order_items" contains "order")
+      for (const otherTable of schema) {
+        const otherName = sanitize(otherTable.table || '');
+        if (otherName === tName) continue;
+        const otherLower = otherName.toLowerCase();
+        
+        if (tLower.includes(otherLower) || tLower.includes(otherLower.replace(/s$/, ''))) {
+          const relKey = `${otherName}-${tName}`;
+          if (!relationships.has(relKey)) {
+            relationships.add(relKey);
+            diagram += `  ${otherName} ||--o{ ${tName} : "has"\n`;
           }
         }
       }
@@ -94,8 +229,8 @@ export function generateArchDiagram(arch: Architecture): string {
   BE -.->|"Deployed on"| HOST
   DB -.->|"Hosted on"| HOST
 
-  style Client fill:#1a1a2e,stroke:#7c6aff,color:#f0f0f8
-  style Server fill:#1a1a2e,stroke:#22d3a5,color:#f0f0f8
+  style Client fill:#16161c,stroke:#14b8a6,color:#f4f4f5
+  style Server fill:#16161c,stroke:#2dd4bf,color:#f4f4f5
   style Data fill:#1a1a2e,stroke:#f59e0b,color:#f0f0f8
   style Infra fill:#1a1a2e,stroke:#60a5fa,color:#f0f0f8
 `;
@@ -153,6 +288,7 @@ export function generateAPIFlow(endpoints: ApiEndpoint[]): string {
 
 /** Escape special characters that break Mermaid syntax */
 function escapeMermaid(str: string): string {
+  if (!str) return '';
   return str
     .replace(/"/g, "'")
     .replace(/[[\]{}()#&]/g, ' ')
