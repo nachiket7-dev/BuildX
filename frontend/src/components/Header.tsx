@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Logo } from './Logo';
-import { AuthModal } from './AuthModal';
 import { useAuth } from '../hooks/useAuth';
 import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
+import { Compass, Home, Layers, LogOut, PanelLeft, Sparkles } from 'lucide-react';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -11,181 +11,140 @@ interface HeaderProps {
   sidebarOpen?: boolean;
 }
 
+function NavLink({
+  to,
+  label,
+  icon: Icon,
+  active,
+}: {
+  to: string;
+  label: string;
+  icon: typeof Home;
+  active: boolean;
+}) {
+  return (
+    <Link
+      to={to}
+      className={`nav-link focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${active ? 'nav-link--active' : ''}`}
+      aria-current={active ? 'page' : undefined}
+    >
+      <Icon size={14} />
+      <span className="hidden sm:inline">{label}</span>
+    </Link>
+  );
+}
+
 export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen }: HeaderProps) {
   const location = useLocation();
+  const isHome = location.pathname === '/create' || location.pathname.startsWith('/blueprint/');
   const isGallery = location.pathname === '/gallery';
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const { selectedModel } = useModel();
-  const [showAuth, setShowAuth] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
   return (
     <>
-      <header
-        className="flex items-center justify-between px-4 sm:px-8 py-3 sm:py-4 sticky top-0 z-50"
-        style={{
-          borderBottom: '1px solid var(--border)',
-          backdropFilter: 'blur(12px)',
-          background: 'rgba(10,10,15,0.75)',
-        }}
-      >
+      <header className="app-header">
         <div className="flex items-center gap-3">
-          {/* Sidebar toggle */}
           {showSidebarToggle && !sidebarOpen && (
             <button
+              type="button"
               onClick={onToggleSidebar}
-              className="p-1.5 rounded-lg transition-colors"
-              style={{ color: 'var(--text3)' }}
-              title="Open sidebar"
+              className="shell-icon-btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              aria-label="Open sidebar"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <line x1="9" y1="3" x2="9" y2="21" />
-              </svg>
+              <PanelLeft size={18} />
             </button>
           )}
-          <Link to="/" style={{ textDecoration: 'none' }}>
+          <Link to="/create" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] rounded-lg">
             <Logo size="md" />
           </Link>
         </div>
 
-        <div className="flex items-center gap-3 sm:gap-5">
-          {/* Gallery link */}
-          <Link
-            to="/gallery"
-            className="font-mono-custom text-xs transition-colors duration-150"
-            style={{
-              color: isGallery ? 'var(--accent2)' : 'var(--text3)',
-            }}
-            onMouseEnter={(e) => {
-              if (!isGallery) (e.target as HTMLElement).style.color = 'var(--text)';
-            }}
-            onMouseLeave={(e) => {
-              if (!isGallery) (e.target as HTMLElement).style.color = 'var(--text3)';
-            }}
-          >
-            <span className="hidden sm:inline">Gallery</span>
-            <span className="sm:hidden">🖼️</span>
-          </Link>
+        <nav className="flex items-center gap-1 sm:gap-2" aria-label="Main">
+          <NavLink to="/" label="Home" icon={Sparkles} active={false} />
+          <NavLink to="/create" label="Create" icon={Home} active={isHome} />
+          <NavLink to="/gallery" label="Gallery" icon={Compass} active={isGallery} />
+        </nav>
 
-          {/* Status dot */}
-          <div className="flex items-center gap-2">
-            <div
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="hidden md:flex items-center gap-2" title="Active model">
+            <span
               className="w-1.5 h-1.5 rounded-full animate-pulse-dot"
               style={{ background: 'var(--green)', boxShadow: '0 0 8px var(--green)' }}
             />
-            <span className="font-mono-custom text-xs hidden sm:inline" style={{ color: 'var(--text3)' }}>
-              {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label || 'Groq AI'}
+            <span className="font-mono-custom text-[10px]" style={{ color: 'var(--text3)' }}>
+              {AVAILABLE_MODELS.find((m) => m.id === selectedModel)?.label || 'Groq AI'}
             </span>
           </div>
 
-          {/* Auth section */}
-          {user ? (
+          {user && (
             <div className="relative">
               <button
+                type="button"
                 onClick={() => setShowMenu(!showMenu)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-150"
-                style={{
-                  background: 'var(--accent-glow)',
-                  borderColor: 'rgba(124,106,255,0.25)',
-                  color: 'var(--accent2)',
-                }}
+                className="shell-user-btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                aria-expanded={showMenu}
+                aria-haspopup="true"
               >
-                <div
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                  style={{ background: 'var(--accent)' }}
+                <span
+                  className="shell-user-btn__avatar"
+                  aria-hidden
                 >
                   {user.name.charAt(0).toUpperCase()}
-                </div>
-                <span className="font-mono-custom text-xs hidden sm:inline">
+                </span>
+                <span className="font-mono-custom text-xs hidden sm:inline max-w-[100px] truncate">
                   {user.name}
                 </span>
               </button>
 
-              {/* Dropdown */}
               {showMenu && (
                 <>
-                  <div
-                    className="fixed inset-0 z-40"
+                  <button
+                    type="button"
+                    className="fixed inset-0 z-40 cursor-default"
+                    aria-label="Close menu"
                     onClick={() => setShowMenu(false)}
                   />
                   <div
-                    className="absolute right-0 top-full mt-2 w-48 rounded-xl border p-2 z-50"
-                    style={{
-                      background: 'var(--surface)',
-                      borderColor: 'var(--border2)',
-                      boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
-                    }}
+                    className="user-menu animate-fade-slide-up"
+                    role="menu"
                   >
-                    <div className="px-3 py-2 mb-1">
-                      <p className="font-mono-custom text-xs font-medium" style={{ color: 'var(--text)' }}>
-                        {user.name}
-                      </p>
-                      <p className="font-mono-custom text-[10px]" style={{ color: 'var(--text3)' }}>
-                        {user.email}
-                      </p>
+                    <div className="user-menu__header">
+                      <p className="user-menu__name">{user.name}</p>
+                      <p className="user-menu__email">{user.email}</p>
                     </div>
-
-                    <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-
+                    <div className="user-menu__divider" />
                     <Link
                       to="/gallery"
+                      role="menuitem"
                       onClick={() => setShowMenu(false)}
-                      className="block px-3 py-2 rounded-lg font-mono-custom text-xs transition-colors"
-                      style={{ color: 'var(--text2)' }}
-                      onMouseEnter={(e) => {
-                        (e.target as HTMLElement).style.background = 'var(--surface2)';
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.target as HTMLElement).style.background = 'transparent';
-                      }}
+                      className="user-menu__item focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                     >
-                      📋 My Blueprints
+                      <Layers size={13} />
+                      My Blueprints
                     </Link>
-
                     <button
+                      type="button"
+                      role="menuitem"
                       onClick={() => {
                         logout();
                         setShowMenu(false);
+                        navigate('/', { replace: true });
                       }}
-                      className="w-full text-left px-3 py-2 rounded-lg font-mono-custom text-xs transition-colors"
-                      style={{ color: 'var(--coral)' }}
-                      onMouseEnter={(e) => {
-                        (e.target as HTMLElement).style.background = 'var(--coral-dim)';
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.target as HTMLElement).style.background = 'transparent';
-                      }}
+                      className="user-menu__item user-menu__item--danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--coral)]"
                     >
-                      ↪ Sign Out
+                      <LogOut size={13} />
+                      Sign Out
                     </button>
                   </div>
                 </>
               )}
             </div>
-          ) : (
-            <button
-              onClick={() => setShowAuth(true)}
-              className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-xl border font-mono-custom text-xs transition-all duration-150"
-              style={{
-                background: 'var(--accent-glow)',
-                borderColor: 'rgba(124,106,255,0.25)',
-                color: 'var(--accent2)',
-              }}
-              onMouseEnter={(e) => {
-                (e.target as HTMLElement).style.background = 'rgba(124,106,255,0.3)';
-              }}
-              onMouseLeave={(e) => {
-                (e.target as HTMLElement).style.background = 'var(--accent-glow)';
-              }}
-            >
-              Sign In
-            </button>
           )}
         </div>
       </header>
-
-      <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
     </>
   );
 }

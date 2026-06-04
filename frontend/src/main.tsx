@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { ModelProvider } from './hooks/useModel';
+import { ToastProvider } from './hooks/useToast';
 import './index.css';
 
 // Force Vite HMR reload
@@ -25,11 +26,13 @@ if (!rootElement) {
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <ModelProvider>
-          <App />
-        </ModelProvider>
-      </BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+          <ModelProvider>
+            <App />
+          </ModelProvider>
+        </BrowserRouter>
+      </ToastProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );

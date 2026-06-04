@@ -65,8 +65,7 @@ export function LoadingScreen() {
         </div>
 
         <h2
-          className="font-display font-bold text-2xl text-center mb-2"
-          style={{ color: 'var(--text)' }}
+          className="font-display font-extrabold text-2xl text-center mb-2 bg-gradient-to-r from-white via-slate-200 to-purple-400 bg-clip-text text-transparent"
         >
           Architecting your app...
         </h2>
@@ -91,9 +90,9 @@ export function LoadingScreen() {
                       : 'var(--surface)',
                   borderColor:
                     status === 'done'
-                      ? 'rgba(34,211,165,0.2)'
+                      ? 'rgba(34,197,94,0.2)'
                       : status === 'active'
-                      ? 'rgba(124,106,255,0.3)'
+                      ? 'rgba(20,184,166,0.3)'
                       : 'var(--border)',
                   color:
                     status === 'done'
