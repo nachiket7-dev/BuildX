@@ -1,4 +1,5 @@
 import React from 'react';
+import { ShinyText } from './ShinyText';
 
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
@@ -13,26 +14,25 @@ const sizes = {
 export function Logo({ size = 'md' }: LogoProps) {
   const s = sizes[size];
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2.5 group cursor-pointer">
       <div
-        className={`${s.box} rounded-[8px] flex items-center justify-center flex-shrink-0`}
+        className={`${s.box} rounded-[8px] flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-108 group-hover:rotate-6`}
         style={{ background: 'var(--accent)', boxShadow: '0 0 20px var(--accent-glow)' }}
       >
         <svg className={s.svg} viewBox="0 0 24 24" fill="white">
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
         </svg>
       </div>
-      <span
-        className={`${s.text} font-display font-bold tracking-tight`}
-        style={{ color: 'var(--text)' }}
-      >
-        BuildX
-      </span>
+      <ShinyText
+        text="BuildX"
+        className={`${s.text} font-display font-extrabold tracking-tight`}
+        speed={5}
+      />
       <span
         className={`${s.badge} hidden sm:inline-block font-mono-custom rounded-full border`}
         style={{
           background: 'var(--accent-glow)',
-          borderColor: 'rgba(124,106,255,0.3)',
+          borderColor: 'var(--nav-active-border)',
           color: 'var(--accent2)',
           letterSpacing: '0.5px',
         }}
