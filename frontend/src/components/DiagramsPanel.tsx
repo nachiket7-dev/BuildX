@@ -2,36 +2,39 @@ import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import type { Blueprint } from '../lib/types';
 import { generateERDiagram, generateArchDiagram, generateAPIFlow } from '../lib/diagrams';
+import { SpotlightCard } from './SpotlightCard';
 
 // Initialize mermaid with dark theme
 mermaid.initialize({
   startOnLoad: false,
   theme: 'dark',
   themeVariables: {
-    primaryColor: '#7c6aff',
-    primaryTextColor: '#f0f0f8',
-    primaryBorderColor: '#7c6aff',
-    lineColor: '#5a5a70',
-    secondaryColor: '#18181f',
-    tertiaryColor: '#111118',
-    background: '#0a0a0f',
-    mainBkg: '#18181f',
-    nodeBorder: '#7c6aff',
-    clusterBkg: '#111118',
-    titleColor: '#f0f0f8',
-    edgeLabelBackground: '#18181f',
+    primaryColor: '#14b8a6',
+    primaryTextColor: '#f0fdfa',
+    primaryBorderColor: '#14b8a6',
+    lineColor: '#475569',
+    secondaryColor: '#121820',
+    tertiaryColor: '#0c1016',
+    background: '#080b0f',
+    mainBkg: '#121820',
+    nodeBorder: '#14b8a6',
+    clusterBkg: '#0c1016',
+    titleColor: '#f0fdfa',
+    edgeLabelBackground: '#121820',
   },
   fontFamily: '"DM Mono", monospace',
   fontSize: 13,
 });
 
+import { Database, Network, GitMerge } from 'lucide-react';
+
 type DiagramTab = 'er' | 'arch' | 'api';
 
-const DIAGRAM_TABS: { id: DiagramTab; label: string; icon: string }[] = [
-  { id: 'er', label: 'ER Diagram', icon: '🗄️' },
-  { id: 'arch', label: 'Architecture', icon: '🏗️' },
-  { id: 'api', label: 'API Flow', icon: '🔀' },
-];
+const DIAGRAM_TABS = [
+  { id: 'er', label: 'ER Diagram', icon: Database },
+  { id: 'arch', label: 'Architecture', icon: Network },
+  { id: 'api', label: 'API Flow', icon: GitMerge },
+] as const;
 
 function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,24 +94,25 @@ function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="mermaid-container rounded-xl p-6 overflow-x-auto"
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-      }}
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <SpotlightCard
+      className="mermaid-container p-6 overflow-x-auto"
+      spotlightColor="rgba(20, 184, 166, 0.08)"
+    >
+      <div
+        ref={containerRef}
+        className="w-full h-full"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    </SpotlightCard>
   );
 }
 
 export function DiagramsPanel({ blueprint }: { blueprint: Blueprint }) {
   const [activeTab, setActiveTab] = useState<DiagramTab>('er');
 
-  const erDiagram = generateERDiagram(blueprint.schema);
-  const archDiagram = generateArchDiagram(blueprint.architecture);
-  const apiDiagram = generateAPIFlow(blueprint.endpoints);
+  const erDiagram = generateERDiagram(blueprint.schema || []);
+  const archDiagram = generateArchDiagram(blueprint.architecture || {} as any);
+  const apiDiagram = generateAPIFlow(blueprint.endpoints || []);
 
   return (
     <div>
@@ -121,18 +125,19 @@ export function DiagramsPanel({ blueprint }: { blueprint: Blueprint }) {
 
       {/* Sub-tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-        {DIAGRAM_TABS.map(({ id, label, icon }) => (
+        {DIAGRAM_TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className="font-mono-custom text-xs px-4 py-2 rounded-lg border transition-all duration-150"
+            className="font-mono-custom text-xs px-4 py-2 rounded-lg border transition-all duration-150 flex items-center gap-1.5"
             style={{
               background: activeTab === id ? 'var(--accent-glow)' : 'var(--surface2)',
-              borderColor: activeTab === id ? 'rgba(124,106,255,0.3)' : 'var(--border)',
+              borderColor: activeTab === id ? 'rgba(20,184,166,0.3)' : 'var(--border)',
               color: activeTab === id ? 'var(--accent2)' : 'var(--text3)',
             }}
           >
-            {icon} {label}
+            <Icon size={13} />
+            <span>{label}</span>
           </button>
         ))}
       </div>
@@ -141,7 +146,7 @@ export function DiagramsPanel({ blueprint }: { blueprint: Blueprint }) {
       {activeTab === 'er' && (
         <div>
           <p className="text-xs mb-4" style={{ color: 'var(--text3)' }}>
-            Entity-Relationship diagram showing {blueprint.schema.length} tables and their relationships
+            Entity-Relationship diagram showing {(blueprint.schema || []).length} tables and their relationships
           </p>
           <MermaidRenderer chart={erDiagram} id="er" />
         </div>
