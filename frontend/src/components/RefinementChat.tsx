@@ -1,4 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronDown, ChevronUp, Send, Wand2 } from 'lucide-react';
 import type { ChatMessage } from '../hooks/useRefinement';
 import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
 
@@ -7,43 +9,189 @@ interface RefinementChatProps {
   isRefining: boolean;
   onSend: (message: string) => void;
   onClear: () => void;
-  sidebarOffset?: number;
+  /** Blueprint `<section>` — fixed dock matches this box on scroll / sidebar toggle */
+  anchorRef: React.RefObject<HTMLElement>;
+  /** Re-sync while app shell margin animates (sidebar open/close) */
+  layoutSyncKey?: boolean;
 }
 
 const SUGGESTIONS = [
   'Add Stripe payments',
   'Switch database to MongoDB',
   'Add a notification system',
-  'Add real-time chat with WebSockets',
+  'Add a real-time chat with WebSockets',
   'Add an admin analytics dashboard',
   'Make it a mobile app with React Native',
 ];
 
-export function RefinementChat({ messages, isRefining, onSend, onClear, sidebarOffset = 0 }: RefinementChatProps) {
+const MODEL_MENU_WIDTH = 240;
+/** Matches app-shell-content `transition-all duration-300` */
+const SHELL_TRANSITION_MS = 320;
+
+interface ConversationTurn {
+  user: ChatMessage;
+  assistant?: ChatMessage;
+}
+
+function groupConversationTurns(messages: ChatMessage[]): ConversationTurn[] {
+  const turns: ConversationTurn[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (msg.role !== 'user') continue;
+    const next = messages[i + 1];
+    turns.push({
+      user: msg,
+      assistant: next?.role === 'assistant' ? next : undefined,
+    });
+    if (next?.role === 'assistant') i++;
+  }
+  return turns;
+}
+
+function useAnchorBounds(
+  anchorRef: React.RefObject<HTMLElement>,
+  layoutSyncKey?: boolean
+) {
+  const [bounds, setBounds] = useState({ left: 0, width: 0 });
+
+  useLayoutEffect(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+
+    function update() {
+      const target = anchorRef.current;
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      setBounds({ left: rect.left, width: rect.width });
+    }
+
+    update();
+
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+
+    const shell = el.closest('.app-shell-content');
+    if (shell) {
+      observer.observe(shell);
+      shell.addEventListener('transitionend', update);
+    }
+
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+
+    return () => {
+      observer.disconnect();
+      if (shell) shell.removeEventListener('transitionend', update);
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [anchorRef]);
+
+  useLayoutEffect(() => {
+    if (layoutSyncKey === undefined) return;
+
+    const el = anchorRef.current;
+    if (!el) return;
+
+    function update() {
+      const target = anchorRef.current;
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      setBounds({ left: rect.left, width: rect.width });
+    }
+
+    update();
+
+    let raf = 0;
+    const endAt = performance.now() + SHELL_TRANSITION_MS;
+
+    function tick() {
+      update();
+      if (performance.now() < endAt) {
+        raf = requestAnimationFrame(tick);
+      }
+    }
+
+    raf = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(raf);
+  }, [anchorRef, layoutSyncKey]);
+
+  return bounds;
+}
+
+export function RefinementChat({
+  messages,
+  isRefining,
+  onSend,
+  onClear,
+  anchorRef,
+  layoutSyncKey,
+}: RefinementChatProps) {
   const [input, setInput] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  const [menuPos, setMenuPos] = useState<{ left: number; bottom: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const anchorBounds = useAnchorBounds(anchorRef, layoutSyncKey);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const modelBtnRef = useRef<HTMLButtonElement>(null);
   const { selectedModel, setSelectedModel } = useModel();
 
-  // Track window width for responsive maxHeight
+  const selectedModelMeta = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
+  const selectedModelLabel = selectedModelMeta?.label ?? 'Model';
+  const shortModelLabel = selectedModelLabel.split(' ')[0] ?? 'Model';
+
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    setMounted(true);
   }, []);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-expand when there are messages
   useEffect(() => {
     if (messages.length > 0) setIsExpanded(true);
   }, [messages.length]);
+
+  useLayoutEffect(() => {
+    if (!showModelDropdown || !modelBtnRef.current) {
+      setMenuPos(null);
+      return;
+    }
+
+    function updatePosition() {
+      const btn = modelBtnRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      let left = rect.left;
+      const maxLeft = window.innerWidth - MODEL_MENU_WIDTH - 12;
+      if (left > maxLeft) left = maxLeft;
+      if (left < 12) left = 12;
+      setMenuPos({
+        left,
+        bottom: window.innerHeight - rect.top + 8,
+      });
+    }
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [showModelDropdown, isExpanded]);
+
+  useEffect(() => {
+    if (!showModelDropdown) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setShowModelDropdown(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [showModelDropdown]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,303 +206,259 @@ export function RefinementChat({ messages, isRefining, onSend, onClear, sidebarO
     onSend(suggestion);
   }
 
-  return (
-    <div
-      className={`fixed bottom-0 right-0 left-0 z-50 transition-all duration-300 ${
-        sidebarOffset > 0 ? 'md:pl-[280px]' : ''
-      }`}
-      style={{ pointerEvents: 'none' }}
-    >
-      <div
-        className="max-w-5xl mx-auto px-3 sm:px-6 pb-3 sm:pb-6"
-        style={{ pointerEvents: 'auto' }}
-      >
-        <div
-          className="rounded-2xl border overflow-hidden transition-all duration-300"
-          style={{
-            background: 'rgba(10, 10, 15, 0.85)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            borderColor: 'rgba(124, 106, 255, 0.2)',
-            boxShadow: '0 -4px 40px rgba(0, 0, 0, 0.4)',
-          }}
-        >
-          {/* Header bar — always visible */}
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full flex items-center justify-between px-5 py-3"
-            style={{ borderBottom: isExpanded ? '1px solid rgba(124,106,255,0.15)' : 'none' }}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-base">✨</span>
-              <span
-                className="font-mono-custom text-xs font-medium"
-                style={{ color: 'var(--accent2)' }}
-              >
-                Refine Blueprint
-              </span>
-              {messages.length > 0 && (
-                <span
-                  className="font-mono-custom text-[10px] px-2 py-0.5 rounded-full"
-                  style={{
-                    background: 'var(--accent-glow)',
-                    color: 'var(--accent2)',
-                  }}
-                >
-                  {messages.length}
-                </span>
-              )}
-            </div>
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+  const modelMenu =
+    showModelDropdown && menuPos
+      ? createPortal(
+          <>
+            <div
+              className="refine-chat__menu-backdrop"
+              aria-hidden
+              onClick={() => setShowModelDropdown(false)}
+            />
+            <div
+              className="model-select-menu refine-chat__model-menu-portal animate-fade-slide-up"
+              role="listbox"
+              aria-label="AI Model"
               style={{
-                color: 'var(--text3)',
-                transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
-                transition: 'transform 0.2s ease',
+                position: 'fixed',
+                left: menuPos.left,
+                bottom: menuPos.bottom,
+                width: MODEL_MENU_WIDTH,
+                zIndex: 200,
               }}
             >
-              <polyline points="18 15 12 9 6 15" />
-            </svg>
-          </button>
-
-          {/* Expandable content */}
-          <div
-            style={{
-              maxHeight: isExpanded ? (isMobile ? '55vh' : '400px') : '0px',
-              opacity: isExpanded ? 1 : 0,
-              transition: 'max-height 0.3s ease, opacity 0.2s ease',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Messages area */}
-            {messages.length > 0 ? (
-              <div
-                className="px-5 py-3 overflow-y-auto flex flex-col gap-2.5"
-                style={{ maxHeight: '220px' }}
-              >
-                {messages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className="px-3.5 py-2 rounded-xl text-xs max-w-[80%]"
-                      style={{
-                        background:
-                          msg.role === 'user'
-                            ? 'rgba(124, 106, 255, 0.2)'
-                            : 'rgba(255, 255, 255, 0.05)',
-                        color: msg.role === 'user' ? 'var(--accent2)' : 'var(--text2)',
-                        borderBottomRightRadius: msg.role === 'user' ? '4px' : '12px',
-                        borderBottomLeftRadius: msg.role === 'user' ? '12px' : '4px',
-                      }}
-                    >
-                      {msg.content}
-                    </div>
-                  </div>
-                ))}
-                {isRefining && (
-                  <div className="flex justify-start">
-                    <div
-                      className="px-3.5 py-2 rounded-xl text-xs flex items-center gap-2"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        color: 'var(--text3)',
-                      }}
-                    >
-                      <div className="flex gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse-dot" />
-                        <span
-                          className="w-1.5 h-1.5 rounded-full bg-current animate-pulse-dot"
-                          style={{ animationDelay: '0.2s' }}
-                        />
-                        <span
-                          className="w-1.5 h-1.5 rounded-full bg-current animate-pulse-dot"
-                          style={{ animationDelay: '0.4s' }}
-                        />
-                      </div>
-                      Refining blueprint...
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-            ) : (
-              /* Suggestion chips when no messages */
-              <div className="px-5 py-3">
-                <p
-                  className="font-mono-custom text-[10px] uppercase tracking-wider mb-2"
-                  style={{ color: 'var(--text3)' }}
-                >
-                  Try saying:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {SUGGESTIONS.map((s) => (
+              <div className="model-select-menu__header">AI Model</div>
+              <div className="model-select-menu__list">
+                {AVAILABLE_MODELS.map((model) => {
+                  const isSelected = selectedModel === model.id;
+                  return (
                     <button
-                      key={s}
-                      onClick={() => handleSuggestion(s)}
-                      disabled={isRefining}
-                      className="font-mono-custom text-[11px] px-3 py-1.5 rounded-lg border transition-all duration-150 hover:scale-[1.02] disabled:opacity-40"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        borderColor: 'rgba(255, 255, 255, 0.08)',
-                        color: 'var(--text3)',
+                      type="button"
+                      key={model.id}
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        setSelectedModel(model.id);
+                        setShowModelDropdown(false);
                       }}
+                      className={`model-select-option ${isSelected ? 'model-select-option--active' : ''}`}
                     >
-                      {s}
+                      <span className="font-mono-custom text-xs">{model.label}</span>
+                      {model.badge && (
+                        <span className="model-select-option__badge">{model.badge}</span>
+                      )}
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
+            </div>
+          </>,
+          document.body
+        )
+      : null;
+
+  const conversationTurns = groupConversationTurns(messages);
+  const pendingUserMessage =
+    messages.length > 0 && messages[messages.length - 1]?.role === 'user' && isRefining
+      ? messages[messages.length - 1]
+      : null;
+
+  const chatPanel = (
+    <div
+      className={`refine-chat ${isExpanded ? 'refine-chat--expanded' : ''} ${showModelDropdown ? 'refine-chat--menu-open' : ''}`}
+    >
+      <div className="refine-chat__accent" aria-hidden />
+      <div className="refine-chat__header">
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="refine-chat__header-toggle"
+          aria-expanded={isExpanded}
+        >
+          <div className="refine-chat__header-left">
+            <span className="refine-chat__header-icon" aria-hidden>
+              <Wand2 size={14} strokeWidth={2} />
+            </span>
+            <span className="refine-chat__header-title">Refine Blueprint</span>
+            {!isExpanded && messages.length > 0 && (
+              <span className="refine-chat__header-preview">
+                {messages[messages.length - 1]?.content.slice(0, 72)}
+                {(messages[messages.length - 1]?.content.length ?? 0) > 72 ? '…' : ''}
+              </span>
             )}
+          </div>
+          <ChevronUp
+            size={14}
+            strokeWidth={2}
+            className={`refine-chat__chevron ${isExpanded ? 'refine-chat__chevron--open' : ''}`}
+            aria-hidden
+          />
+        </button>
+        {messages.length > 0 && isExpanded && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="refine-chat__clear-btn"
+            title="Clear chat"
+          >
+            Clear
+          </button>
+        )}
+      </div>
 
-            {/* Input bar */}
-            <form onSubmit={handleSubmit} className="px-3 sm:px-4 py-3 flex gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={isRefining}
-                placeholder={
-                  isRefining
-                    ? 'Refining...'
-                    : 'e.g. "Add a payments system with Stripe"'
-                }
-                maxLength={500}
-                className="flex-1 min-w-0 px-3 sm:px-4 py-2.5 rounded-xl border text-sm transition-all duration-150 disabled:opacity-50"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  borderColor: 'rgba(255, 255, 255, 0.1)',
-                  color: 'var(--text)',
-                  outline: 'none',
-                }}
-                onFocus={(e) => {
-                  (e.target as HTMLElement).style.borderColor = 'rgba(124,106,255,0.4)';
-                }}
-                onBlur={(e) => {
-                  (e.target as HTMLElement).style.borderColor = 'rgba(255,255,255,0.1)';
-                }}
-              />
-              {messages.length > 0 && (
-                <button
-                  type="button"
-                  onClick={onClear}
-                  className="px-3 py-2.5 rounded-xl border text-xs transition-all duration-150 flex-shrink-0"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    borderColor: 'rgba(255, 255, 255, 0.08)',
-                    color: 'var(--text3)',
-                  }}
-                  title="Clear chat"
-                >
-                  ✕
-                </button>
-              )}
+      <div
+        className="refine-chat__collapse"
+        style={{ maxHeight: isExpanded ? 'min(55vh, 420px)' : '0px' }}
+      >
+        <div
+          className={`refine-chat__scroll ${messages.length > 0 ? 'refine-chat__scroll--has-history' : ''}`}
+        >
+          {messages.length > 0 ? (
+            <div className="refine-chat__messages">
+              <div className="refine-chat__history-head">
+                <span className="refine-chat__history-title">Conversation history</span>
+                <span className="refine-chat__history-count">
+                  {conversationTurns.length}{' '}
+                  {conversationTurns.length === 1 ? 'request' : 'requests'}
+                </span>
+              </div>
 
-              {/* Model Selector — hidden on mobile to save space */}
-              <div className="relative hidden sm:block">
-                <button
-                  type="button"
-                  onClick={() => setShowModelDropdown(!showModelDropdown)}
-                  className="px-3 py-2.5 rounded-xl border flex items-center justify-center transition-all duration-150 group h-full"
-                  style={{
-                    background: showModelDropdown ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.03)',
-                    borderColor: showModelDropdown ? 'rgba(124, 106, 255, 0.4)' : 'rgba(255, 255, 255, 0.08)',
-                    color: 'var(--text3)',
-                  }}
-                  title="Select AI Model"
-                  onMouseEnter={(e) => {
-                    if (!showModelDropdown) (e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.05)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!showModelDropdown) (e.currentTarget as HTMLElement).style.background = 'rgba(255, 255, 255, 0.03)';
-                  }}
-                >
-                  <span className="font-mono-custom text-[11px] sm:text-xs">
-                    {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label.split(' ')[0] || 'Model'}
-                  </span>
-                </button>
-
-                {showModelDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowModelDropdown(false)} />
-                    <div
-                      className="absolute bottom-full right-0 mb-2 w-[220px] rounded-xl border z-50 overflow-hidden animate-fade-slide-up shadow-2xl"
-                      style={{ background: 'var(--surface)', borderColor: 'var(--border2)' }}
-                    >
-                      <div className="px-3 py-2 text-[10px] font-mono-custom tracking-wider uppercase" style={{ color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>
-                        AI Model
-                      </div>
-                      <div className="p-1">
-                        {AVAILABLE_MODELS.map((model) => (
-                          <button
-                            type="button"
-                            key={model.id}
-                            onClick={() => {
-                              setSelectedModel(model.id);
-                              setShowModelDropdown(false);
-                            }}
-                            className="w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center justify-between group transition-colors"
-                            style={{
-                              background: selectedModel === model.id ? 'var(--surface2)' : 'transparent',
-                              color: selectedModel === model.id ? 'var(--text)' : 'var(--text2)'
-                            }}
-                            onMouseEnter={(e) => {
-                              if (selectedModel !== model.id) (e.currentTarget as HTMLElement).style.background = 'var(--surface3)';
-                            }}
-                            onMouseLeave={(e) => {
-                              if (selectedModel !== model.id) (e.currentTarget as HTMLElement).style.background = 'transparent';
-                            }}
-                          >
-                            <span className="font-mono-custom text-xs">{model.label}</span>
-                            {model.badge && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded border font-mono-custom whitespace-nowrap"
-                                style={{
-                                  background: 'var(--accent-glow)',
-                                  borderColor: 'var(--border2)',
-                                  color: 'var(--accent2)'
-                                }}
-                              >
-                                {model.badge}
-                              </span>
-                            )}
-                          </button>
-                        ))}
+              <div className="refine-chat__turn-list">
+                {conversationTurns.map((turn, turnIndex) => (
+                  <article key={turn.user.timestamp} className="refine-chat__turn">
+                    <header className="refine-chat__turn-head">
+                      Request {turnIndex + 1}
+                    </header>
+                    <div className="refine-chat__bubble-row refine-chat__bubble-row--user">
+                      <span className="refine-chat__bubble-label">You asked</span>
+                      <div className="refine-chat__bubble refine-chat__bubble--user">
+                        {turn.user.content}
                       </div>
                     </div>
-                  </>
-                )}
+                    {turn.assistant ? (
+                      <div className="refine-chat__bubble-row refine-chat__bubble-row--assistant">
+                        <span className="refine-chat__bubble-label">BuildX replied</span>
+                        <div className="refine-chat__bubble refine-chat__bubble--assistant">
+                          {turn.assistant.content}
+                        </div>
+                      </div>
+                    ) : pendingUserMessage?.timestamp === turn.user.timestamp && isRefining ? (
+                      <div className="refine-chat__bubble-row refine-chat__bubble-row--assistant">
+                        <span className="refine-chat__bubble-label">BuildX</span>
+                        <div className="refine-chat__bubble refine-chat__bubble--typing">
+                          <div className="refine-chat__typing-dots" aria-hidden>
+                            <span />
+                            <span />
+                            <span />
+                          </div>
+                          Refining blueprint…
+                        </div>
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
               </div>
 
-              <button
-                type="submit"
-                disabled={!input.trim() || isRefining}
-                className="px-4 sm:px-5 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150 disabled:opacity-30 flex-shrink-0"
-                style={{
-                  background: 'rgba(124, 106, 255, 0.2)',
-                  borderColor: 'rgba(124, 106, 255, 0.3)',
-                  color: 'var(--accent2)',
-                }}
-              >
-                {isRefining ? (
-                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin-slow" />
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="22" y1="2" x2="11" y2="13" />
-                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                  </svg>
-                )}
-              </button>
-            </form>
-          </div>
+              <div ref={messagesEndRef} />
+            </div>
+          ) : (
+            <div className="refine-chat__suggestions">
+              <p className="refine-chat__suggestions-label">Try saying</p>
+              <div className="refine-chat__suggestions-list">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => handleSuggestion(s)}
+                    disabled={isRefining}
+                    className="refine-chat__suggestion-chip"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {isExpanded && (
+        <form onSubmit={handleSubmit} className="refine-chat__form">
+          <div className="refine-chat__model-slot">
+            <button
+              ref={modelBtnRef}
+              type="button"
+              onClick={() => setShowModelDropdown((v) => !v)}
+              className={`model-select-btn refine-chat__model-btn ${showModelDropdown ? 'model-select-btn--open' : ''}`}
+              aria-expanded={showModelDropdown}
+              aria-haspopup="listbox"
+              title={selectedModelLabel}
+            >
+              <span className="model-select-btn__dot" aria-hidden />
+              <span className="refine-chat__model-btn-label sm:hidden">{shortModelLabel}</span>
+              <span className="refine-chat__model-btn-label hidden sm:inline">
+                {selectedModelLabel}
+              </span>
+              <ChevronDown
+                size={12}
+                strokeWidth={2}
+                className="model-select-btn__chevron shrink-0"
+                aria-hidden
+              />
+            </button>
+          </div>
+
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={isRefining}
+            placeholder={
+              isRefining ? 'Refining…' : 'e.g. "Add a payments system with Stripe"'
+            }
+            maxLength={500}
+            className="refine-chat__input"
+          />
+
+          <button
+            type="submit"
+            disabled={!input.trim() || isRefining}
+            className="refine-chat__send-btn"
+            aria-label={isRefining ? 'Refining' : 'Send refinement'}
+          >
+            {isRefining ? (
+              <span className="refine-chat__send-spinner" aria-hidden />
+            ) : (
+              <Send size={18} strokeWidth={2} aria-hidden />
+            )}
+          </button>
+        </form>
+      )}
     </div>
+  );
+
+  const fixedDock =
+    mounted && anchorBounds.width > 0
+      ? createPortal(
+          <div
+            className="refine-chat-dock"
+            style={{
+              left: anchorBounds.left,
+              width: anchorBounds.width,
+            }}
+          >
+            {chatPanel}
+          </div>,
+          document.body
+        )
+      : null;
+
+  return (
+    <>
+      {modelMenu}
+      {fixedDock}
+      <div className="refine-chat-spacer" aria-hidden />
+    </>
   );
 }
