@@ -1,0 +1,307 @@
+import { Blueprint, BlueprintSchema } from './types';
+
+const VALID_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+type ValidMethod = (typeof VALID_METHODS)[number];
+
+const META_KEYS = new Set(['id', 'idea', 'views', 'createdAt', 'isPublic']);
+
+function safeMethod(m: unknown): ValidMethod {
+  if (typeof m === 'string') {
+    const upper = m.toUpperCase();
+    if (VALID_METHODS.includes(upper as ValidMethod)) return upper as ValidMethod;
+  }
+  return 'GET';
+}
+
+function safeComplexity(c: unknown): 'Low' | 'Medium' | 'High' {
+  if (c === 'Low' || c === 'Medium' || c === 'High') return c;
+  if (typeof c === 'string') {
+    const match = c.match(/\b(Low|Medium|High)\b/i);
+    if (match) {
+      const v = match[1];
+      return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() as 'Low' | 'Medium' | 'High';
+    }
+  }
+  return 'Medium';
+}
+
+function unescapeString(str: string): string {
+  return str
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\');
+}
+
+export function formatSQL(sql: string): string {
+  if (!sql) return '';
+  
+  let cleanSql = sql.trim();
+  const statements: string[] = [];
+  let currentStatement = '';
+  let inDoubleQuote = false;
+  let inSingleQuote = false;
+  
+  for (let i = 0; i < cleanSql.length; i++) {
+    const char = cleanSql[i];
+    const nextChar = cleanSql[i + 1] || '';
+    
+    // Handle comments
+    if (!inDoubleQuote && !inSingleQuote) {
+      if (char === '-' && nextChar === '-') {
+        if (currentStatement.trim()) {
+          statements.push(currentStatement.trim());
+          currentStatement = '';
+        }
+        let comment = '';
+        while (i < cleanSql.length && cleanSql[i] !== '\n') {
+          comment += cleanSql[i];
+          i++;
+        }
+        statements.push(comment.trim());
+        continue;
+      }
+    }
+    
+    if (char === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+    } else if (char === "'" && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+    }
+    
+    currentStatement += char;
+    
+    if (char === ';' && !inDoubleQuote && !inSingleQuote) {
+      statements.push(currentStatement.trim());
+      currentStatement = '';
+    }
+  }
+  
+  if (currentStatement.trim()) {
+    statements.push(currentStatement.trim());
+  }
+  
+  const formatted: string[] = [];
+  for (let stmt of statements) {
+    if (stmt.startsWith('--')) {
+      formatted.push(stmt);
+      continue;
+    }
+    
+    const createTableMatch = stmt.match(/^(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)([a-zA-Z0-9_`"]+)\s*\(([\s\S]*)\);?$/i);
+    if (createTableMatch) {
+      const prefix = createTableMatch[1];
+      const tableName = createTableMatch[2];
+      const colsString = createTableMatch[3].trim();
+      
+      const columns: string[] = [];
+      let current = '';
+      let depth = 0;
+      for (let j = 0; j < colsString.length; j++) {
+        const c = colsString[j];
+        if (c === '(') depth++;
+        else if (c === ')') depth--;
+        
+        if (c === ',' && depth === 0) {
+          columns.push(current.trim());
+          current = '';
+        } else {
+          current += c;
+        }
+      }
+      if (current.trim()) {
+        columns.push(current.trim());
+      }
+      
+      const formattedCols = columns
+        .map(col => `  ${col}`)
+        .join(',\n');
+        
+      formatted.push(`${prefix.trim()} ${tableName} (\n${formattedCols}\n);`);
+    } else {
+      let formattedStmt = stmt;
+      if (!formattedStmt.endsWith(';') && !formattedStmt.startsWith('--')) {
+        formattedStmt += ';';
+      }
+      formatted.push(formattedStmt);
+    }
+  }
+  
+  return formatted.join('\n\n');
+}
+
+function stripMetaFields(input: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!META_KEYS.has(key)) out[key] = value;
+  }
+  return out;
+}
+
+export function applyBlueprintFallbacks(partial: Record<string, unknown>): Blueprint {
+  const f = (partial.features as Record<string, unknown>) ?? {};
+  const a = (partial.architecture as Record<string, unknown>) ?? {};
+  const code = (partial.code as Record<string, unknown>) ?? {};
+  const effort = (partial.effort as Record<string, unknown>) ?? {};
+  const endpoints = Array.isArray(partial.endpoints) ? partial.endpoints : [];
+  const rawSchema = Array.isArray(partial.schema) ? partial.schema : [];
+
+  const dbName = String(a.database ?? 'PostgreSQL').toLowerCase();
+  const isMongo = dbName.includes('mongo');
+
+  // Normalize schema: MongoDB LLMs often return { collection, fields } instead of { table, columns }
+  const schema = rawSchema.map((table: Record<string, unknown>) => {
+    // Prefer 'table' but fall back to 'collection' (MongoDB style)
+    const tableName = String(table.table ?? table.collection ?? 'table');
+    // Prefer 'columns' but fall back to 'fields' (MongoDB style)
+    const rawCols = Array.isArray(table.columns)
+      ? table.columns
+      : Array.isArray(table.fields)
+      ? table.fields
+      : [];
+
+    return {
+      table: tableName,
+      columns: rawCols.map((col: Record<string, unknown>) => ({
+        name: String(col.name ?? 'column'),
+        type: String(col.type ?? 'TEXT'),
+        ...(col.note != null && col.note !== '' ? { note: String(col.note) } : {}),
+      })),
+    };
+  });
+
+  // Build SQL / Mongoose code with fallback generation for MongoDB
+  let sqlCode = unescapeString(String(code.sql ?? ''));
+  const sqlTrimmed = sqlCode.trim();
+  const sqlIsEmpty = !sqlTrimmed || sqlTrimmed === '-- No SQL generated';
+
+  // If MongoDB and code.sql is empty, generate Mongoose schemas from the normalized schema
+  if (isMongo && sqlIsEmpty && schema.length > 0) {
+    sqlCode = generateMongooseSchemas(schema);
+  } else if (!sqlCode) {
+    sqlCode = '-- No SQL generated';
+  }
+
+  return {
+    appName: unescapeString(String(partial.appName ?? 'Untitled App').trim() || 'Untitled App'),
+    description: unescapeString(String(partial.description ?? 'No description provided.').trim() || 'No description provided.'),
+    targetUsers: unescapeString(String(partial.targetUsers ?? 'General users').trim() || 'General users'),
+    complexity: safeComplexity(partial.complexity),
+    features: {
+      authentication: Array.isArray(f.authentication) ? f.authentication.map(String) : [],
+      core: Array.isArray(f.core) ? f.core.map(String) : [],
+      admin: Array.isArray(f.admin) ? f.admin.map(String) : [],
+      optional: Array.isArray(f.optional) ? f.optional.map(String) : [],
+    },
+    schema,
+    endpoints: endpoints.map((ep: Record<string, unknown>) => ({
+      method: safeMethod(ep.method),
+      path: String(ep.path ?? '/'),
+      description: String(ep.description ?? ''),
+      ...(ep.auth != null ? { auth: Boolean(ep.auth) } : {}),
+    })),
+    screens: Array.isArray(partial.screens)
+      ? (partial.screens as Blueprint['screens']).map((screen) => ({
+          name: String(screen.name ?? 'Screen'),
+          icon: String(screen.icon ?? 'layout'),
+          components: String(screen.components ?? ''),
+        }))
+      : [],
+    architecture: {
+      frontend: String(a.frontend ?? 'React + TypeScript'),
+      backend: String(a.backend ?? 'Node.js + Express'),
+      database: String(a.database ?? 'PostgreSQL'),
+      auth: String(a.auth ?? 'JWT'),
+      hosting: String(a.hosting ?? 'Vercel + Railway'),
+      flow: String(a.flow ?? 'Frontend → API → Database'),
+    },
+    code: {
+      frontend: unescapeString(String(code.frontend ?? '// No frontend code generated')),
+      backend: unescapeString(String(code.backend ?? '// No backend code generated')),
+      sql: isMongo ? sqlCode : formatSQL(sqlCode),
+    },
+    effort: {
+      time: String(effort.time ?? 'Estimate unavailable'),
+      complexity: String(effort.complexity ?? 'Medium'),
+      cost: String(effort.cost ?? 'Contact for estimate'),
+      team: String(effort.team ?? '2-3 developers'),
+    },
+  };
+}
+
+/** Generate Mongoose schema code from normalized schema tables (for MongoDB blueprints). */
+function generateMongooseSchemas(
+  schema: Array<{ table: string; columns: Array<{ name: string; type: string; note?: string }> }>
+): string {
+  const lines: string[] = [
+    "const mongoose = require('mongoose');",
+    '',
+  ];
+
+  for (const table of schema) {
+    const modelName = table.table.charAt(0).toUpperCase() + table.table.slice(1).replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const schemaName = `${modelName}Schema`;
+
+    lines.push(`// ── ${modelName} ─────────────────────────`);
+    lines.push(`const ${schemaName} = new mongoose.Schema({`);
+
+    for (const col of table.columns) {
+      if (col.name === '_id' || col.name === 'id') continue; // Mongoose auto-generates _id
+      const mongoType = mapToMongooseType(col.type);
+      const extras: string[] = [];
+      if (col.note) {
+        const noteLower = col.note.toLowerCase();
+        if (noteLower.includes('unique')) extras.push('unique: true');
+        if (noteLower.includes('required') || noteLower.includes('not null')) extras.push('required: true');
+        if (noteLower.includes('ref:') || noteLower.includes('fk')) {
+          const refMatch = col.note.match(/ref:\s*(\w+)/i);
+          if (refMatch) {
+            const refModel = refMatch[1].charAt(0).toUpperCase() + refMatch[1].slice(1);
+            lines.push(`  ${col.name}: { type: mongoose.Schema.Types.ObjectId, ref: '${refModel}' },`);
+            continue;
+          }
+        }
+      }
+      if (extras.length > 0) {
+        lines.push(`  ${col.name}: { type: ${mongoType}, ${extras.join(', ')} },`);
+      } else {
+        lines.push(`  ${col.name}: ${mongoType},`);
+      }
+    }
+
+    lines.push('}, { timestamps: true });');
+    lines.push('');
+    lines.push(`const ${modelName} = mongoose.model('${modelName}', ${schemaName});`);
+    lines.push('');
+  }
+
+  lines.push(`module.exports = { ${schema.map(t => {
+    const n = t.table.charAt(0).toUpperCase() + t.table.slice(1).replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    return n;
+  }).join(', ')} };`);
+
+  return lines.join('\n');
+}
+
+function mapToMongooseType(sqlType: string): string {
+  const t = sqlType.toUpperCase();
+  if (t.includes('OBJECTID')) return 'mongoose.Schema.Types.ObjectId';
+  if (t.includes('INT') || t.includes('SERIAL') || t.includes('FLOAT') || t.includes('DECIMAL') || t.includes('NUMERIC') || t === 'NUMBER') return 'Number';
+  if (t.includes('BOOL')) return 'Boolean';
+  if (t.includes('DATE') || t.includes('TIMESTAMP')) return 'Date';
+  if (t.includes('JSON') || t.includes('OBJECT') || t.includes('MIXED')) return 'mongoose.Schema.Types.Mixed';
+  if (t.includes('ARRAY') || t === '[]') return '[mongoose.Schema.Types.Mixed]';
+  return 'String';
+}
+
+/** Coerce client-sent blueprint payloads (including saved metadata) into a valid Blueprint. */
+export function coerceBlueprintInput(input: unknown): Blueprint {
+  const partial =
+    typeof input === 'object' && input !== null
+      ? stripMetaFields(input as Record<string, unknown>)
+      : {};
+
+  const withFallbacks = applyBlueprintFallbacks(partial);
+  const result = BlueprintSchema.safeParse(withFallbacks);
+  return result.success ? result.data : withFallbacks;
+}
