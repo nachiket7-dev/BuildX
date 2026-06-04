@@ -32,6 +32,40 @@ export function resolveModel(requestedModel?: string): string {
   return DEFAULT_MODEL;
 }
 
+/**
+ * Per-request completion-token budget for the SINGLE-SHOT generator
+ * (generator.ts produces the entire blueprint in one call, so it needs
+ * a large ceiling). Kept conservative to stay under Groq free-tier TPM.
+ */
+export function getMaxTokens(groqModel: string): number {
+  if (groqModel === 'openai/gpt-oss-120b') return 6000;
+  if (groqModel.includes('8b')) return 6000;
+  return 5000; // llama-3.3-70b / qwen — one full blueprint per call
+}
+
+/**
+ * Per-request completion-token budget for the AGENTIC orchestrator, which
+ * makes ~5 sequential calls. Each agent only emits one small JSON section,
+ * so a tight per-call cap keeps the TOTAL tokens-per-minute well under
+ * Groq's free-tier limit and prevents "token limit exceeded" errors.
+ */
+export function getAgentMaxTokens(groqModel: string): number {
+  if (groqModel === 'openai/gpt-oss-120b') return 3000;
+  if (groqModel.includes('8b')) return 3000;
+  return 4000;
+}
+
+/**
+ * Per-request budget for REFINE. The model returns only a small PATCH
+ * (changed keys), but DB-stack rewrites can still emit sizeable code, so
+ * we give a bit more headroom than a single agent while staying TPM-safe.
+ */
+export function getRefineMaxTokens(groqModel: string): number {
+  if (groqModel === 'openai/gpt-oss-120b') return 5000;
+  if (groqModel.includes('8b')) return 5000;
+  return 5000;
+}
+
 export function getGroqClient(): OpenAI {
   if (!_client) {
     const apiKey = process.env.GROQ_API_KEY;
