@@ -1,43 +1,69 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Routes, Route, useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Routes, Route, useParams, useNavigate, Navigate, Outlet, useOutletContext } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { StreamingView } from './components/StreamingView';
 import { BlueprintOutput } from './components/BlueprintOutput';
-import { RefinementChat } from './components/RefinementChat';
 import { ErrorBanner } from './components/ErrorBanner';
 import { GalleryPage } from './components/GalleryPage';
 import { Sidebar } from './components/Sidebar';
+import { AmbientBackground } from './components/AmbientBackground';
+import { SkipLink } from './components/SkipLink';
+import { PageHead } from './components/PageHead';
+import { PageTransition } from './components/PageTransition';
+import { BlueprintLoadingSkeleton } from './components/BlueprintLoadingSkeleton';
 import { useStreamBlueprint } from './hooks/useStreamBlueprint';
 import { useRefinement } from './hooks/useRefinement';
 import { useAuth, useAuthProvider, AuthContext } from './hooks/useAuth';
 import { useModel } from './hooks/useModel';
+import { useToast } from './hooks/useToast';
+import { invalidateBlueprintQueries } from './hooks/useBlueprints';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { LoginPage } from './components/LoginPage';
+import { HomePage } from './components/HomePage';
 import type { Blueprint } from './lib/types';
 
-function BlueprintPage({ sidebarOffset = 0 }: { sidebarOffset?: number }) {
-  const { id } = useParams<{ id: string }>();
+type AppShellOutletContext = { sidebarOpen: boolean };
+
+function BlueprintPage() {
+  const { sidebarOpen } = useOutletContext<AppShellOutletContext>();
+  const { id: routeId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const celebratedRef = useRef(false);
+  const handleSaved = useCallback(
+    (savedId: string) => {
+      void invalidateBlueprintQueries(queryClient);
+      navigate(`/blueprint/${savedId}`, { replace: true });
+    },
+    [navigate, queryClient]
+  );
+
   const {
     blueprint,
+    savedMeta,
     partialBlueprint,
     isStreaming,
     isComplete,
     error,
     blueprintId,
     progress,
+    agentEvents,
     generate,
     loadSaved,
     reset,
-  } = useStreamBlueprint();
+    cancel,
+  } = useStreamBlueprint({ onSaved: handleSaved });
+
   const { selectedModel } = useModel();
-
-  // Local override for refined blueprints
   const [refinedBlueprint, setRefinedBlueprint] = useState<Blueprint | null>(null);
-  // Track which model was used for the current generation
   const [modelUsed, setModelUsed] = useState<string | null>(null);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
 
-  // The "active" blueprint is the refined one if available, otherwise the original
   const activeBlueprint = refinedBlueprint ?? blueprint;
+  const effectiveId = blueprintId ?? routeId ?? null;
 
   const handleBlueprintUpdate = useCallback((updated: Blueprint) => {
     setRefinedBlueprint(updated);
@@ -45,168 +71,188 @@ function BlueprintPage({ sidebarOffset = 0 }: { sidebarOffset?: number }) {
 
   const { messages, isRefining, refine, clearHistory } = useRefinement(
     activeBlueprint,
-    handleBlueprintUpdate
+    handleBlueprintUpdate,
+    effectiveId
   );
 
-  // Track which blueprint ID is currently loaded
-  const [loadedId, setLoadedId] = useState<string | null>(null);
-
-  // Load saved blueprint from URL — handles sidebar switching
   useEffect(() => {
-    if (!id) {
-      // Navigated to / — reset state so Hero shows
-      if (blueprint || loadedId) {
+    if (!routeId) {
+      // Only clear when leaving a URL-loaded blueprint (/blueprint/:id → /create).
+      // Do NOT reset after generating on home — blueprint may exist before navigate runs.
+      if (loadedId && !isStreaming) {
+        cancel();
         reset();
         setRefinedBlueprint(null);
         setModelUsed(null);
         clearHistory();
         setLoadedId(null);
+        celebratedRef.current = false;
       }
       return;
     }
+
     if (isStreaming) return;
+    if (routeId === loadedId && (blueprint || error)) return;
+    if (routeId && blueprintId === routeId && blueprint) {
+      if (loadedId !== routeId) setLoadedId(routeId);
+      return;
+    }
 
-    // Already loaded this exact blueprint
-    if (id === loadedId && blueprint) return;
-
-    // Reset state for a new blueprint
-    reset();
+    cancel();
     setRefinedBlueprint(null);
     setModelUsed(null);
-    clearHistory();
-    setLoadedId(id);
-    loadSaved(id);
-  }, [id]);
+    setLoadedId(routeId);
+    celebratedRef.current = false;
+    loadSaved(routeId);
+  }, [routeId, isStreaming, loadedId, blueprint, blueprintId, error, cancel, reset, clearHistory, loadSaved]);
+
+  // Safety net: ensure URL updates after save when generation started on /
+  useEffect(() => {
+    if (!routeId && blueprintId && isComplete && !isStreaming && !loadedId) {
+      invalidateBlueprintQueries(queryClient);
+      navigate(`/blueprint/${blueprintId}`, { replace: true });
+    }
+  }, [routeId, blueprintId, isComplete, isStreaming, navigate, queryClient, loadedId]);
+
+  useEffect(() => {
+    if (blueprint && !routeId) {
+      setRefinedBlueprint(null);
+      clearHistory();
+    }
+  }, [blueprint, routeId, clearHistory]);
+
+  useEffect(() => {
+    if (isComplete && activeBlueprint && !celebratedRef.current && modelUsed) {
+      celebratedRef.current = true;
+      toast(`"${activeBlueprint.appName}" is ready — explore tabs or refine below`, 'success');
+    }
+  }, [isComplete, activeBlueprint, modelUsed, toast]);
 
   const handleReset = () => {
+    cancel();
     reset();
     setRefinedBlueprint(null);
     setModelUsed(null);
     clearHistory();
     setLoadedId(null);
-    navigate('/');
+    celebratedRef.current = false;
+    navigate('/create');
   };
 
-  // Clear refined state when a new blueprint is generated
-  useEffect(() => {
-    if (blueprint) {
-      setRefinedBlueprint(null);
-      clearHistory();
-    }
-  }, [blueprint, clearHistory]);
-
-  const showHero = !isStreaming && !activeBlueprint && !id;
-  const showStreaming = isStreaming;
+  const isLoadingFromUrl = Boolean(routeId && isStreaming && !activeBlueprint && !error);
+  const showHero = !isStreaming && !activeBlueprint && !routeId && !isLoadingFromUrl;
+  const showStreaming = isStreaming && !isLoadingFromUrl;
   const showOutput = !isStreaming && Boolean(activeBlueprint);
+
+  const viewKey = showHero
+    ? 'hero'
+    : showStreaming
+      ? 'stream'
+      : isLoadingFromUrl
+        ? 'loading'
+        : showOutput
+          ? `output-${effectiveId}`
+          : 'empty';
 
   return (
     <>
-      {/* Error banner — shown above content in all states */}
+      <PageHead
+        title={activeBlueprint?.appName}
+        description={activeBlueprint?.description}
+      />
+
       {error && (
         <div className="max-w-3xl w-full mx-auto px-6 pt-4">
           <ErrorBanner message={error} onDismiss={handleReset} />
         </div>
       )}
 
-      <main className="flex-1 flex flex-col w-full overflow-x-hidden">
-        {showHero && <Hero onGenerate={(idea) => { setModelUsed(selectedModel); generate(idea, selectedModel); }} isLoading={isStreaming} />}
-        {showStreaming && <StreamingView progress={progress} partialBlueprint={partialBlueprint} />}
-        {showOutput && activeBlueprint && (
-          <>
-            <BlueprintOutput
-              blueprint={activeBlueprint}
-              blueprintId={blueprintId}
-              onReset={handleReset}
-              modelUsed={modelUsed ?? undefined}
+      <main id="main-content" className="flex-1 flex flex-col w-full overflow-x-hidden" tabIndex={-1}>
+        <PageTransition viewKey={viewKey}>
+          {showHero && (
+            <Hero
+              onGenerate={(idea) => {
+                celebratedRef.current = false;
+                setModelUsed(selectedModel);
+                generate(idea, selectedModel);
+              }}
+              isLoading={isStreaming}
             />
-            {/* Floating refinement chat */}
-            <RefinementChat
-              messages={messages}
-              isRefining={isRefining}
-              onSend={(msg) => refine(msg, selectedModel)}
-              onClear={clearHistory}
-              sidebarOffset={sidebarOffset}
+          )}
+          {isLoadingFromUrl && <BlueprintLoadingSkeleton />}
+          {showStreaming && (
+            <StreamingView
+              progress={progress}
+              partialBlueprint={partialBlueprint}
+              agentEvents={agentEvents}
             />
-            {/* Spacer so content isn't hidden behind the floating chat */}
-            <div className="h-24" />
-          </>
-        )}
+          )}
+          {showOutput && activeBlueprint && (
+            <>
+              <BlueprintOutput
+                blueprint={activeBlueprint}
+                blueprintId={effectiveId}
+                isPublic={savedMeta?.isPublic ?? false}
+                onReset={handleReset}
+                modelUsed={modelUsed ?? undefined}
+                onRefineMessage={(msg) => refine(msg, selectedModel)}
+                isRefining={isRefining}
+                refinement={{
+                  messages,
+                  isRefining,
+                  onSend: (msg) => refine(msg, selectedModel),
+                  onClear: clearHistory,
+                  sidebarOpen,
+                }}
+              />
+            </>
+          )}
+        </PageTransition>
       </main>
     </>
   );
 }
 
-function AppContent() {
-  const { user } = useAuth();
+function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Auto-open sidebar on desktop when logged in
   useEffect(() => {
-    if (user && window.innerWidth >= 768) {
+    if (window.innerWidth >= 768) {
       setSidebarOpen(true);
     }
-    if (!user) {
-      setSidebarOpen(false);
-    }
-  }, [user]);
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-x-hidden">
-      {/* Background effects */}
-      <div className="grid-bg" />
-      <div
-        className="orb w-[500px] h-[500px]"
-        style={{
-          background: 'var(--accent)',
-          top: '-150px',
-          right: '-100px',
-        }}
-      />
-      <div
-        className="orb w-[400px] h-[400px]"
-        style={{
-          background: 'var(--green)',
-          bottom: '-100px',
-          left: '-80px',
-        }}
-      />
+      <SkipLink />
+      <AmbientBackground />
 
-      {/* Sidebar */}
-      {user && (
-        <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
-      )}
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-      {/* App shell — shifts right when sidebar is open on desktop */}
       <div
-        className={`relative z-10 flex flex-col min-h-screen transition-all duration-300 overflow-x-hidden ${
-          user && sidebarOpen ? 'md:ml-[280px]' : ''
+        className={`app-shell-content relative z-10 flex flex-col min-h-screen transition-all duration-300 overflow-x-hidden ${
+          sidebarOpen ? 'app-shell-content--sidebar md:ml-[280px]' : ''
         }`}
       >
         <Header
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          showSidebarToggle={!!user}
+          showSidebarToggle
           sidebarOpen={sidebarOpen}
         />
 
-        <Routes>
-          <Route path="/" element={<BlueprintPage sidebarOffset={user && sidebarOpen ? 280 : 0} />} />
-          <Route path="/blueprint/:id" element={<BlueprintPage sidebarOffset={user && sidebarOpen ? 280 : 0} />} />
-          <Route path="/gallery" element={<GalleryPage />} />
-        </Routes>
+        <Outlet context={{ sidebarOpen } satisfies AppShellOutletContext} />
 
-        {/* Footer */}
-        <footer
-          className="text-center py-4 sm:py-6 px-4 font-mono-custom text-[10px] sm:text-xs"
-          style={{
-            color: 'var(--text3)',
-            borderTop: '1px solid var(--border)',
-          }}
-        >
-          AI-powered · Multi-Model · Turn any idea into a deployable blueprint
+        <footer className="app-footer">
+          <p>BuildX — Idea to deployable blueprint in one flow</p>
+          <p className="app-footer__sub">Powered by Groq · PostgreSQL · React</p>
         </footer>
       </div>
     </div>
   );
+}
+
+function BlueprintPageRoute() {
+  return <BlueprintPage />;
 }
 
 export default function App() {
@@ -214,7 +260,22 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={auth}>
-      <AppContent />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          element={
+            <ProtectedRoute>
+              <AppShell />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/create" element={<BlueprintPageRoute />} />
+          <Route path="/blueprint/:id" element={<BlueprintPageRoute />} />
+          <Route path="/gallery" element={<GalleryPage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </AuthContext.Provider>
   );
 }
