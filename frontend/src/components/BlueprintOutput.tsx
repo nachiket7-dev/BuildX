@@ -1,4 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Check,
+  Cpu,
+  Download,
+  Gauge,
+  Globe,
+  Layers,
+  Link2,
+  Lock,
+  Plus,
+  Users,
+} from 'lucide-react';
 import type { Blueprint, TabId } from '../lib/types';
 import { TabBar } from './TabBar';
 import {
@@ -11,27 +23,61 @@ import {
   EffortPanel,
 } from './BlueprintPanels';
 import { DiagramsPanel } from './DiagramsPanel';
-import { complexityColor } from '../lib/utils';
+import { complexityMetaClass } from '../lib/utils';
+import { getAuthHeaders } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
+import { useVisibilityMutation } from '../hooks/useBlueprints';
+import { useToast } from '../hooks/useToast';
 import { AVAILABLE_MODELS } from '../hooks/useModel';
+import { RefinementChat } from './RefinementChat';
+import type { ChatMessage } from '../hooks/useRefinement';
 
 interface BlueprintOutputProps {
   blueprint: Blueprint;
   blueprintId: string | null;
+  isPublic?: boolean;
   onReset: () => void;
   modelUsed?: string;
+  onRefineMessage?: (msg: string) => void;
+  isRefining?: boolean;
+  refinement?: {
+    messages: ChatMessage[];
+    isRefining: boolean;
+    onSend: (message: string) => void;
+    onClear: () => void;
+    sidebarOpen: boolean;
+  };
 }
 
-export function BlueprintOutput({ blueprint, blueprintId, onReset, modelUsed }: BlueprintOutputProps) {
+const META_ICON = 13;
+
+export function BlueprintOutput({
+  blueprint,
+  blueprintId,
+  isPublic = false,
+  onReset,
+  modelUsed,
+  onRefineMessage,
+  isRefining,
+  refinement,
+}: BlueprintOutputProps) {
   const [activeTab, setActiveTab] = useState<TabId>('features');
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const { user, token } = useAuth();
-  const [isPublic, setIsPublic] = useState(false);
-  const [togglingVisibility, setTogglingVisibility] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const visibility = useVisibilityMutation(blueprintId);
+  const [publicState, setPublicState] = useState(isPublic);
+  const sectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    setPublicState(isPublic);
+  }, [isPublic, blueprintId]);
 
   async function handleDownload() {
     setDownloading(true);
+    setDownloadError(null);
     try {
       const BASE_URL = import.meta.env.VITE_API_URL ?? '';
       const url = blueprintId
@@ -40,7 +86,7 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset, modelUsed }: 
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: blueprintId ? undefined : JSON.stringify(blueprint),
       });
 
@@ -55,8 +101,10 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset, modelUsed }: 
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(downloadUrl);
-    } catch (err) {
-      console.error('Download failed:', err);
+      toast('Scaffold ZIP downloaded', 'success');
+    } catch {
+      setDownloadError('Download failed. Try again.');
+      toast('Export failed — try again', 'error');
     } finally {
       setDownloading(false);
     }
@@ -67,218 +115,183 @@ export function BlueprintOutput({ blueprint, blueprintId, onReset, modelUsed }: 
     const url = `${window.location.origin}/blueprint/${blueprintId}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
+      toast('Share link copied to clipboard', 'success');
       setTimeout(() => setCopied(false), 2000);
     }).catch(() => {
-      // Fallback: show the URL in a prompt
       window.prompt('Copy this link:', url);
     });
   }
 
-  async function handleToggleVisibility() {
-    if (!blueprintId || !token) return;
-    setTogglingVisibility(true);
-    try {
-      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
-      const res = await fetch(`${BASE_URL}/api/blueprint/${blueprintId}/visibility`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ is_public: !isPublic }),
-      });
-      if (res.ok) {
-        setIsPublic(!isPublic);
-      }
-    } catch {
-      // silent
-    } finally {
-      setTogglingVisibility(false);
-    }
+  function handleToggleVisibility() {
+    if (!blueprintId || !user) return;
+    const next = !publicState;
+    visibility.mutate(next, {
+      onSuccess: () => {
+        setPublicState(next);
+        toast(next ? 'Blueprint is now public in Gallery' : 'Blueprint is now private', 'success');
+      },
+      onError: () => toast('Could not update visibility', 'error'),
+    });
   }
 
+  const modelLabel = modelUsed
+    ? AVAILABLE_MODELS.find((m) => m.id === modelUsed)?.label || modelUsed
+    : null;
+
   return (
-    <section className="px-4 sm:px-6 pb-24 max-w-5xl mx-auto animate-fade-slide-up overflow-hidden">
-      {/* Output header */}
+    <section
+      ref={sectionRef}
+      className="px-4 sm:px-6 pb-28 max-w-5xl mx-auto animate-fade-slide-up"
+      aria-labelledby="blueprint-title"
+    >
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 sm:gap-6 py-6 sm:py-8">
         <div className="flex-1 min-w-0">
           <h2
-            className="font-display font-extrabold tracking-tight mb-2"
-            style={{ fontSize: 'clamp(24px, 4vw, 36px)', letterSpacing: '-1px', color: 'var(--text)' }}
+            id="blueprint-title"
+            className="font-display font-extrabold tracking-tight mb-2 bg-gradient-to-r from-white via-slate-100 to-purple-400 bg-clip-text text-transparent"
+            style={{ fontSize: 'clamp(24px, 4vw, 36px)', letterSpacing: '-1.5px' }}
           >
             {blueprint.appName}
           </h2>
-          <p
-            className="text-sm leading-relaxed mb-3 max-w-2xl"
-            style={{ color: 'var(--text2)' }}
-          >
+          <p className="text-sm leading-relaxed mb-3 max-w-2xl" style={{ color: 'var(--text2)' }}>
             {blueprint.description}
           </p>
-          <div className="flex flex-wrap gap-1.5 sm:gap-2">
-            <span
-              className="font-mono-custom text-[10px] sm:text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border"
-              style={{
-                color: 'var(--blue)',
-                borderColor: 'rgba(96,165,250,0.3)',
-                background: 'var(--blue-dim)',
-              }}
-            >
-              👥 {blueprint.targetUsers}
+          <div className="flex flex-wrap gap-1.5 sm:gap-2" role="list" aria-label="Blueprint metadata">
+            <span className="bp-meta bp-meta--audience" role="listitem">
+              <Users size={META_ICON} strokeWidth={2} aria-hidden />
+              {blueprint.targetUsers}
             </span>
-            <span
-              className={`font-mono-custom text-[10px] sm:text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border ${complexityColor(blueprint.complexity)}`}
-            >
-              ⚡ {blueprint.complexity} Complexity
+            <span className={complexityMetaClass(blueprint.complexity)} role="listitem">
+              <Gauge size={META_ICON} strokeWidth={2} aria-hidden />
+              {blueprint.complexity} complexity
             </span>
-            <span
-              className="font-mono-custom text-[10px] sm:text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border"
-              style={{
-                color: 'var(--green)',
-                borderColor: 'rgba(34,211,165,0.3)',
-                background: 'var(--green-dim)',
-              }}
-            >
-              {blueprint.schema.length} tables · {blueprint.endpoints.length} endpoints · {blueprint.screens.length} screens
+            <span className="bp-meta bp-meta--stats" role="listitem">
+              <Layers size={META_ICON} strokeWidth={2} aria-hidden />
+              {blueprint.schema.length} tables
+              <span className="bp-meta__sep" aria-hidden>
+                ·
+              </span>
+              {blueprint.endpoints.length} endpoints
+              <span className="bp-meta__sep" aria-hidden>
+                ·
+              </span>
+              {blueprint.screens.length} screens
             </span>
-            {modelUsed && (
-              <span
-                className="font-mono-custom text-[10px] sm:text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full border"
-                style={{
-                  color: 'var(--accent2)',
-                  borderColor: 'rgba(124,106,255,0.3)',
-                  background: 'var(--accent-glow)',
-                }}
-              >
-                🧠 {AVAILABLE_MODELS.find(m => m.id === modelUsed)?.label || modelUsed}
+            {modelLabel && (
+              <span className="bp-meta bp-meta--model" role="listitem">
+                <Cpu size={META_ICON} strokeWidth={2} aria-hidden />
+                {modelLabel}
               </span>
             )}
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex gap-2 flex-shrink-0 flex-wrap -order-1 sm:order-none">
-          {/* Share button */}
+        <div
+          className="bp-actions -order-1 sm:order-none"
+          role="toolbar"
+          aria-label="Blueprint actions"
+        >
           {blueprintId && (
             <button
+              type="button"
               onClick={handleShare}
-              title="Share blueprint link"
-              className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-[10px] border text-xs sm:text-sm transition-all duration-150"
-              style={{
-                background: copied ? 'var(--green-dim)' : 'var(--accent-glow)',
-                borderColor: copied ? 'rgba(34,211,165,0.3)' : 'rgba(124,106,255,0.3)',
-                color: copied ? 'var(--green)' : 'var(--accent2)',
-              }}
+              aria-label={copied ? 'Link copied' : 'Copy share link'}
+              className={`bp-action ${copied ? 'bp-action--success' : 'bp-action--accent'}`}
             >
               {copied ? (
                 <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span className="hidden sm:inline">Copied!</span>
+                  <Check size={15} strokeWidth={2} aria-hidden />
+                  Copied
                 </>
               ) : (
                 <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
-                    <polyline points="16 6 12 2 8 6" />
-                    <line x1="12" y1="2" x2="12" y2="15" />
-                  </svg>
-                  <span className="hidden sm:inline">Share</span>
+                  <Link2 size={15} strokeWidth={2} aria-hidden />
+                  Share
                 </>
               )}
             </button>
           )}
 
-          {/* Visibility toggle — only for blueprint owners */}
           {blueprintId && user && (
             <button
+              type="button"
               onClick={handleToggleVisibility}
-              disabled={togglingVisibility}
-              title={isPublic ? 'Make blueprint private' : 'Make blueprint public'}
-              className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-[10px] border text-xs sm:text-sm transition-all duration-150 disabled:opacity-50"
-              style={{
-                background: isPublic ? 'var(--green-dim)' : 'var(--surface2)',
-                borderColor: isPublic ? 'rgba(34,211,165,0.3)' : 'var(--border2)',
-                color: isPublic ? 'var(--green)' : 'var(--text3)',
-              }}
+              disabled={visibility.isPending}
+              aria-pressed={publicState}
+              aria-label={publicState ? 'Make blueprint private' : 'Make blueprint public'}
+              className={`bp-action ${
+                publicState ? 'bp-action--visibility-public' : 'bp-action--visibility-private'
+              }`}
             >
-              {isPublic ? '🌐' : '🔒'}
-              <span className="hidden sm:inline">{isPublic ? 'Public' : 'Private'}</span>
+              {publicState ? (
+                <>
+                  <Globe size={15} strokeWidth={2} aria-hidden />
+                  Public
+                </>
+              ) : (
+                <>
+                  <Lock size={15} strokeWidth={2} aria-hidden />
+                  Private
+                </>
+              )}
             </button>
           )}
 
-          {/* Download project button */}
           <button
+            type="button"
             onClick={handleDownload}
             disabled={downloading}
-            title="Download project scaffold"
-            className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-[10px] border text-xs sm:text-sm transition-all duration-150 disabled:opacity-50"
-            style={{
-              background: 'var(--green-dim)',
-              borderColor: 'rgba(34,211,165,0.3)',
-              color: 'var(--green)',
-            }}
+            aria-busy={downloading}
+            className="bp-action bp-action--mint"
           >
-            {downloading ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin-slow" />
-                <span className="hidden sm:inline">Exporting...</span>
-              </>
-            ) : (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                <span className="hidden sm:inline">Download</span>
-              </>
-            )}
+            <Download size={15} strokeWidth={2} aria-hidden />
+            {downloading ? 'Exporting…' : 'Download'}
           </button>
 
-          {/* New blueprint button */}
-          <button
-            onClick={onReset}
-            title="Start new blueprint"
-            className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-[10px] border text-xs sm:text-sm transition-all duration-150"
-            style={{
-              background: 'var(--surface2)',
-              borderColor: 'var(--border2)',
-              color: 'var(--text2)',
-            }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLElement;
-              el.style.color = 'var(--text)';
-              el.style.borderColor = 'var(--border)';
-              el.style.background = 'var(--surface3)';
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLElement;
-              el.style.color = 'var(--text2)';
-              el.style.borderColor = 'var(--border2)';
-              el.style.background = 'var(--surface2)';
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 5l-7 7 7 7" />
-            </svg>
-            <span className="hidden sm:inline">New</span>
+          <button type="button" onClick={onReset} className="bp-action bp-action--ghost">
+            <Plus size={15} strokeWidth={2} aria-hidden />
+            New
           </button>
         </div>
       </div>
 
-      {/* Tab navigation */}
-      <TabBar activeTab={activeTab} onChange={setActiveTab} />
+      {downloadError && (
+        <p className="text-xs mb-4 font-mono-custom" style={{ color: 'var(--coral)' }} role="alert">
+          {downloadError}
+        </p>
+      )}
 
-      {/* Tab panels */}
+      {visibility.isError && (
+        <p className="text-xs mb-4 font-mono-custom" style={{ color: 'var(--coral)' }} role="alert">
+          Could not update visibility. Try again.
+        </p>
+      )}
+
+      <div className="tab-bar-sticky">
+        <TabBar activeTab={activeTab} onChange={setActiveTab} />
+      </div>
+
       {activeTab === 'features' && <FeaturesPanel blueprint={blueprint} />}
       {activeTab === 'schema' && <SchemaPanel blueprint={blueprint} />}
       {activeTab === 'api' && <ApiPanel blueprint={blueprint} />}
       {activeTab === 'ui' && <UiPanel blueprint={blueprint} />}
       {activeTab === 'architecture' && <ArchPanel blueprint={blueprint} />}
       {activeTab === 'diagrams' && <DiagramsPanel blueprint={blueprint} />}
-      {activeTab === 'code' && <CodePanel blueprint={blueprint} />}
+      {activeTab === 'code' && (
+        <CodePanel blueprint={blueprint} onRefineMessage={onRefineMessage} isRefining={isRefining} />
+      )}
       {activeTab === 'effort' && <EffortPanel blueprint={blueprint} />}
+
+      {refinement && (
+        <RefinementChat
+          anchorRef={sectionRef}
+          layoutSyncKey={refinement.sidebarOpen}
+          messages={refinement.messages}
+          isRefining={refinement.isRefining}
+          onSend={refinement.onSend}
+          onClear={refinement.onClear}
+        />
+      )}
     </section>
   );
 }
