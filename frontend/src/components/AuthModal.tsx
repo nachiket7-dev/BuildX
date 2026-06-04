@@ -59,7 +59,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         className="relative w-full max-w-md my-auto rounded-2xl border p-6 sm:p-8 animate-fade-slide-up"
         style={{
           background: 'var(--surface)',
-          borderColor: 'rgba(124, 106, 255, 0.2)',
+          borderColor: 'rgba(20, 184, 166, 0.2)',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
         }}
       >
@@ -142,7 +142,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   color: 'var(--text)',
                   outline: 'none',
                 }}
-                onFocus={(e) => { (e.target as HTMLElement).style.borderColor = 'rgba(124,106,255,0.4)'; }}
+                onFocus={(e) => { (e.target as HTMLElement).style.borderColor = 'rgba(20,184,166,0.4)'; }}
                 onBlur={(e) => { (e.target as HTMLElement).style.borderColor = 'var(--border2)'; }}
               />
             </div>
@@ -168,7 +168,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 color: 'var(--text)',
                 outline: 'none',
               }}
-              onFocus={(e) => { (e.target as HTMLElement).style.borderColor = 'rgba(124,106,255,0.4)'; }}
+              onFocus={(e) => { (e.target as HTMLElement).style.borderColor = 'rgba(20,184,166,0.4)'; }}
               onBlur={(e) => { (e.target as HTMLElement).style.borderColor = 'var(--border2)'; }}
             />
           </div>
@@ -195,7 +195,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   color: 'var(--text)',
                   outline: 'none',
                 }}
-                onFocus={(e) => { (e.target as HTMLElement).style.borderColor = 'rgba(124,106,255,0.4)'; }}
+                onFocus={(e) => { (e.target as HTMLElement).style.borderColor = 'rgba(20,184,166,0.4)'; }}
                 onBlur={(e) => { (e.target as HTMLElement).style.borderColor = 'var(--border2)'; }}
               />
               <button
