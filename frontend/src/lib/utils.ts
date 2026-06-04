@@ -16,6 +16,13 @@ export function methodClass(method: HttpMethod): string {
   return map[method] ?? 'method-get';
 }
 
+export function complexityMetaClass(complexity: string): string {
+  if (complexity === 'Low') return 'bp-meta bp-meta--complexity-low';
+  if (complexity === 'High') return 'bp-meta bp-meta--complexity-high';
+  return 'bp-meta bp-meta--complexity-medium';
+}
+
+/** @deprecated Use complexityMetaClass for blueprint header pills */
 export function complexityColor(complexity: string): string {
   if (complexity === 'Low') return 'text-emerald-400 border-emerald-400/30 bg-emerald-400/10';
   if (complexity === 'High') return 'text-red-400 border-red-400/30 bg-red-400/10';
@@ -32,12 +39,46 @@ export function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;');
 }
 
-/** Parse flow string like "A → B → C" into steps array */
+/** Parse flow strings like "React → Express → PostgreSQL" into step labels */
 export function parseFlow(flow: string): string[] {
-  return flow
-    .split(/→|->|>/)
+  if (!flow?.trim()) return [];
+
+  const normalized = flow
+    .replace(/[\u2794\u279C\u27A1\u27F6\u2192\u21D2\u21E8]/g, ' → ')
+    .replace(/\s*(?:->|=>)\s*/g, ' → ')
+    .replace(/\s+to\s+/gi, ' → ');
+
+  const steps = normalized
+    .split('→')
     .map((s) => s.trim())
     .filter(Boolean);
+
+  if (steps.length > 1) return steps;
+
+  // Avoid splitting on bare ">" — it breaks paths and comparisons
+  return steps.length === 1 ? steps : [];
+}
+
+export function flowStepRole(index: number, total: number): string {
+  if (total <= 1) return 'End-to-end request path';
+  if (index === 0) return 'Client / Frontend';
+  if (index === total - 1) return 'Database / Storage';
+  return 'API / Backend';
+}
+
+/** Prefer parsed flow steps; fall back to stack layers when flow is one blob */
+export function resolveFlowSteps(flow: string, stack?: { frontend: string; backend: string; database: string }): string[] {
+  const parsed = parseFlow(flow);
+  if (parsed.length > 1) return parsed;
+
+  if (stack) {
+    const fromStack = [stack.frontend, stack.backend, stack.database]
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (fromStack.length > 1) return fromStack;
+  }
+
+  return parsed.length ? parsed : ['Request flow'];
 }
 
 export const EXAMPLE_IDEAS = [
@@ -85,3 +126,101 @@ export const TABS = [
   { id: 'code', label: 'Starter Code' },
   { id: 'effort', label: 'Effort' },
 ] as const;
+
+export function formatSQL(sql: string): string {
+  if (!sql) return '';
+  
+  let cleanSql = sql.trim();
+  const statements: string[] = [];
+  let currentStatement = '';
+  let inDoubleQuote = false;
+  let inSingleQuote = false;
+  
+  for (let i = 0; i < cleanSql.length; i++) {
+    const char = cleanSql[i];
+    const nextChar = cleanSql[i + 1] || '';
+    
+    // Handle comments
+    if (!inDoubleQuote && !inSingleQuote) {
+      if (char === '-' && nextChar === '-') {
+        if (currentStatement.trim()) {
+          statements.push(currentStatement.trim());
+          currentStatement = '';
+        }
+        let comment = '';
+        while (i < cleanSql.length && cleanSql[i] !== '\n') {
+          comment += cleanSql[i];
+          i++;
+        }
+        statements.push(comment.trim());
+        continue;
+      }
+    }
+    
+    if (char === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+    } else if (char === "'" && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+    }
+    
+    currentStatement += char;
+    
+    if (char === ';' && !inDoubleQuote && !inSingleQuote) {
+      statements.push(currentStatement.trim());
+      currentStatement = '';
+    }
+  }
+  
+  if (currentStatement.trim()) {
+    statements.push(currentStatement.trim());
+  }
+  
+  const formatted: string[] = [];
+  for (let stmt of statements) {
+    if (stmt.startsWith('--')) {
+      formatted.push(stmt);
+      continue;
+    }
+    
+    const createTableMatch = stmt.match(/^(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)([a-zA-Z0-9_`"]+)\s*\(([\s\S]*)\);?$/i);
+    if (createTableMatch) {
+      const prefix = createTableMatch[1];
+      const tableName = createTableMatch[2];
+      const colsString = createTableMatch[3].trim();
+      
+      const columns: string[] = [];
+      let current = '';
+      let depth = 0;
+      for (let j = 0; j < colsString.length; j++) {
+        const c = colsString[j];
+        if (c === '(') depth++;
+        else if (c === ')') depth--;
+        
+        if (c === ',' && depth === 0) {
+          columns.push(current.trim());
+          current = '';
+        } else {
+          current += c;
+        }
+      }
+      if (current.trim()) {
+        columns.push(current.trim());
+      }
+      
+      const formattedCols = columns
+        .map(col => `  ${col}`)
+        .join(',\n');
+        
+      formatted.push(`${prefix.trim()} ${tableName} (\n${formattedCols}\n);`);
+    } else {
+      let formattedStmt = stmt;
+      if (!formattedStmt.endsWith(';') && !formattedStmt.startsWith('--')) {
+        formattedStmt += ';';
+      }
+      formatted.push(formattedStmt);
+    }
+  }
+  
+  return formatted.join('\n\n');
+}
+

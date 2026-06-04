@@ -73,6 +73,17 @@ export interface SavedBlueprint extends Blueprint {
   idea: string;
   views: number;
   createdAt: string;
+  isPublic?: boolean;
+}
+
+export interface BlueprintListItem {
+  id: string;
+  idea: string;
+  appName: string;
+  description: string;
+  complexity: string;
+  createdAt: string;
+  views: number;
 }
 
 export interface ApiResponse<T> {
