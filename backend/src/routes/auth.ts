@@ -47,6 +47,11 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
       user: { id, name: name.trim(), email: email.toLowerCase().trim() },
     });
   } catch (err) {
+    const pgErr = err as { code?: string };
+    if (pgErr.code === '23505') {
+      res.status(409).json({ error: 'An account with this email already exists' });
+      return;
+    }
     console.error('[Auth] Signup error:', (err as Error).message);
     res.status(500).json({ error: 'Failed to create account' });
   }
