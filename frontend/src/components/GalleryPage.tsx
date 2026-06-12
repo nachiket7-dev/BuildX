@@ -1,9 +1,10 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { complexityColor } from '../lib/utils';
 import { useBlueprintList } from '../hooks/useBlueprints';
 import { SpotlightCard } from './SpotlightCard';
 import { BlueprintCardSkeleton } from './BlueprintCardSkeleton';
 import { PageHead } from './PageHead';
+import { useAuth } from '../hooks/useAuth';
 
 function timeAgo(dateStr: string): string {
   const date = new Date(dateStr);
@@ -18,8 +19,16 @@ function timeAgo(dateStr: string): string {
 
 export function GalleryPage() {
   const navigate = useNavigate();
-  const { data: items = [], isLoading, isError, refetch } = useBlueprintList('mine', true);
-  const isPersonal = true;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
+  
+  const scope = (user && searchParams.get('scope') === 'mine') ? 'mine' : 'public';
+  const isPersonal = scope === 'mine';
+  
+  const { data: items = [], isLoading, isError, refetch } = useBlueprintList(
+    scope,
+    scope === 'mine' ? Boolean(user) : true
+  );
 
   return (
     <section className="px-4 sm:px-6 py-8 sm:py-12 max-w-5xl mx-auto overflow-hidden">
@@ -67,6 +76,31 @@ export function GalleryPage() {
         </p>
       </div>
 
+      {user && (
+        <div className="flex gap-2 border-b border-white/5 pb-4 mb-6">
+          <button
+            onClick={() => setSearchParams({ scope: 'public' })}
+            className={`px-4 py-2 rounded-lg text-xs font-mono-custom transition-all ${
+              scope === 'public'
+                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold'
+                : 'text-muted-foreground hover:text-white hover:bg-white/5'
+            }`}
+          >
+            Community Gallery
+          </button>
+          <button
+            onClick={() => setSearchParams({ scope: 'mine' })}
+            className={`px-4 py-2 rounded-lg text-xs font-mono-custom transition-all ${
+              scope === 'mine'
+                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold'
+                : 'text-muted-foreground hover:text-white hover:bg-white/5'
+            }`}
+          >
+            My Blueprints
+          </button>
+        </div>
+      )}
+
       {isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" aria-busy aria-label="Loading blueprints">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -97,17 +131,19 @@ export function GalleryPage() {
             🏗️
           </p>
           <h2 className="font-display font-bold text-lg mb-2" style={{ color: 'var(--text)' }}>
-            No blueprints yet
+            {isPersonal ? 'No blueprints yet' : 'No public blueprints'}
           </h2>
           <p className="text-sm mb-6" style={{ color: 'var(--text3)' }}>
-            Generate your first blueprint to see it here.
+            {isPersonal
+              ? 'Generate your first blueprint to see it here.'
+              : 'Be the first to publish a blueprint to the community!'}
           </p>
           <Link
             to="/create"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-[10px] text-sm font-medium text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             style={{ background: 'var(--accent)' }}
           >
-            Generate Blueprint
+            {isPersonal ? 'Generate Blueprint' : 'Create & Share'}
           </Link>
         </div>
       )}

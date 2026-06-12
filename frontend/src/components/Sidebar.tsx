@@ -283,15 +283,26 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
         {/* User footer */}
         <div className="sidebar-panel__footer">
-          <div className="sidebar-user-avatar">{user.name.charAt(0).toUpperCase()}</div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
-              {user.name}
-            </p>
-            <p className="font-mono-custom text-[10px] truncate" style={{ color: 'var(--text3)' }}>
-              {items.length} blueprint{items.length !== 1 ? 's' : ''}
-            </p>
-          </div>
+          {user ? (
+            <>
+              <div className="sidebar-user-avatar">{user.name.charAt(0).toUpperCase()}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
+                  {user.name}
+                </p>
+                <p className="font-mono-custom text-[10px] truncate" style={{ color: 'var(--text3)' }}>
+                  {items.length} blueprint{items.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              className="w-full py-2 px-3 rounded-lg border border-purple-500/20 bg-purple-500/10 text-purple-300 text-xs font-medium hover:bg-purple-500/20 hover:text-white transition-colors"
+            >
+              Sign In
+            </button>
+          )}
         </div>
       </aside>
     </>

@@ -117,7 +117,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen }: Head
                     </div>
                     <div className="user-menu__divider" />
                     <Link
-                      to="/gallery"
+                      to="/gallery?scope=mine"
                       role="menuitem"
                       onClick={() => setShowMenu(false)}
                       className="user-menu__item focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
