@@ -5,10 +5,12 @@ import {
   Download,
   Gauge,
   Globe,
+  Github,
   Layers,
   Link2,
   Lock,
   Plus,
+  RefreshCw,
   Users,
 } from 'lucide-react';
 import type { Blueprint, TabId } from '../lib/types';
@@ -40,6 +42,7 @@ interface BlueprintOutputProps {
   modelUsed?: string;
   onRefineMessage?: (msg: string) => void;
   isRefining?: boolean;
+  onBlueprintUpdate?: (bp: Blueprint) => void;
   refinement?: {
     messages: ChatMessage[];
     isRefining: boolean;
@@ -59,12 +62,15 @@ export function BlueprintOutput({
   modelUsed,
   onRefineMessage,
   isRefining,
+  onBlueprintUpdate,
   refinement,
 }: BlueprintOutputProps) {
   const [activeTab, setActiveTab] = useState<TabId>('features');
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [exportingGithub, setExportingGithub] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const visibility = useVisibilityMutation(blueprintId);
@@ -107,6 +113,72 @@ export function BlueprintOutput({
       toast('Export failed — try again', 'error');
     } finally {
       setDownloading(false);
+    }
+  }
+
+  async function handleGithubExport() {
+    setExportingGithub(true);
+    try {
+      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+      const response = await fetch(`${BASE_URL}/api/blueprint/export-github`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ blueprint, id: blueprintId }),
+      });
+
+      if (!response.ok) throw new Error('GitHub export failed');
+
+      const data = await response.json();
+      if (data.success && data.repoUrl) {
+        toast(`Exported! Repository created at ${data.repoUrl}`, 'success');
+        window.open(data.repoUrl, '_blank');
+      } else {
+        throw new Error('Invalid response');
+      }
+    } catch (err) {
+      toast('GitHub export failed — try again', 'error');
+    } finally {
+      setExportingGithub(false);
+    }
+  }
+
+  async function handleRegenerate() {
+    if (!blueprintId) return;
+    setRegenerating(true);
+    try {
+      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+      const response = await fetch(`${BASE_URL}/api/blueprint/regenerate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ id: blueprintId, model: modelUsed }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Regeneration failed');
+      }
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        toast('Blueprint regenerated successfully!', 'success');
+        if (onBlueprintUpdate) {
+          onBlueprintUpdate(data.data);
+        } else {
+          window.location.reload();
+        }
+      } else {
+        throw new Error('Invalid response');
+      }
+    } catch (err) {
+      toast((err as Error).message || 'Regeneration failed — try again', 'error');
+    } finally {
+      setRegenerating(false);
     }
   }
 
@@ -247,6 +319,20 @@ export function BlueprintOutput({
             <Download size={15} strokeWidth={2} aria-hidden />
             {downloading ? 'Exporting…' : 'Download'}
           </button>
+
+          {blueprintId && (
+            <button
+              type="button"
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              aria-busy={regenerating}
+              className="bp-action bp-action--ghost"
+              title="Re-generate this blueprint from scratch using its original idea"
+            >
+              <RefreshCw size={15} strokeWidth={2} aria-hidden className={regenerating ? 'animate-spin' : ''} />
+              {regenerating ? 'Regenerating…' : 'Regenerate'}
+            </button>
+          )}
 
           <button type="button" onClick={onReset} className="bp-action bp-action--ghost">
             <Plus size={15} strokeWidth={2} aria-hidden />
