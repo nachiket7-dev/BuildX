@@ -109,10 +109,12 @@ export function LoginPage() {
 
         <main className="auth-page__panel">
           <header className="auth-page__panel-header">
-            <Link to="/" className="auth-page__back-link auth-page__back-link--compact lg:hidden">
-              <ArrowLeft size={14} aria-hidden />
-              Home
-            </Link>
+            <div className="lg:hidden">
+              <Link to="/" className="auth-page__back-link auth-page__back-link--compact">
+                <ArrowLeft size={14} aria-hidden />
+                Home
+              </Link>
+            </div>
             <div className="hidden lg:block" />
             <Link to="/" className="lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] rounded-lg">
               <Logo size="md" />
@@ -120,10 +122,12 @@ export function LoginPage() {
           </header>
 
           <div className="auth-page__panel-body animate-fade-slide-up">
-            <Link to="/" className="auth-page__back-link hidden lg:inline-flex mb-8">
-              <ArrowLeft size={16} aria-hidden />
-              Back to home
-            </Link>
+            <div className="hidden lg:block mb-8">
+              <Link to="/" className="auth-page__back-link">
+                <ArrowLeft size={16} aria-hidden />
+                Back to home
+              </Link>
+            </div>
 
             <h1 className="auth-page__title">
               {tab === 'login' ? 'Welcome back' : 'Create your account'}
