@@ -197,6 +197,7 @@ function BlueprintPage() {
                 modelUsed={modelUsed ?? undefined}
                 onRefineMessage={(msg) => refine(msg, selectedModel)}
                 isRefining={isRefining}
+                onBlueprintUpdate={handleBlueprintUpdate}
                 refinement={{
                   messages,
                   isRefining,
@@ -263,16 +264,17 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route
-          element={
-            <ProtectedRoute>
-              <AppShell />
-            </ProtectedRoute>
-          }
-        >
-          <Route path="/create" element={<BlueprintPageRoute />} />
+        <Route element={<AppShell />}>
           <Route path="/blueprint/:id" element={<BlueprintPageRoute />} />
           <Route path="/gallery" element={<GalleryPage />} />
+          <Route
+            path="/create"
+            element={
+              <ProtectedRoute>
+                <BlueprintPageRoute />
+              </ProtectedRoute>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
