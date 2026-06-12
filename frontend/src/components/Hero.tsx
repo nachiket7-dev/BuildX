@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { EXAMPLE_IDEAS } from '../lib/utils';
 import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
-import { useAuth } from '../hooks/useAuth';
-import { AuthModal } from './AuthModal';
+import { SpotlightCard } from './SpotlightCard';
+import { DecryptedText } from './DecryptedText';
+import { BlurText } from './BlurText';
+import { Zap, GitMerge, FolderArchive, MessageSquare, Share2, Cpu } from 'lucide-react';
 
 interface HeroProps {
   onGenerate: (idea: string) => void;
@@ -47,15 +48,52 @@ function AnimatedNumber({ target, suffix = '' }: { target: number; suffix?: stri
   );
 }
 
+// ─── Scroll Reveal Wrapper ─────────────────────────────────
+function ScrollReveal({
+  children,
+  className = '',
+  as: Component = 'section',
+}: {
+  children: React.ReactNode;
+  className?: string;
+  as?: React.ElementType;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <Component
+      ref={ref}
+      className={`reveal ${visible ? 'visible' : ''} ${className}`}
+    >
+      {children}
+    </Component>
+  );
+}
+
 // ─── Feature card ─────────────────────────────────────────
 function FeatureCard({
-  icon,
+  icon: Icon,
   title,
   description,
   gradient,
   delay,
 }: {
-  icon: string;
+  icon: React.ComponentType<any>;
   title: string;
   description: string;
   gradient: string;
@@ -79,20 +117,23 @@ function FeatureCard({
   }, []);
 
   return (
-    <div
+    <SpotlightCard
       ref={ref}
-      className="card p-6 transition-all duration-500 hover:scale-[1.02] group"
+      className="p-6 group flex flex-col justify-start"
+      spotlightColor="rgba(20, 184, 166, 0.15)"
       style={{
         opacity: visible ? 1 : 0,
         transform: visible ? 'translateY(0)' : 'translateY(30px)',
         transitionDelay: `${delay}ms`,
+        transitionProperty: 'opacity, transform, border-color, box-shadow',
+        transitionDuration: '500ms',
       }}
     >
       <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center text-lg mb-4 transition-transform duration-300 group-hover:scale-110"
+        className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110"
         style={{ background: gradient }}
       >
-        {icon}
+        <Icon size={18} className="text-white" />
       </div>
       <h3 className="font-display font-bold text-sm mb-2" style={{ color: 'var(--text)' }}>
         {title}
@@ -100,29 +141,22 @@ function FeatureCard({
       <p className="font-mono-custom text-xs leading-relaxed" style={{ color: 'var(--text3)' }}>
         {description}
       </p>
-    </div>
+    </SpotlightCard>
   );
 }
 
 // ─── Main component ───────────────────────────────────────
 export function Hero({ onGenerate, isLoading }: HeroProps) {
   const [idea, setIdea] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const navigate = useNavigate();
   const { selectedModel, setSelectedModel } = useModel();
-  const { user } = useAuth();
   const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = idea.trim();
     if (trimmed.length < 10 || isLoading) return;
-    // Gate GPT-OSS 120B behind auth
-    if (selectedModel === 'gpt-oss-120b' && !user) {
-      setShowAuthModal(true);
-      return;
-    }
     onGenerate(trimmed);
   }
 
@@ -131,50 +165,53 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
     textareaRef.current?.focus();
   }
 
-  const canSubmit = idea.trim().length >= 10 && !isLoading;
+  const MIN_CHARS = 10;
+  const charCount = idea.trim().length;
+  const charProgress = Math.min(100, (charCount / MIN_CHARS) * 100);
+  const canSubmit = charCount >= MIN_CHARS && !isLoading;
 
   const FEATURES = [
     {
-      icon: '⚡',
+      icon: Zap,
       title: 'Real-Time Streaming',
       description:
         'Watch your blueprint build in real-time via Server-Sent Events. No fake loading screens.',
-      gradient: 'linear-gradient(135deg, rgba(124,106,255,0.3), rgba(124,106,255,0.1))',
+      gradient: 'linear-gradient(135deg, rgba(20,184,166,0.28), rgba(20,184,166,0.06))',
     },
     {
-      icon: '📐',
+      icon: GitMerge,
       title: 'Visual Diagrams',
       description:
         'Auto-generated ER diagrams, architecture flowcharts, and API sequence diagrams with Mermaid.',
-      gradient: 'linear-gradient(135deg, rgba(34,211,165,0.3), rgba(34,211,165,0.1))',
+      gradient: 'linear-gradient(135deg, rgba(94,234,212,0.25), rgba(94,234,212,0.05))',
     },
     {
-      icon: '📦',
+      icon: FolderArchive,
       title: 'Download Full Project',
       description:
         'Export a production-ready monorepo: Prisma schema, Express routes, React pages, Docker.',
-      gradient: 'linear-gradient(135deg, rgba(96,165,250,0.3), rgba(96,165,250,0.1))',
+      gradient: 'linear-gradient(135deg, rgba(15,118,110,0.28), rgba(15,118,110,0.06))',
     },
     {
-      icon: '💬',
+      icon: MessageSquare,
       title: 'AI Refinement Chat',
       description:
         '"Add Stripe payments" — refine your blueprint through natural language conversation.',
-      gradient: 'linear-gradient(135deg, rgba(251,146,60,0.3), rgba(251,146,60,0.1))',
+      gradient: 'linear-gradient(135deg, rgba(20,184,166,0.22), rgba(20,184,166,0.04))',
     },
     {
-      icon: '🔗',
+      icon: Share2,
       title: 'Shareable Links',
       description:
         'Every blueprint gets a unique URL. Share with your team or embed in your portfolio.',
-      gradient: 'linear-gradient(135deg, rgba(244,114,182,0.3), rgba(244,114,182,0.1))',
+      gradient: 'linear-gradient(135deg, rgba(94,234,212,0.22), rgba(94,234,212,0.04))',
     },
     {
-      icon: '🧠',
+      icon: Cpu,
       title: 'Smart Architecture',
       description:
         'AI picks the right tech stack, designs the schema with foreign keys, maps all API endpoints.',
-      gradient: 'linear-gradient(135deg, rgba(168,85,247,0.3), rgba(168,85,247,0.1))',
+      gradient: 'linear-gradient(135deg, rgba(15,118,110,0.22), rgba(15,118,110,0.04))',
     },
   ];
 
@@ -188,13 +225,16 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
   return (
     <>
       {/* ─── Section 1: Hero ─────────────────────────────── */}
-      <section className="w-full px-4 sm:px-6 pt-12 sm:pt-20 pb-12 sm:pb-16 max-w-3xl mx-auto text-center overflow-hidden">
+      <section className="relative w-full px-4 sm:px-6 pt-12 sm:pt-20 pb-12 sm:pb-16 max-w-3xl mx-auto text-center overflow-hidden">
+        {/* Local aurora glow behind hero content */}
+        <div className="hero-aurora-glow pointer-events-none" aria-hidden />
+
         {/* Eyebrow */}
         <div
           className="inline-flex items-center gap-2 font-mono-custom text-[10px] sm:text-xs rounded-full px-3 sm:px-4 py-1.5 mb-6 sm:mb-8 border animate-fade-slide-up max-w-full"
           style={{
             color: 'var(--accent2)',
-            borderColor: 'rgba(124,106,255,0.25)',
+            borderColor: 'rgba(20,184,166,0.25)',
             background: 'var(--accent-glow)',
             letterSpacing: '0.5px',
           }}
@@ -203,32 +243,27 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             className="w-1.5 h-1.5 rounded-full flex-shrink-0"
             style={{ background: 'var(--accent)' }}
           />
-          <span className="truncate">Idea → Full-Stack Blueprint in seconds</span>
+          <span className="truncate">
+            <DecryptedText text="Idea → Full-Stack Blueprint in seconds" delay={300} speed={25} />
+          </span>
         </div>
 
-        {/* Headline */}
-        <h1
-          className="font-display font-extrabold tracking-tight mb-5 animate-fade-slide-up max-w-full text-lg sm:text-4xl md:text-5xl lg:text-6xl"
-          style={{
-            lineHeight: 1.15,
-            letterSpacing: '-0.5px',
-            color: 'var(--text)',
-            animationDelay: '0.1s',
-            animationFillMode: 'both',
-          }}
-        >
-          Architect your next{' '}
-          <span
-            style={{
-              background: 'linear-gradient(135deg, var(--accent2), var(--green))',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            big idea
+        {/* Headline — three balanced lines; gradient applied per-letter (not nested clip) */}
+        <h1 className="hero-headline font-display font-extrabold mb-5 max-w-full">
+          <span className="hero-headline__line">
+            <BlurText text="Architect your next" delay={50} stagger={25} />
           </span>
-          <br />
-          with AI.
+          <span className="hero-headline__line hero-headline__line--accent">
+            <BlurText
+              text="big idea"
+              delay={450}
+              stagger={25}
+              gradientColors={['#5eead4', '#2dd4bf', '#14b8a6', '#0f766e', '#14b8a6']}
+            />
+          </span>
+          <span className="hero-headline__line">
+            <BlurText text="with AI." delay={700} stagger={25} />
+          </span>
         </h1>
 
         <p
@@ -247,19 +282,29 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
         {/* Input card */}
         <form
           onSubmit={handleSubmit}
-          className="animate-fade-slide-up"
+          className="animate-fade-slide-up relative"
           style={{ animationDelay: '0.3s', animationFillMode: 'both' }}
         >
+          {/* Spotlight background glow behind input */}
           <div
-            className="card p-4 sm:p-7 mb-5 transition-all duration-300 text-left"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] pointer-events-none opacity-20 transition-opacity duration-500 blur-[80px]"
+            style={{
+              background: isFocused
+                ? 'radial-gradient(circle, var(--accent-hex) 0%, var(--accent-deep) 35%, transparent 70%)'
+                : 'radial-gradient(circle, rgba(20, 184, 166, 0.4) 0%, transparent 60%)',
+              zIndex: -1,
+            }}
+          />
+          <div
+            className={`card border-beam-wrapper ${isFocused || idea.length > 0 ? 'border-beam-active' : ''} p-4 sm:p-7 mb-5 transition-all duration-300 text-left`}
             style={{
               boxShadow:
                 idea.length > 0
-                  ? '0 0 60px rgba(124,106,255,0.14)'
-                  : '0 0 40px rgba(124,106,255,0.06)',
+                  ? '0 0 60px rgba(20,184,166,0.14)'
+                  : '0 0 40px rgba(20,184,166,0.06)',
               borderColor:
                 idea.length > 0
-                  ? 'rgba(124,106,255,0.25)'
+                  ? 'rgba(20,184,166,0.25)'
                   : 'var(--border2)',
             }}
           >
@@ -274,6 +319,8 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               ref={textareaRef}
               value={idea}
               onChange={(e) => setIdea(e.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               placeholder="e.g. Build a food delivery app with restaurant listings, real-time order tracking, cart management, and Stripe payments..."
               rows={3}
               disabled={isLoading}
@@ -284,38 +331,51 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               }}
             />
 
-            <div className="flex items-center justify-between mt-4 sm:mt-5 flex-wrap gap-2 sm:gap-3">
-              <span className="font-mono-custom text-[11px] sm:text-xs" style={{ color: 'var(--text3)' }}>
-                {idea.length} chars <span className="hidden sm:inline">· ⌘↵ to generate</span>
-              </span>
+            <div className="flex flex-col gap-3 mt-4 sm:mt-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 min-w-0 order-2 sm:order-1">
+                <div className="char-meter" aria-hidden>
+                  <div
+                    className="char-meter__fill"
+                    style={{
+                      width: `${charProgress}%`,
+                      background:
+                        charCount >= MIN_CHARS
+                          ? 'linear-gradient(90deg, var(--accent-hex), var(--green))'
+                          : 'var(--accent-hex)',
+                    }}
+                  />
+                </div>
+                <span className="font-mono-custom text-[11px] sm:text-xs" style={{ color: charCount >= MIN_CHARS ? 'var(--green)' : 'var(--text3)' }}>
+                  {charCount}/{MIN_CHARS}
+                  <span className="hidden sm:inline"> · ⌘↵ generate</span>
+                </span>
+              </div>
 
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <div className="flex items-center gap-2 sm:gap-3 order-1 sm:order-2 w-full sm:w-auto">
                 {/* Model Selector */}
-                <div className="relative">
+                <div className="relative flex-1 sm:flex-none min-w-0">
                   <button
                     type="button"
                     onClick={() => setShowModelDropdown(!showModelDropdown)}
-                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border transition-all duration-150 group"
-                    style={{
-                      background: showModelDropdown ? 'var(--surface2)' : 'transparent',
-                      borderColor: showModelDropdown ? 'var(--border2)' : 'var(--border)',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!showModelDropdown) (e.currentTarget as HTMLElement).style.background = 'var(--surface2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!showModelDropdown) (e.currentTarget as HTMLElement).style.background = 'transparent';
-                    }}
+                    className={`model-select-btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${showModelDropdown ? 'model-select-btn--open' : ''}`}
+                    aria-expanded={showModelDropdown}
+                    aria-haspopup="listbox"
                   >
-                    <div
-                      className="w-1.5 h-1.5 rounded-full animate-pulse-dot"
-                      style={{ background: 'var(--green)', boxShadow: '0 0 8px var(--green)' }}
-                    />
-                    <span className="font-mono-custom text-[11px] sm:text-xs transition-colors" style={{ color: 'var(--text2)' }}>
+                    <span className="model-select-btn__dot" aria-hidden />
+                    <span className="truncate">
                       <span className="sm:hidden">{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label.split(' ')[0] || 'Model'}</span>
                       <span className="hidden sm:inline">{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.label || 'Model'}</span>
                     </span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" strokeWidth="2" className={`transition-transform ${showModelDropdown ? 'rotate-180' : ''}`}>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="model-select-btn__chevron"
+                      aria-hidden
+                    >
                       <polyline points="6 9 12 15 18 9" />
                     </svg>
                   </button>
@@ -324,49 +384,32 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowModelDropdown(false)} />
                       <div
-                        className="absolute bottom-full right-0 mb-2 w-[200px] sm:w-[220px] rounded-xl border z-50 overflow-hidden animate-fade-slide-up shadow-2xl"
-                        style={{ background: 'var(--surface)', borderColor: 'var(--border2)' }}
+                        className="model-select-menu animate-fade-slide-up"
+                        role="listbox"
+                        aria-label="AI Model"
                       >
-                        <div className="px-3 py-2 text-[10px] font-mono-custom tracking-wider uppercase" style={{ color: 'var(--text3)', borderBottom: '1px solid var(--border)' }}>
-                          AI Model
-                        </div>
-                        <div className="p-1">
+                        <div className="model-select-menu__header">AI Model</div>
+                        <div className="model-select-menu__list">
                           {AVAILABLE_MODELS.map((model) => {
-                            const isGptLocked = model.id === 'gpt-oss-120b' && !user;
+                            const isSelected = selectedModel === model.id;
                             return (
                             <button
                               type="button"
                               key={model.id}
+                              role="option"
+                              aria-selected={isSelected}
                               onClick={() => {
                                 setSelectedModel(model.id);
                                 setShowModelDropdown(false);
                               }}
-                              className="w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center justify-between group transition-colors"
-                              style={{
-                                background: selectedModel === model.id ? 'var(--surface2)' : 'transparent',
-                                color: selectedModel === model.id ? 'var(--text)' : 'var(--text2)'
-                              }}
-                              onMouseEnter={(e) => {
-                                if (selectedModel !== model.id) (e.currentTarget as HTMLElement).style.background = 'var(--surface3)';
-                              }}
-                              onMouseLeave={(e) => {
-                                if (selectedModel !== model.id) (e.currentTarget as HTMLElement).style.background = 'transparent';
-                              }}
-                              title={isGptLocked ? 'Sign in to use GPT-OSS 120B' : undefined}
+                              className={`model-select-option ${isSelected ? 'model-select-option--active' : ''}`}
                             >
                               <span className="font-mono-custom text-xs flex items-center gap-1.5">
                                 {model.label}
-                                {isGptLocked && <span>🔒</span>}
                               </span>
                               {model.badge && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded border font-mono-custom whitespace-nowrap"
-                                  style={{
-                                    background: isGptLocked ? 'rgba(245,158,11,0.1)' : 'var(--accent-glow)',
-                                    borderColor: isGptLocked ? 'rgba(245,158,11,0.3)' : 'var(--border2)',
-                                    color: isGptLocked ? 'rgb(245,158,11)' : 'var(--accent2)'
-                                  }}
-                                >
-                                  {isGptLocked ? 'Sign in required' : model.badge}
+                                <span className="model-select-option__badge">
+                                  {model.badge}
                                 </span>
                               )}
                             </button>
@@ -378,33 +421,41 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                   )}
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={!canSubmit}
-                className="flex items-center gap-2 sm:gap-2.5 rounded-[10px] px-4 sm:px-6 py-2.5 sm:py-3 font-display font-semibold text-xs sm:text-sm text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                aria-busy={isLoading}
+                className="btn-shiny flex flex-1 sm:flex-none items-center justify-center gap-2 sm:gap-2.5 rounded-[10px] px-4 sm:px-6 py-2.5 sm:py-3 font-display font-semibold text-xs sm:text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
                 style={{
                   background: 'var(--accent)',
                   boxShadow: canSubmit ? '0 0 24px var(--accent-glow)' : 'none',
                 }}
                 onMouseEnter={(e) => {
                   if (canSubmit) {
-                    (e.target as HTMLButtonElement).style.transform = 'translateY(-1px)';
-                    (e.target as HTMLButtonElement).style.boxShadow =
-                      '0 4px 32px rgba(124,106,255,0.4)';
+                    (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                      '0 4px 32px rgba(82, 39, 255, 0.35)';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  (e.target as HTMLButtonElement).style.transform = 'translateY(0)';
-                  (e.target as HTMLButtonElement).style.boxShadow = canSubmit
+                  (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow = canSubmit
                     ? '0 0 24px var(--accent-glow)'
                     : 'none';
                 }}
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="white">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                </svg>
-                <span className="hidden sm:inline">Generate Blueprint</span>
-                <span className="sm:hidden">Generate</span>
+                {isLoading ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin-slow" />
+                    <span>Building…</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap size={14} className="fill-white text-white" />
+                    <span className="hidden sm:inline">Generate Blueprint</span>
+                    <span className="sm:hidden">Generate</span>
+                  </>
+                )}
               </button>
               </div>
             </div>
@@ -412,43 +463,20 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
         </form>
 
         {/* Example chips */}
-        <div
-          className="font-mono-custom text-xs mb-3 animate-fade-slide-up"
-          style={{
-            color: 'var(--text3)',
-            animationDelay: '0.4s',
-            animationFillMode: 'both',
-          }}
-        >
+        <p className="example-chips-label animate-fade-slide-up" style={{ animationDelay: '0.4s', animationFillMode: 'both' }}>
           // quick examples
-        </div>
+        </p>
         <div
-          className="flex flex-nowrap sm:flex-wrap overflow-x-auto sm:justify-center gap-2 animate-fade-slide-up pb-2 sm:pb-0"
-          style={{ animationDelay: '0.45s', animationFillMode: 'both', scrollbarWidth: 'none' }}
+          className="example-chips animate-fade-slide-up"
+          style={{ animationDelay: '0.45s', animationFillMode: 'both' }}
         >
           {EXAMPLE_IDEAS.map(({ label, idea: exampleIdea }) => (
             <button
               key={label}
+              type="button"
               onClick={() => fillExample(exampleIdea)}
               disabled={isLoading}
-              className="font-mono-custom text-xs px-3.5 py-1.5 rounded-full border transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 whitespace-nowrap"
-              style={{
-                color: 'var(--text2)',
-                borderColor: 'var(--border2)',
-                background: 'var(--surface)',
-              }}
-              onMouseEnter={(e) => {
-                const el = e.currentTarget;
-                el.style.borderColor = 'var(--accent)';
-                el.style.color = 'var(--accent2)';
-                el.style.background = 'var(--accent-glow)';
-              }}
-              onMouseLeave={(e) => {
-                const el = e.currentTarget;
-                el.style.borderColor = 'var(--border2)';
-                el.style.color = 'var(--text2)';
-                el.style.background = 'var(--surface)';
-              }}
+              className="example-chip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             >
               {label}
             </button>
@@ -457,19 +485,23 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
       </section>
 
       {/* ─── Section 2: Stats ────────────────────────────── */}
-      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto overflow-hidden">
+      <ScrollReveal className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto overflow-hidden">
         <div
           className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4"
         >
-          {STATS.map(({ value, suffix, label }) => (
+          {STATS.map(({ value, suffix, label }, i) => (
             <div
               key={label}
-              className="card p-3 sm:p-5 text-center hover:scale-[1.03] transition-transform duration-200"
+              className="card p-3 sm:p-5 text-center hover:scale-[1.03] transition-transform duration-200 animate-float"
+              style={{
+                animationDelay: `${i * 0.4}s`,
+                animationDuration: '6s'
+              }}
             >
               <div
                 className="font-display font-extrabold text-2xl sm:text-3xl mb-1"
                 style={{
-                  background: 'linear-gradient(135deg, var(--accent2), var(--green))',
+                  background: 'linear-gradient(135deg, var(--accent2), var(--accent-hex))',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                 }}
@@ -485,10 +517,10 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             </div>
           ))}
         </div>
-      </section>
+      </ScrollReveal>
 
       {/* ─── Section 3: Features ─────────────────────────── */}
-      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto overflow-hidden">
+      <ScrollReveal className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto overflow-hidden">
         <div className="text-center mb-12">
           <div
             className="font-mono-custom text-xs uppercase tracking-widest mb-3"
@@ -512,10 +544,10 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             <FeatureCard key={feat.title} {...feat} delay={i * 80} />
           ))}
         </div>
-      </section>
+      </ScrollReveal>
 
       {/* ─── Section 4: How it works ─────────────────────── */}
-      <section className="px-4 sm:px-6 py-12 sm:py-16 max-w-3xl mx-auto overflow-hidden">
+      <ScrollReveal className="px-4 sm:px-6 py-12 sm:py-16 max-w-3xl mx-auto overflow-hidden">
         <div className="text-center mb-12">
           <div
             className="font-mono-custom text-xs uppercase tracking-widest mb-3"
@@ -549,7 +581,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               step: '03',
               title: 'Download & start building',
               desc: 'Export the full project scaffold, refine through chat, or share with your team.',
-              color: 'var(--blue)',
+              color: 'var(--accent)',
             },
           ].map(({ step, title, desc, color }) => (
             <div
@@ -577,17 +609,24 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             </div>
           ))}
         </div>
-      </section>
+      </ScrollReveal>
 
       {/* ─── Section 5: CTA ──────────────────────────────── */}
-      <section className="px-4 sm:px-6 py-12 sm:py-20 max-w-3xl mx-auto text-center overflow-hidden">
+      <ScrollReveal className="px-4 sm:px-6 py-12 sm:py-20 max-w-3xl mx-auto text-center overflow-hidden">
         <div
-          className="card p-8 sm:p-12"
+          className="p-[1.5px] rounded-2xl"
           style={{
-            background: 'linear-gradient(135deg, rgba(124,106,255,0.08), rgba(34,211,165,0.06))',
-            borderColor: 'rgba(124,106,255,0.2)',
+            background: 'linear-gradient(135deg, rgba(20,184,166,0.45), rgba(15,118,110,0.25) 50%, rgba(94,234,212,0.35))',
+            boxShadow: '0 12px 40px rgba(20,184,166,0.08)'
           }}
         >
+          <div
+            className="p-8 sm:p-12 rounded-[15px]"
+            style={{
+              background: 'linear-gradient(135deg, rgba(10,10,18,0.9), rgba(15,15,25,0.85))',
+              backdropFilter: 'blur(20px)',
+            }}
+          >
           <h2
             className="font-display font-extrabold text-xl sm:text-2xl mb-3"
             style={{ color: 'var(--text)', letterSpacing: '-1px' }}
@@ -602,19 +641,19 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               window.scrollTo({ top: 0, behavior: 'smooth' });
               textareaRef.current?.focus();
             }}
-            className="inline-flex items-center gap-2 sm:gap-2.5 rounded-[10px] px-6 sm:px-8 py-3 sm:py-3.5 font-display font-semibold text-xs sm:text-sm text-white transition-all duration-200"
+            className="btn-shiny inline-flex items-center gap-2 sm:gap-2.5 rounded-[10px] px-6 sm:px-8 py-3 sm:py-3.5 font-display font-semibold text-xs sm:text-sm text-white"
             style={{
               background: 'var(--accent)',
               boxShadow: '0 0 24px var(--accent-glow)',
             }}
             onMouseEnter={(e) => {
-              (e.target as HTMLButtonElement).style.transform = 'translateY(-2px)';
-              (e.target as HTMLButtonElement).style.boxShadow =
-                '0 4px 32px rgba(124,106,255,0.4)';
+              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)';
+              (e.currentTarget as HTMLButtonElement).style.boxShadow =
+                '0 4px 32px rgba(20,184,166,0.4)';
             }}
             onMouseLeave={(e) => {
-              (e.target as HTMLButtonElement).style.transform = 'translateY(0)';
-              (e.target as HTMLButtonElement).style.boxShadow = '0 0 24px var(--accent-glow)';
+              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 24px var(--accent-glow)';
             }}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="white">
@@ -623,10 +662,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             Start Building — It's Free
           </button>
         </div>
-      </section>
+      </div>
+    </ScrollReveal>
 
-      {/* Auth modal for GPT-OSS gate */}
-      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </>
   );
 }

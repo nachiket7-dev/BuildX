@@ -107,12 +107,27 @@ function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
   );
 }
 
+function cleanMermaidChart(chart: string): string {
+  if (!chart) return '';
+  return chart
+    .replace(/^```mermaid\s*/i, '')
+    .replace(/^```\s*/, '')
+    .replace(/```\s*$/, '')
+    .trim();
+}
+
 export function DiagramsPanel({ blueprint }: { blueprint: Blueprint }) {
   const [activeTab, setActiveTab] = useState<DiagramTab>('er');
 
-  const erDiagram = generateERDiagram(blueprint.schema || []);
-  const archDiagram = generateArchDiagram(blueprint.architecture || {} as any);
-  const apiDiagram = generateAPIFlow(blueprint.endpoints || []);
+  const erDiagram = cleanMermaidChart(
+    blueprint.diagrams?.er || generateERDiagram(blueprint.schema || [])
+  );
+  const archDiagram = cleanMermaidChart(
+    blueprint.diagrams?.arch || generateArchDiagram(blueprint.architecture || {} as any)
+  );
+  const apiDiagram = cleanMermaidChart(
+    blueprint.diagrams?.apiFlow || generateAPIFlow(blueprint.endpoints || [])
+  );
 
   return (
     <div>
