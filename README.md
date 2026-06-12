@@ -170,7 +170,7 @@ npm run dev
 
 ## 🔌 API
 
-### `POST /api/blueprint/generate`
+### `POST /api/blueprint/generate` (Auth required)
 ```json
 // Request
 { "idea": "A food delivery app with restaurant listings and Stripe payments", "model": "llama-3.3-70b" }
@@ -179,16 +179,17 @@ npm run dev
 { "success": true, "data": { "appName": "...", "schema": [...], ... }, "id": "abc123" }
 ```
 
-### `POST /api/blueprint/generate-stream` — SSE streaming generation
-### `POST /api/blueprint/refine` — Refine an existing blueprint via chat
-### `POST /api/blueprint/export` — Download project scaffold as ZIP
-### `PATCH /api/blueprint/:id/visibility` — Toggle public/private (auth required)
-### `GET /api/blueprint/list` — Public blueprint gallery
-### `GET /api/blueprint/:id` — Fetch a saved blueprint
-### `GET /health` — Server health check
-### `GET /api/blueprint/health` — Checks Groq key is configured
+* `POST /api/blueprint/generate-stream` — SSE streaming generation (Auth required)
+* `POST /api/blueprint/refine` — Refine an existing blueprint via chat (Auth required)
+* `POST /api/blueprint/export` — Download project scaffold as ZIP (Optional auth; anyone can download public blueprints)
+* `PATCH /api/blueprint/:id/visibility` — Toggle public/private (Auth required, owner only)
+* `GET /api/blueprint/list` — Public blueprint gallery (No auth required)
+* `GET /api/blueprint/:id` — Fetch a saved blueprint (No auth required if public, otherwise owner only)
+* `GET /api/blueprint/:id/meta` — Fetch views and metadata (No auth required if public)
+* `GET /health` — Server health check (No auth required)
+* `GET /api/blueprint/health` — Checks Groq key is configured (No auth required)
 
-Rate limited: **10 AI generations/minute** per IP.
+Rate limited: **10 AI generations/minute** per IP (applies only to AI writes: `/generate`, `/generate-stream`, `/refine`, and `/regenerate`).
 
 ---
 
