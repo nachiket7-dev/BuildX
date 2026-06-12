@@ -8,8 +8,15 @@ import {
   FileJson, 
   FileText, 
   Database,
-  Sparkles
+  Sparkles,
+  ChevronRight,
+  ChevronDown,
+  Download,
+  Copy,
+  Check
 } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
+import { getAuthHeaders } from '../lib/api';
 
 function getFileIcon(name: string, size = 14) {
   if (name.endsWith('.sql') || name === 'schema.js' || name === 'mongoose.ts') {
@@ -42,23 +49,168 @@ interface VirtualFile {
   icon: string;
 }
 
+interface TreeNode {
+  name: string;
+  path: string;
+  isFolder: boolean;
+  children?: TreeNode[];
+}
+
+function buildFileTree(paths: string[]): TreeNode[] {
+  const root: TreeNode[] = [];
+  
+  for (const path of paths) {
+    const parts = path.split('/');
+    let currentLevel = root;
+    let currentPath = '';
+    
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (!part) continue;
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      const isLast = i === parts.length - 1;
+      
+      let existingNode = currentLevel.find(node => node.name === part);
+      if (!existingNode) {
+        existingNode = {
+          name: part,
+          path: currentPath,
+          isFolder: !isLast,
+          children: isLast ? undefined : []
+        };
+        currentLevel.push(existingNode);
+        
+        // Sort folders first, then files alphabetically
+        currentLevel.sort((a, b) => {
+          if (a.isFolder && !b.isFolder) return -1;
+          if (!a.isFolder && b.isFolder) return 1;
+          return a.name.localeCompare(b.name);
+        });
+      }
+      if (!isLast && existingNode.children) {
+        currentLevel = existingNode.children;
+      }
+    }
+  }
+  
+  return root;
+}
+
+function highlightCode(content: string, language: string): string {
+  let html = escapeHtml(content);
+
+  if (language === 'ts' || language === 'tsx' || language === 'js' || language === 'javascript') {
+    const placeholders: string[] = [];
+    
+    // Extract multi-line comments
+    html = html.replace(/\/\*[\s\S]*?\*\//g, (match) => {
+      placeholders.push(`<span class="text-emerald-500/80 italic">${match}</span>`);
+      return `___PLACEHOLDER_${placeholders.length - 1}___`;
+    });
+    
+    // Extract single-line comments
+    html = html.replace(/\/\/.*$/gm, (match) => {
+      placeholders.push(`<span class="text-emerald-500/80 italic">${match}</span>`);
+      return `___PLACEHOLDER_${placeholders.length - 1}___`;
+    });
+    
+    // Extract strings
+    html = html.replace(/(["'`])(?:\\.|[^\\])*?\1/g, (match) => {
+      placeholders.push(`<span class="text-amber-300/90">${match}</span>`);
+      return `___PLACEHOLDER_${placeholders.length - 1}___`;
+    });
+    
+    // Keywords
+    const keywords = [
+      'const', 'let', 'var', 'function', 'class', 'extends', 'implements', 
+      'import', 'export', 'from', 'default', 'as', 'return', 'if', 'else', 
+      'for', 'while', 'switch', 'case', 'break', 'continue', 'new', 'this', 
+      'true', 'false', 'null', 'undefined', 'async', 'await', 'try', 'catch', 
+      'finally', 'throw', 'interface', 'type', 'readonly', 'public', 'private', 
+      'protected', 'static', 'get', 'set', 'of', 'in'
+    ];
+    const keywordRegex = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
+    html = html.replace(keywordRegex, '<span class="text-purple-400 font-bold">$1</span>');
+    
+    // Types
+    const types = ['string', 'number', 'boolean', 'any', 'void', 'unknown', 'never', 'object', 'Record', 'Promise', 'ReactNode', 'React'];
+    const typesRegex = new RegExp(`\\b(${types.join('|')})\\b`, 'g');
+    html = html.replace(typesRegex, '<span class="text-blue-400 font-semibold">$1</span>');
+    
+    // Restore
+    for (let i = placeholders.length - 1; i >= 0; i--) {
+      html = html.replace(`___PLACEHOLDER_${i}___`, placeholders[i]);
+    }
+  } else if (language === 'sql') {
+    const placeholders: string[] = [];
+    
+    // Comments
+    html = html.replace(/--.*$/gm, (match) => {
+      placeholders.push(`<span class="text-emerald-500/80 italic">${match}</span>`);
+      return `___PLACEHOLDER_${placeholders.length - 1}___`;
+    });
+    
+    // Strings
+    html = html.replace(/'(?:\\.|[^'])*?'/g, (match) => {
+      placeholders.push(`<span class="text-amber-300/90">${match}</span>`);
+      return `___PLACEHOLDER_${placeholders.length - 1}___`;
+    });
+    
+    // Keywords
+    const sqlKeywords = [
+      'SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'TABLE', 
+      'ALTER', 'DROP', 'INDEX', 'FOREIGN', 'KEY', 'PRIMARY', 'REFERENCES', 
+      'UNIQUE', 'NOT', 'NULL', 'DEFAULT', 'INT', 'VARCHAR', 'TEXT', 'TIMESTAMP', 
+      'BOOLEAN', 'DATE', 'UUID', 'DATABASE', 'SCHEMA', 'INTO', 'VALUES', 'SET', 
+      'ON', 'DELETE', 'CASCADE', 'CONSTRAINT', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 
+      'OUTER', 'ORDER', 'BY', 'GROUP', 'HAVING', 'LIMIT', 'OFFSET', 'AS', 'AND', 
+      'OR', 'IN', 'EXISTS', 'ANY', 'ALL'
+    ];
+    const sqlKeywordsRegex = new RegExp(`\\b(${sqlKeywords.join('|')})\\b`, 'gi');
+    html = html.replace(sqlKeywordsRegex, '<span class="text-purple-400 font-bold">$1</span>');
+    
+    // Restore
+    for (let i = placeholders.length - 1; i >= 0; i--) {
+      html = html.replace(`___PLACEHOLDER_${i}___`, placeholders[i]);
+    }
+  } else if (language === 'json') {
+    const placeholders: string[] = [];
+    
+    // Strings
+    html = html.replace(/"(?:\\.|[^"])*?"/g, (match) => {
+      placeholders.push(`<span class="text-amber-300/90">${match}</span>`);
+      return `___PLACEHOLDER_${placeholders.length - 1}___`;
+    });
+    
+    // Numbers, Booleans, Null
+    html = html.replace(/\b(true|false|null|\d+)\b/g, '<span class="text-blue-400">$1</span>');
+    
+    // Restore
+    for (let i = placeholders.length - 1; i >= 0; i--) {
+      html = html.replace(`___PLACEHOLDER_${i}___`, placeholders[i]);
+    }
+  }
+  
+  return html;
+}
+
 export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: CodeStudioProps) {
   const [openFiles, setOpenFiles] = useState<string[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string>('');
   const [refineInput, setRefineInput] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
+  const { toast } = useToast();
 
   const isMongo = (blueprint.architecture?.database || '').toLowerCase().includes('mongo');
 
   const unescapeString = (str: string) => {
     if (!str) return '';
-    // Handle multiple levels of escaping that can occur from AI → JSON.parse → SSE → JSON.parse
     let result = str;
-    // First pass: handle double-escaped sequences (\\\\n → \\n → \n)
-    // This catches cases where the AI double-escaped and JSON.parse only removed one level
     result = result.replace(/\\\\n/g, '\\n');
     result = result.replace(/\\\\t/g, '\\t');
     result = result.replace(/\\\\"/g, '\\"');
-    // Second pass: handle single-escaped sequences (\\n → \n)
     result = result.replace(/\\n/g, '\n');
     result = result.replace(/\\t/g, '\t');
     result = result.replace(/\\"/g, '"');
@@ -66,7 +218,6 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
     return result;
   };
 
-  /** Generate fallback Mongoose schema code from blueprint.schema (frontend-side) */
   const generateFallbackMongooseCode = (): string => {
     const schema = blueprint.schema || [];
     if (schema.length === 0) return '// No schema defined';
@@ -103,6 +254,7 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
       }
       lines.push('}, { timestamps: true });');
       lines.push('');
+      `const ${modelName} = mongoose.model('${modelName}', ${modelName}Schema);`;
       lines.push(`const ${modelName} = mongoose.model('${modelName}', ${modelName}Schema);`);
       lines.push('');
     }
@@ -115,7 +267,6 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
     return lines.join('\n');
   };
 
-  // Get the schema/SQL code, with frontend fallback for MongoDB
   const getSchemaCode = (): string => {
     const raw = unescapeString(blueprint.code?.sql || '');
     if (raw.trim() && raw.trim() !== '-- No SQL generated') return isMongo ? raw : formatSQL(raw);
@@ -123,96 +274,142 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
     return raw || '-- No SQL generated';
   };
 
-  const files: VirtualFile[] = [
-    {
-      path: 'frontend/src/App.tsx',
-      name: 'App.tsx',
-      folder: 'frontend/src',
-      language: 'tsx',
-      content: unescapeString(blueprint.code?.frontend || ''),
-      icon: '⚛️',
-    },
-    {
-      path: 'frontend/package.json',
-      name: 'package.json',
-      folder: 'frontend',
-      language: 'json',
-      content: JSON.stringify(
-        {
-          name: `${(blueprint.appName || 'app').toLowerCase().replace(/\s+/g, '-')}-frontend`,
-          version: '1.0.0',
-          dependencies: {
-            react: '^18.2.0',
-            'react-dom': '^18.2.0',
-            tailwindcss: '^3.3.0',
-            'lucide-react': '^0.294.0',
-            '@tanstack/react-query': '^5.14.0',
-          },
-        },
-        null,
-        2
-      ),
-      icon: '📦',
-    },
-    {
-      path: 'backend/src/routes.ts',
-      name: 'routes.ts',
-      folder: 'backend/src',
-      language: 'ts',
-      content: unescapeString(blueprint.code?.backend || ''),
-      icon: '🔌',
-    },
-    {
-      path: 'backend/package.json',
-      name: 'package.json',
-      folder: 'backend',
-      language: 'json',
-      content: JSON.stringify(
-        {
-          name: `${(blueprint.appName || 'app').toLowerCase().replace(/\s+/g, '-')}-backend`,
-          version: '1.0.0',
-          dependencies: {
-            express: '^4.18.2',
-            jsonwebtoken: '^9.0.2',
-            bcryptjs: '^2.4.3',
-            ...(isMongo
-              ? { mongoose: '^7.6.0' }
-              : { pg: '^8.11.3' }),
-            zod: '^3.22.4',
-          },
-        },
-        null,
-        2
-      ),
-      icon: '📦',
-    },
-    {
-      path: `database/${isMongo ? 'schema.js' : 'schema.sql'}`,
-      name: isMongo ? 'schema.js' : 'schema.sql',
-      folder: 'database',
-      language: isMongo ? 'javascript' : 'sql',
-      content: getSchemaCode(),
-      icon: '🗄️',
-    },
-    {
-      path: 'README.md',
-      name: 'README.md',
-      folder: '.',
-      language: 'md',
-      content: unescapeString(`# ⚡ ${blueprint.appName || 'App'}\n\n${blueprint.description || ''}\n\n## Target Users\n${blueprint.targetUsers || ''}\n\n## Tech Stack\n- Frontend: ${blueprint.architecture?.frontend || 'React'}\n- Backend: ${blueprint.architecture?.backend || 'Node'}\n- Database: ${blueprint.architecture?.database || 'PostgreSQL'}\n- Auth: ${blueprint.architecture?.auth || 'JWT'}\n- Hosting: ${blueprint.architecture?.hosting || 'Vercel'}\n\n## Setup Instructions\n1. Import the schema inside database/${isMongo ? 'schema.js' : 'schema.sql'}\n2. Run npm install in frontend and backend\n3. Run npm run dev to start`),
-      icon: '📝',
-    },
-  ];
+  // Build files array dynamically if blueprint.code.files is provided, otherwise fallback
+  const files: VirtualFile[] = [];
 
-  // Set default active file on load
+  if (blueprint.code?.files && Object.keys(blueprint.code.files).length > 0) {
+    Object.entries(blueprint.code.files).forEach(([filePath, content]) => {
+      const parts = filePath.split('/');
+      const name = parts[parts.length - 1];
+      const folder = parts.slice(0, -1).join('/') || '.';
+      
+      let language: VirtualFile['language'] = 'ts';
+      const ext = name.split('.').pop()?.toLowerCase();
+      if (ext === 'tsx') language = 'tsx';
+      else if (ext === 'ts') language = 'ts';
+      else if (ext === 'sql') language = 'sql';
+      else if (ext === 'json') language = 'json';
+      else if (ext === 'md') language = 'md';
+      else if (ext === 'js') language = 'js';
+      
+      files.push({
+        path: filePath,
+        name,
+        folder,
+        language,
+        content: unescapeString(content),
+        icon: ''
+      });
+    });
+  } else {
+    // Fallback/legacy files mapping
+    files.push(
+      {
+        path: 'frontend/src/App.tsx',
+        name: 'App.tsx',
+        folder: 'frontend/src',
+        language: 'tsx',
+        content: unescapeString(blueprint.code?.frontend || ''),
+        icon: '⚛️',
+      },
+      {
+        path: 'frontend/package.json',
+        name: 'package.json',
+        folder: 'frontend',
+        language: 'json',
+        content: JSON.stringify(
+          {
+            name: `${(blueprint.appName || 'app').toLowerCase().replace(/\s+/g, '-')}-frontend`,
+            version: '1.0.0',
+            dependencies: {
+              react: '^18.2.0',
+              'react-dom': '^18.2.0',
+              tailwindcss: '^3.3.0',
+              'lucide-react': '^0.294.0',
+              '@tanstack/react-query': '^5.14.0',
+            },
+          },
+          null,
+          2
+        ),
+        icon: '📦',
+      },
+      {
+        path: 'backend/src/routes.ts',
+        name: 'routes.ts',
+        folder: 'backend/src',
+        language: 'ts',
+        content: unescapeString(blueprint.code?.backend || ''),
+        icon: '🔌',
+      },
+      {
+        path: 'backend/package.json',
+        name: 'package.json',
+        folder: 'backend',
+        language: 'json',
+        content: JSON.stringify(
+          {
+            name: `${(blueprint.appName || 'app').toLowerCase().replace(/\s+/g, '-')}-backend`,
+            version: '1.0.0',
+            dependencies: {
+              express: '^4.18.2',
+              jsonwebtoken: '^9.0.2',
+              bcryptjs: '^2.4.3',
+              ...(isMongo
+                ? { mongoose: '^7.6.0' }
+                : { pg: '^8.11.3' }),
+              zod: '^3.22.4',
+            },
+          },
+          null,
+          2
+        ),
+        icon: '📦',
+      },
+      {
+        path: `database/${isMongo ? 'schema.js' : 'schema.sql'}`,
+        name: isMongo ? 'schema.js' : 'schema.sql',
+        folder: 'database',
+        language: isMongo ? 'javascript' : 'sql',
+        content: getSchemaCode(),
+        icon: '🗄️',
+      },
+      {
+        path: 'README.md',
+        name: 'README.md',
+        folder: '.',
+        language: 'md',
+        content: unescapeString(`# ⚡ ${blueprint.appName || 'App'}\n\n${blueprint.description || ''}\n\n## Target Users\n${blueprint.targetUsers || ''}\n\n## Tech Stack\n- Frontend: ${blueprint.architecture?.frontend || 'React'}\n- Backend: ${blueprint.architecture?.backend || 'Node'}\n- Database: ${blueprint.architecture?.database || 'PostgreSQL'}\n- Auth: ${blueprint.architecture?.auth || 'JWT'}\n- Hosting: ${blueprint.architecture?.hosting || 'Vercel'}\n\n## Setup Instructions\n1. Import the schema inside database/${isMongo ? 'schema.js' : 'schema.sql'}\n2. Run npm install in frontend and backend\n3. Run npm run dev to start`),
+        icon: '📝',
+      }
+    );
+  }
+
+  // Set default active file on load & handle blueprint changes robustly
   useEffect(() => {
-    if (!activeFilePath && files.length > 0) {
-      setActiveFilePath(files[0].path);
-      setOpenFiles([files[0].path]);
+    if (files.length > 0) {
+      const validOpenFiles = openFiles.filter(path => files.some(f => f.path === path));
+      let nextActivePath = activeFilePath;
+      if (!activeFilePath || !files.some(f => f.path === activeFilePath)) {
+        nextActivePath = files[0].path;
+      }
+      setActiveFilePath(nextActivePath);
+      if (validOpenFiles.length === 0 && nextActivePath) {
+        setOpenFiles([nextActivePath]);
+      } else if (!validOpenFiles.includes(nextActivePath) && nextActivePath) {
+        setOpenFiles([...validOpenFiles, nextActivePath]);
+      } else {
+        setOpenFiles(validOpenFiles);
+      }
+    } else {
+      setActiveFilePath('');
+      setOpenFiles([]);
     }
   }, [blueprint]);
 
-  const activeFile = files.find((f) => f.path === activeFilePath) || files[0];
+  const activeFile = openFiles.includes(activeFilePath)
+    ? files.find((f) => f.path === activeFilePath)
+    : undefined;
 
   const handleOpenFile = (path: string) => {
     setActiveFilePath(path);
@@ -225,9 +422,119 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
     e.stopPropagation();
     const filtered = openFiles.filter((p) => p !== path);
     setOpenFiles(filtered);
-    if (activeFilePath === path && filtered.length > 0) {
-      setActiveFilePath(filtered[filtered.length - 1]);
+    if (activeFilePath === path) {
+      if (filtered.length > 0) {
+        setActiveFilePath(filtered[filtered.length - 1]);
+      } else {
+        setActiveFilePath('');
+      }
     }
+  };
+
+  const handleCopyCode = () => {
+    if (!activeFile) return;
+    navigator.clipboard.writeText(activeFile.content);
+    setCopied(true);
+    toast('Code copied to clipboard', 'success');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadAll = async () => {
+    setDownloading(true);
+    try {
+      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+      const blueprintId = (blueprint as any).id || null;
+      const url = blueprintId
+        ? `${BASE_URL}/api/blueprint/export?id=${blueprintId}`
+        : `${BASE_URL}/api/blueprint/export`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: blueprintId ? undefined : JSON.stringify(blueprint),
+      });
+
+      if (!response.ok) throw new Error('Export failed');
+
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `${blueprint.appName.toLowerCase().replace(/\s+/g, '-')}-scaffold.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+      toast('Scaffold ZIP downloaded successfully', 'success');
+    } catch (err) {
+      toast('Export failed — try again', 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const toggleFolder = (folderPath: string) => {
+    setCollapsedFolders(prev => ({
+      ...prev,
+      [folderPath]: !prev[folderPath]
+    }));
+  };
+
+  const buildedTree = buildFileTree(files.map(f => f.path));
+
+  const renderTreeNodes = (nodes: TreeNode[], depth = 0) => {
+    return nodes.map(node => {
+      const indent = depth * 12;
+      if (node.isFolder) {
+        const isCollapsed = collapsedFolders[node.path];
+        return (
+          <div key={node.path} className="space-y-1">
+            <button
+              onClick={() => toggleFolder(node.path)}
+              style={{ paddingLeft: `${indent + 8}px` }}
+              className="w-full text-left py-1.5 text-muted-foreground hover:bg-white/5 hover:text-white rounded-lg flex items-center gap-1.5 transition-colors font-semibold font-mono-custom text-xs"
+            >
+              {isCollapsed ? (
+                <ChevronRight size={12} className="text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown size={12} className="text-muted-foreground shrink-0" />
+              )}
+              {isCollapsed ? (
+                <Folder size={14} className="text-purple-400/80 shrink-0" />
+              ) : (
+                <FolderOpen size={14} className="text-purple-400/80 shrink-0" />
+              )}
+              <span className="truncate">{node.name}</span>
+            </button>
+            {!isCollapsed && node.children && (
+              <div className="space-y-1">
+                {renderTreeNodes(node.children, depth + 1)}
+              </div>
+            )}
+          </div>
+        );
+      } else {
+        const isSelected = activeFilePath === node.path;
+        return (
+          <button
+            key={node.path}
+            onClick={() => handleOpenFile(node.path)}
+            style={{ paddingLeft: `${indent + 24}px` }}
+            className={`w-full text-left py-1.5 rounded-lg flex items-center gap-2 transition-colors font-mono-custom text-xs ${
+              isSelected
+                ? 'bg-purple-500/15 text-purple-300 font-semibold border-l-2 border-purple-500 rounded-l-none'
+                : 'text-muted-foreground hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            {getFileIcon(node.name, 14)}
+            <span className="truncate">{node.name}</span>
+          </button>
+        );
+      }
+    });
   };
 
   const handleSubmitRefine = (e: React.FormEvent) => {
@@ -241,85 +548,72 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
     <div className="flex flex-col md:flex-row rounded-2xl border border-white/10 bg-bg-surface overflow-hidden h-[580px] w-full">
       {/* File Tree Explorer (Left) */}
       <div className="w-full md:w-64 bg-bg-surface2 border-r border-white/5 flex flex-col h-1/3 md:h-full shrink-0 select-none">
-        <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-          <span className="font-mono-custom text-[10px] text-muted-foreground font-bold tracking-wider uppercase">
-            Workspace Explorer
+        <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
+          <span className="font-mono-custom text-[10px] text-muted-foreground font-bold tracking-wider uppercase truncate">
+            Workspace
           </span>
-          <span className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded font-mono-custom">
-            React+Node
-          </span>
+          <button
+            onClick={handleDownloadAll}
+            disabled={downloading}
+            className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded hover:bg-purple-500/20 hover:text-purple-300 font-mono-custom flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50"
+          >
+            {downloading ? (
+              <div className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Download size={10} />
+            )}
+            {downloading ? 'Exporting...' : 'Download All'}
+          </button>
         </div>
 
         {/* Tree items */}
         <div className="flex-1 p-2 overflow-y-auto space-y-1.5 font-mono-custom text-xs">
-          {/* Folders & files rendering */}
-          {['database', 'frontend', 'backend', '.'].map((folderName) => {
-            const folderFiles = files.filter((f) => f.folder.startsWith(folderName) || (folderName === '.' && f.folder === '.'));
-            if (folderFiles.length === 0) return null;
-
-            return (
-              <div key={folderName} className="space-y-1">
-                {folderName !== '.' && (
-                  <div className="px-2 py-1 text-muted-foreground font-semibold flex items-center gap-1.5">
-                    <Folder size={14} className="text-purple-400/80" />
-                    <span className="truncate">{folderName}</span>
-                  </div>
-                )}
-                <div className={folderName !== '.' ? 'pl-4 space-y-1' : 'space-y-1'}>
-                  {folderFiles.map((f) => {
-                    const isSelected = activeFilePath === f.path;
-                    return (
-                      <button
-                        key={f.path}
-                        onClick={() => handleOpenFile(f.path)}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center gap-2 transition-colors ${
-                          isSelected
-                            ? 'bg-purple-500/15 text-purple-300 font-semibold border-l-2 border-purple-500 rounded-l-none'
-                            : 'text-muted-foreground hover:bg-white/5 hover:text-white'
-                        }`}
-                      >
-                        {getFileIcon(f.name, 14)}
-                        <span className="truncate">{f.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          {renderTreeNodes(buildedTree)}
         </div>
       </div>
 
       {/* Editor & View Area (Center) */}
       <div className="flex-1 flex flex-col min-w-0 bg-black/45 h-2/3 md:h-full relative">
-        {/* Editor Tabs */}
-        <div className="h-10 bg-bg-surface2 border-b border-white/5 flex items-center overflow-x-auto select-none shrink-0 scrollbar-none">
-          {openFiles.map((path) => {
-            const f = files.find((file) => file.path === path);
-            if (!f) return null;
-            const isSelected = activeFilePath === path;
+        {/* Editor Tabs & Actions */}
+        <div className="h-10 bg-bg-surface2 border-b border-white/5 flex items-center justify-between select-none shrink-0 pr-2">
+          <div className="flex items-center overflow-x-auto scrollbar-none h-full flex-1">
+            {openFiles.map((path) => {
+              const f = files.find((file) => file.path === path);
+              if (!f) return null;
+              const isSelected = activeFilePath === path;
 
-            return (
-              <div
-                key={path}
-                onClick={() => setActiveFilePath(path)}
-                className={`h-full px-4 border-r border-white/5 flex items-center gap-2 cursor-pointer transition-colors text-xs font-mono-custom ${
-                  isSelected
-                    ? 'bg-black/50 text-purple-300 border-t-2 border-t-purple-500'
-                    : 'text-muted-foreground hover:bg-white/5'
-                }`}
-              >
-                {getFileIcon(f.name, 13)}
-                <span className="truncate max-w-[100px]">{f.name}</span>
-                <button
-                  onClick={(e) => handleCloseFile(path, e)}
-                  className="hover:bg-white/10 hover:text-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 ml-1"
+              return (
+                <div
+                  key={path}
+                  onClick={() => setActiveFilePath(path)}
+                  className={`h-full px-4 border-r border-white/5 flex items-center gap-2 cursor-pointer transition-colors text-xs font-mono-custom ${
+                    isSelected
+                      ? 'bg-black/50 text-purple-300 border-t-2 border-t-purple-500'
+                      : 'text-muted-foreground hover:bg-white/5'
+                  }`}
                 >
-                  ×
-                </button>
-              </div>
-            );
-          })}
+                  {getFileIcon(f.name, 13)}
+                  <span className="truncate max-w-[100px]">{f.name}</span>
+                  <button
+                    onClick={(e) => handleCloseFile(path, e)}
+                    className="hover:bg-white/10 hover:text-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 ml-1"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {activeFile && (
+            <button
+              onClick={handleCopyCode}
+              className="p-1.5 text-muted-foreground hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0"
+              title="Copy file content"
+            >
+              {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+              <span>{copied ? 'Copied' : 'Copy'}</span>
+            </button>
+          )}
         </div>
 
         {/* Editor content */}
@@ -328,7 +622,7 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
             <pre className="whitespace-pre tab-size-2 scrollbar-thin">
               <code
                 dangerouslySetInnerHTML={{
-                  __html: escapeHtml(activeFile.content)
+                  __html: highlightCode(activeFile.content, activeFile.language)
                     .split('\n')
                     .map((line, i) => `<span class="text-muted-foreground select-none inline-block w-6 pr-2 mr-2 border-r border-white/5 text-right">${i + 1}</span>${line}`)
                     .join('\n'),
