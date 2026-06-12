@@ -858,7 +858,6 @@ export async function renameBlueprint(id: string, userId: string, newTitle: stri
     const db = readLocalDb();
     const bp = db.blueprints.find(b => b.id === id && b.user_id === userId);
     if (!bp) return false;
-    bp.idea = newTitle;
     try {
       const parsed = JSON.parse(bp.blueprint);
       parsed.appName = newTitle;
@@ -889,8 +888,8 @@ export async function renameBlueprint(id: string, userId: string, newTitle: stri
   }
 
   const result = await pool.query(
-    'UPDATE blueprints SET idea = $1, blueprint = $2 WHERE id = $3 AND user_id = $4',
-    [newTitle, updatedBlueprint, id, userId]
+    'UPDATE blueprints SET blueprint = $1 WHERE id = $2 AND user_id = $3',
+    [updatedBlueprint, id, userId]
   );
   return (result.rowCount ?? 0) > 0;
 }
