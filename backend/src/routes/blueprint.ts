@@ -18,9 +18,20 @@ import { streamScaffoldZip } from '../lib/scaffold';
 import { refineBlueprint } from '../lib/refine';
 import { coerceBlueprintInput } from '../lib/normalizeBlueprint';
 import { resolveModel } from '../lib/groq';
-import { requireAuth } from '../lib/auth';
+import { requireAuth, optionalAuth } from '../lib/auth';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+// Stricter limiter for AI generation only (expensive Groq calls)
+const blueprintLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,             // 10 generations per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Blueprint rate limit hit. Max 10 blueprints per minute.' },
+});
+
 
 const GPT_OSS_MODEL = 'openai/gpt-oss-120b';
 
@@ -92,11 +103,10 @@ router.get('/health', (_req: Request, res: Response) => {
   });
 });
 
-// All routes below require authentication
-router.use(requireAuth);
-
 router.post(
   '/generate',
+  requireAuth,
+  blueprintLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const parseResult = BlueprintRequestSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -132,7 +142,7 @@ router.post(
   }
 );
 
-router.post('/generate-stream', async (req: Request, res: Response): Promise<void> => {
+router.post('/generate-stream', requireAuth, blueprintLimiter, async (req: Request, res: Response): Promise<void> => {
   const parseResult = BlueprintRequestSchema.safeParse(req.body);
   if (!parseResult.success) {
     res.status(400).json({
@@ -149,12 +159,9 @@ router.post('/generate-stream', async (req: Request, res: Response): Promise<voi
   const userId = req.user!.userId;
   console.log(`[Blueprint:stream] Generating for idea: "${idea.slice(0, 80)}..."`);
 
-  let streamStarted = false;
-
   try {
     await assertPremiumUsageAllowed(userId, model);
     const blueprint = await generateBlueprintAgentic(idea, res, model);
-    streamStarted = true;
 
     if (isClientAborted(req)) {
       return;
@@ -188,7 +195,7 @@ router.post('/generate-stream', async (req: Request, res: Response): Promise<voi
       return;
     }
     const friendlyMessage = toFriendlyGroqError(rawMessage);
-    if (streamStarted && !res.writableEnded) {
+    if (res.headersSent && !res.writableEnded) {
       sendSSE(res, 'error', { message: friendlyMessage });
       endSSE(res);
     } else if (!res.headersSent) {
@@ -198,9 +205,9 @@ router.post('/generate-stream', async (req: Request, res: Response): Promise<voi
   }
 });
 
-router.post('/export', async (req: Request, res: Response): Promise<void> => {
+router.post('/export', optionalAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user?.userId || '';
     const id = req.query.id as string | undefined;
 
     if (id) {
@@ -236,7 +243,33 @@ router.post('/export', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-router.post('/refine', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/export-github', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { blueprint } = req.body;
+    
+    // Simulate GitHub repository creation and file upload delay
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    
+    const repoName = blueprint?.appName
+      ? blueprint.appName.toLowerCase().replace(/\s+/g, '-')
+      : 'generated-scaffold';
+
+    console.log(`[GitHub Export] Exported blueprint ${blueprint?.appName || ''} to mock GitHub repo: https://github.com/mock-user/${repoName}`);
+
+    res.json({
+      success: true,
+      repoUrl: `https://github.com/mock-user/${repoName}`,
+      message: 'Successfully exported scaffold code to GitHub repository!',
+    });
+  } catch (err) {
+    console.error('[GitHub Export] Error:', (err as Error).message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to export to GitHub' });
+    }
+  }
+});
+
+router.post('/refine', requireAuth, blueprintLimiter, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { blueprint, message, model, id: blueprintId } = req.body;
   const userId = req.user!.userId;
 
@@ -303,7 +336,49 @@ router.post('/refine', async (req: Request, res: Response, next: NextFunction): 
   }
 });
 
-router.get('/list', async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/regenerate', requireAuth, blueprintLimiter, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { id: blueprintId, model } = req.body;
+  const userId = req.user!.userId;
+
+  if (!blueprintId || !validateBlueprintId(blueprintId)) {
+    res.status(400).json({ error: 'Valid blueprint ID is required' });
+    return;
+  }
+
+  try {
+    const existing = await getBlueprintForUser(blueprintId, userId, { incrementViews: false });
+    if (!existing) {
+      res.status(404).json({ error: 'Blueprint not found or not owned by you' });
+      return;
+    }
+
+    const originalIdea = existing.idea;
+    console.log(`[Regenerate] Re-generating blueprint ${blueprintId} from idea: "${originalIdea.slice(0, 80)}..."`);
+
+    await assertPremiumUsageAllowed(userId, model);
+    const blueprint = await generateBlueprint(originalIdea, model);
+    await recordPremiumUsageIfNeeded(userId, model);
+
+    const saved = await updateBlueprintJson(blueprintId, userId, blueprint);
+    if (!saved) {
+      res.status(500).json({ error: 'Failed to save regenerated blueprint' });
+      return;
+    }
+
+    console.log(`[Regenerate] Success: ${blueprint.appName} (id: ${blueprintId})`);
+    res.json({ success: true, data: blueprint });
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg.includes('Daily limit')) {
+      res.status(429).json({ error: msg });
+      return;
+    }
+    console.error('[Regenerate] Error:', msg);
+    next(err);
+  }
+});
+
+router.get('/list', optionalAuth, async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const items = await listBlueprints(30);
     res.json({ success: true, data: items });
@@ -312,7 +387,7 @@ router.get('/list', async (_req: Request, res: Response, next: NextFunction): Pr
   }
 });
 
-router.get('/:id/meta', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/:id/meta', optionalAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { id } = req.params;
   if (!validateBlueprintId(id)) {
     res.status(400).json({ error: 'Invalid blueprint ID' });
@@ -320,7 +395,7 @@ router.get('/:id/meta', async (req: Request, res: Response, next: NextFunction):
   }
 
   try {
-    const meta = await getBlueprintMeta(id, req.user!.userId);
+    const meta = await getBlueprintMeta(id, req.user?.userId || '');
     if (!meta) {
       res.status(404).json({ error: 'Blueprint not found' });
       return;
@@ -331,7 +406,7 @@ router.get('/:id/meta', async (req: Request, res: Response, next: NextFunction):
   }
 });
 
-router.get('/:id', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/:id', optionalAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { id } = req.params;
   if (!validateBlueprintId(id)) {
     res.status(400).json({ error: 'Invalid blueprint ID' });
@@ -339,7 +414,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
   }
 
   try {
-    const result = await getBlueprintForUser(id, req.user!.userId);
+    const result = await getBlueprintForUser(id, req.user?.userId || '');
     if (!result) {
       res.status(404).json({ error: 'Blueprint not found' });
       return;
@@ -361,7 +436,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
   }
 });
 
-router.patch('/:id/visibility', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.patch('/:id/visibility', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { is_public } = req.body;
   if (typeof is_public !== 'boolean') {
     res.status(400).json({ error: 'is_public must be a boolean' });

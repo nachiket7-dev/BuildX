@@ -39,15 +39,6 @@ const limiter = rateLimit({
   message: { error: 'Too many requests. Please wait a moment and try again.' },
 });
 
-// Stricter limiter for AI generation only (expensive Groq calls)
-const blueprintLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,             // 10 generations per minute (was 5)
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Blueprint rate limit hit. Max 10 blueprints per minute.' },
-});
-
 app.use(limiter);
 
 // ─── Body parsing ─────────────────────────────────────────
@@ -73,7 +64,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // ─── Routes ───────────────────────────────────────────────
 app.use('/api/auth', authRouter);
-app.use('/api/blueprint', blueprintLimiter, blueprintRouter);
+app.use('/api/blueprint', blueprintRouter);
 
 // ─── 404 ──────────────────────────────────────────────────
 app.use((_req: Request, res: Response) => {
