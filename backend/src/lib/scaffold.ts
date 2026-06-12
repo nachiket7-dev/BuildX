@@ -81,6 +81,31 @@ function generateRootPackageJson(bp: Blueprint): string {
 
 function generateBackendPackageJson(bp: Blueprint): string {
   const name = toKebabCase(bp.appName) + '-backend';
+  const isMongo = bp.architecture.database.toLowerCase().includes('mongo');
+  
+  const dependencies: Record<string, string> = {
+    cors: '^2.8.5',
+    dotenv: '^16.3.1',
+    express: '^4.18.2',
+    helmet: '^7.1.0',
+    zod: '^3.22.4',
+  };
+  
+  const devDependencies: Record<string, string> = {
+    '@types/cors': '^2.8.17',
+    '@types/express': '^4.17.21',
+    '@types/node': '^20.10.0',
+    'ts-node-dev': '^2.0.0',
+    typescript: '^5.3.2',
+  };
+
+  if (isMongo) {
+    dependencies['mongoose'] = '^8.0.0';
+  } else {
+    dependencies['@prisma/client'] = '^5.7.0';
+    devDependencies['prisma'] = '^5.7.0';
+  }
+
   return JSON.stringify(
     {
       name,
@@ -91,22 +116,8 @@ function generateBackendPackageJson(bp: Blueprint): string {
         build: 'tsc',
         start: 'node dist/index.js',
       },
-      dependencies: {
-        '@prisma/client': '^5.7.0',
-        cors: '^2.8.5',
-        dotenv: '^16.3.1',
-        express: '^4.18.2',
-        helmet: '^7.1.0',
-        zod: '^3.22.4',
-      },
-      devDependencies: {
-        '@types/cors': '^2.8.17',
-        '@types/express': '^4.17.21',
-        '@types/node': '^20.10.0',
-        prisma: '^5.7.0',
-        'ts-node-dev': '^2.0.0',
-        typescript: '^5.3.2',
-      },
+      dependencies,
+      devDependencies,
     },
     null,
     2
@@ -531,6 +542,23 @@ volumes:
 }
 
 function generateReadme(bp: Blueprint): string {
+  const isMongo = bp.architecture.database.toLowerCase().includes('mongo');
+  const dbPrereq = isMongo ? '- MongoDB (or use Docker)' : '- PostgreSQL 15+ (or use Docker)';
+  const dbSetupInstructions = isMongo
+    ? `cd backend
+cp .env.example .env
+# Edit .env with your DATABASE_URL`
+    : `cd backend
+cp .env.example .env
+# Edit .env with your DATABASE_URL
+npx prisma db push`;
+
+  const schemaHeader = isMongo ? 'Field' : 'Column';
+  const dbSchemaSection = bp.schema.map((t) => `### ${t.table}
+| ${schemaHeader} | Type |
+|---|---|
+${t.columns.map((c) => `| ${c.name} | ${c.type} |`).join('\n')}`).join('\n\n');
+
   return `# ${bp.appName}
 
 ${bp.description}
@@ -554,7 +582,7 @@ ${bp.description}
 
 ### Prerequisites
 - Node.js 18+
-- PostgreSQL 15+ (or use Docker)
+${dbPrereq}
 
 ### Quick Start with Docker
 
@@ -572,10 +600,7 @@ cd ../frontend && npm install
 
 2. **Set up the database:**
 \`\`\`bash
-cd backend
-cp .env.example .env
-# Edit .env with your DATABASE_URL
-npx prisma db push
+${dbSetupInstructions}
 \`\`\`
 
 3. **Start development servers:**
@@ -595,7 +620,7 @@ ${bp.endpoints.map((ep) => `| ${ep.method} | \`${ep.path}\` | ${ep.description} 
 
 ## Database Schema
 
-${bp.schema.map((t) => `### ${t.table}\n| Column | Type |\n|---|---|\n${t.columns.map((c) => `| ${c.name} | ${c.type} |`).join('\n')}`).join('\n\n')}
+${dbSchemaSection}
 
 ## Screens
 
@@ -691,6 +716,7 @@ function looksLikeSql(code: string): boolean {
 
 export function streamScaffoldZip(bp: Blueprint, res: Response): void {
   const appSlug = toKebabCase(bp.appName);
+  const isMongo = bp.architecture.database.toLowerCase().includes('mongo');
 
   res.setHeader('Content-Type', 'application/zip');
   res.setHeader(
@@ -722,9 +748,14 @@ export function streamScaffoldZip(bp: Blueprint, res: Response): void {
   archive.append(generateBackendTsconfig(), { name: 'backend/tsconfig.json' });
   // Env example
   archive.append(generateEnvExample(bp), { name: 'backend/.env.example' });
-  archive.append(generatePrismaSchema(bp), { name: 'backend/prisma/schema.prisma' });
+  if (!isMongo) {
+    archive.append(generatePrismaSchema(bp), { name: 'backend/prisma/schema.prisma' });
+  }
   archive.append(generateBackendIndex(bp), { name: 'backend/src/index.ts' });
-  archive.append(generateBackendApp(bp), { name: 'backend/src/app.ts' });
+  archive.append(
+    bp.code.backend && bp.code.backend.trim() ? bp.code.backend : generateBackendApp(bp),
+    { name: 'backend/src/app.ts' }
+  );
 
   // Route files — one per resource
   const resources = new Set<string>();
@@ -740,7 +771,10 @@ export function streamScaffoldZip(bp: Blueprint, res: Response): void {
 
   // ─── Frontend ──────────────────────────────────────────
   archive.append(generateFrontendPackageJson(bp), { name: 'frontend/package.json' });
-  archive.append(generateFrontendApp(bp), { name: 'frontend/src/App.tsx' });
+  archive.append(
+    bp.code.frontend && bp.code.frontend.trim() ? bp.code.frontend : generateFrontendApp(bp),
+    { name: 'frontend/src/App.tsx' }
+  );
   archive.append(
     `import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n`,
     { name: 'frontend/src/main.tsx' }
@@ -765,7 +799,6 @@ export function streamScaffoldZip(bp: Blueprint, res: Response): void {
   );
 
   // DB Schema File
-  const isMongo = bp.architecture.database.toLowerCase().includes('mongo');
   if (isMongo) {
     // For MongoDB, emit Mongoose models. Use the AI-provided code.sql ONLY if
     // it actually contains JS/Mongoose (not raw SQL and not empty); otherwise
@@ -783,3 +816,68 @@ export function streamScaffoldZip(bp: Blueprint, res: Response): void {
 
   archive.finalize();
 }
+
+/**
+ * Build a flat dictionary of all scaffold files (path → content).
+ * This is the same set of files written to the ZIP archive, but returned
+ * as a Record so the frontend Code Studio can display them inline.
+ */
+export function generateMonorepoFiles(bp: Blueprint): Record<string, string> {
+  const files: Record<string, string> = {};
+  const isMongo = bp.architecture.database.toLowerCase().includes('mongo');
+
+  // ─── Root files ────────────────────────────────────────
+  files['package.json'] = generateRootPackageJson(bp);
+  files['docker-compose.yml'] = generateDockerCompose(bp);
+  files['README.md'] = generateReadme(bp);
+  files['.gitignore'] = generateGitignore();
+
+  // ─── Backend ───────────────────────────────────────────
+  files['backend/package.json'] = generateBackendPackageJson(bp);
+  files['backend/tsconfig.json'] = generateBackendTsconfig();
+  files['backend/.env.example'] = generateEnvExample(bp);
+  if (!isMongo) {
+    files['backend/prisma/schema.prisma'] = generatePrismaSchema(bp);
+  }
+  files['backend/src/index.ts'] = generateBackendIndex(bp);
+  files['backend/src/app.ts'] = bp.code.backend && bp.code.backend.trim() ? bp.code.backend : generateBackendApp(bp);
+
+  // Route files — one per resource
+  const resources = new Set<string>();
+  for (const ep of bp.endpoints) {
+    const parts = ep.path.split('/').filter(Boolean);
+    if (parts.length >= 2) resources.add(parts[1]);
+  }
+  for (const resource of resources) {
+    files[`backend/src/routes/${resource}.ts`] = generateRouteFile(resource, bp.endpoints);
+  }
+
+  // ─── Frontend ──────────────────────────────────────────
+  files['frontend/package.json'] = generateFrontendPackageJson(bp);
+  files['frontend/src/App.tsx'] = bp.code.frontend && bp.code.frontend.trim() ? bp.code.frontend : generateFrontendApp(bp);
+  files['frontend/src/main.tsx'] = `import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n`;
+  files['frontend/src/index.css'] = '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n';
+  files['frontend/src/lib/api.ts'] = generateApiClient(bp);
+
+  // Page files — one per screen
+  for (const screen of bp.screens) {
+    const name = toPascalCase(screen.name.replace(/[^a-zA-Z0-9]/g, ''));
+    files[`frontend/src/pages/${name}Page.tsx`] = generateFrontendPage(screen);
+  }
+
+  // Index HTML
+  files['frontend/index.html'] = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${bp.appName}</title>\n</head>\n<body>\n  <div id="root"></div>\n  <script type="module" src="/src/main.tsx"></script>\n</body>\n</html>\n`;
+
+  // DB Schema File
+  if (isMongo) {
+    const aiCode = (bp.code.sql || '').trim();
+    const useAiCode = aiCode.length > 0 && !looksLikeSql(aiCode);
+    files['backend/schema.js'] = useAiCode ? aiCode : generateMongooseSchema(bp);
+  } else {
+    const sql = (bp.code.sql || '').trim();
+    files['backend/schema.sql'] = sql.length > 0 ? sql : '-- No SQL schema generated';
+  }
+
+  return files;
+}
+

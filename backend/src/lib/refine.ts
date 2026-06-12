@@ -4,6 +4,7 @@ import { tryParsePartial } from './stream';
 import type { Blueprint } from './types';
 import { BlueprintSchema } from './types';
 import { formatSQL } from './normalizeBlueprint';
+import { generateMonorepoFiles } from './scaffold';
 
 const VALID_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 type ValidMethod = (typeof VALID_METHODS)[number];
@@ -51,20 +52,33 @@ function unescapeString(str: string): string {
     .replace(/\\\\/g, '\\');
 }
 
+function mergeStringArrays(orig: string[], pat: string[]): string[] {
+  const res = [...orig];
+  for (const p of pat) {
+    if (!res.some(o => o.toLowerCase() === p.toLowerCase().trim())) {
+      res.push(p);
+    }
+  }
+  return res;
+}
+
 function applyFallbacks(partial: Record<string, unknown>, original: Blueprint): Blueprint {
   const f = (partial.features as Record<string, unknown>) ?? {};
   const a = (partial.architecture as Record<string, unknown>) ?? {};
   const effort = (partial.effort as Record<string, unknown>) ?? {};
   const code = (partial.code as Record<string, unknown>) ?? {};
-  const endpoints = Array.isArray(partial.endpoints) ? partial.endpoints : original.endpoints;
 
+  const appNameChanged = partial.appName !== undefined && String(partial.appName).trim() !== original.appName;
   const dbName = String(a.database ?? original.architecture.database).toLowerCase();
   const isMongo = dbName.includes('mongo');
+  const originalIsMongo = original.architecture.database.toLowerCase().includes('mongo');
+  const dbChanged = isMongo !== originalIsMongo;
+  const isMajorRewrite = appNameChanged || dbChanged;
 
-  // Normalize schema: MongoDB LLMs may return {collection, fields} instead of {table, columns}
-  let schema: Blueprint['schema'];
+  // 1. Schema Tables/Collections Merge
+  let schema: Blueprint['schema'] = [...original.schema];
   if (Array.isArray(partial.schema)) {
-    schema = (partial.schema as Array<Record<string, unknown>>).map((t) => ({
+    const patchedSchema = (partial.schema as Array<Record<string, unknown>>).map((t) => ({
       table: String(t.table ?? t.collection ?? 'table'),
       columns: (Array.isArray(t.columns) ? t.columns : Array.isArray(t.fields) ? t.fields : []).map(
         (col: Record<string, unknown>) => ({
@@ -74,35 +88,99 @@ function applyFallbacks(partial: Record<string, unknown>, original: Blueprint): 
         })
       ),
     }));
-  } else {
-    schema = original.schema;
+
+    if (isMajorRewrite) {
+      schema = patchedSchema;
+    } else {
+      for (const patchedTable of patchedSchema) {
+        const idx = schema.findIndex(t => t.table.toLowerCase() === patchedTable.table.toLowerCase());
+        if (idx !== -1) {
+          schema[idx] = patchedTable;
+        } else {
+          schema.push(patchedTable);
+        }
+      }
+    }
+  }
+
+  // 2. Features Merge
+  const features: Blueprint['features'] = isMajorRewrite
+    ? {
+        authentication: Array.isArray(f.authentication) ? f.authentication.map(String) : original.features.authentication,
+        core: Array.isArray(f.core) ? f.core.map(String) : original.features.core,
+        admin: Array.isArray(f.admin) ? f.admin.map(String) : original.features.admin,
+        optional: Array.isArray(f.optional) ? f.optional.map(String) : original.features.optional,
+      }
+    : {
+        authentication: Array.isArray(f.authentication) ? mergeStringArrays(original.features.authentication, f.authentication.map(String)) : original.features.authentication,
+        core: Array.isArray(f.core) ? mergeStringArrays(original.features.core, f.core.map(String)) : original.features.core,
+        admin: Array.isArray(f.admin) ? mergeStringArrays(original.features.admin, f.admin.map(String)) : original.features.admin,
+        optional: Array.isArray(f.optional) ? mergeStringArrays(original.features.optional, f.optional.map(String)) : original.features.optional,
+      };
+
+  // 3. API Endpoints Merge
+  let endpoints: Blueprint['endpoints'] = [...original.endpoints];
+  if (Array.isArray(partial.endpoints)) {
+    const patchedEndpoints = (partial.endpoints as Array<Record<string, unknown>>).map((ep) => ({
+      method: safeMethod(ep.method),
+      path: String(ep.path ?? '/'),
+      description: String(ep.description ?? ''),
+      auth: ep.auth !== undefined ? Boolean(ep.auth) : undefined,
+    }));
+
+    if (isMajorRewrite) {
+      endpoints = patchedEndpoints;
+    } else {
+      for (const patchedEp of patchedEndpoints) {
+        const idx = endpoints.findIndex(e => e.path.toLowerCase() === patchedEp.path.toLowerCase() && e.method === patchedEp.method);
+        if (idx !== -1) {
+          endpoints[idx] = { ...endpoints[idx], ...patchedEp };
+        } else {
+          endpoints.push(patchedEp as any);
+        }
+      }
+    }
+  }
+
+  // 4. UI Screens Merge
+  let screens: Blueprint['screens'] = [...original.screens];
+  if (Array.isArray(partial.screens)) {
+    const patchedScreens = (partial.screens as Array<Record<string, unknown>>).map((s) => ({
+      name: String(s.name ?? 'Screen'),
+      icon: String(s.icon ?? 'layout'),
+      components: String(s.components ?? ''),
+    }));
+
+    if (isMajorRewrite) {
+      screens = patchedScreens;
+    } else {
+      for (const patchedScreen of patchedScreens) {
+        const idx = screens.findIndex(s => s.name.toLowerCase() === patchedScreen.name.toLowerCase());
+        if (idx !== -1) {
+          screens[idx] = patchedScreen;
+        } else {
+          screens.push(patchedScreen);
+        }
+      }
+    }
   }
 
   const sqlRaw = unescapeString(String(code.sql ?? original.code.sql));
 
-  return {
+  const blueprint: Blueprint = {
     appName: unescapeString(String(partial.appName ?? original.appName)),
     description: unescapeString(String(partial.description ?? original.description)),
     targetUsers: unescapeString(String(partial.targetUsers ?? original.targetUsers)),
     complexity: safeComplexity(partial.complexity ?? original.complexity),
-    features: {
-      authentication: Array.isArray(f.authentication)
-        ? f.authentication.map(String)
-        : original.features.authentication,
-      core: Array.isArray(f.core) ? f.core.map(String) : original.features.core,
-      admin: Array.isArray(f.admin) ? f.admin.map(String) : original.features.admin,
-      optional: Array.isArray(f.optional) ? f.optional.map(String) : original.features.optional,
-    },
+    features,
     schema,
-    endpoints: endpoints.map((ep: Record<string, unknown>) => ({
+    endpoints: endpoints.map((ep) => ({
       method: safeMethod(ep.method),
       path: String(ep.path ?? '/'),
       description: String(ep.description ?? ''),
       auth: Boolean(ep.auth),
     })),
-    screens: Array.isArray(partial.screens)
-      ? (partial.screens as Blueprint['screens'])
-      : original.screens,
+    screens,
     architecture: {
       frontend: String(a.frontend ?? original.architecture.frontend),
       backend: String(a.backend ?? original.architecture.backend),
@@ -115,6 +193,11 @@ function applyFallbacks(partial: Record<string, unknown>, original: Blueprint): 
       frontend: unescapeString(String(code.frontend ?? original.code.frontend)),
       backend: unescapeString(String(code.backend ?? original.code.backend)),
       sql: isMongo ? sqlRaw : formatSQL(sqlRaw),
+      files: (typeof code.files === 'object' && code.files !== null && !Array.isArray(code.files))
+        ? { ...code.files } as Record<string, string>
+        : original.code.files
+        ? { ...original.code.files }
+        : undefined,
     },
     effort: {
       time: String(effort.time ?? original.effort.time),
@@ -122,7 +205,45 @@ function applyFallbacks(partial: Record<string, unknown>, original: Blueprint): 
       cost: String(effort.cost ?? original.effort.cost),
       team: String(effort.team ?? original.effort.team),
     },
+    diagrams: (partial.diagrams && typeof partial.diagrams === 'object')
+      ? partial.diagrams as Blueprint['diagrams']
+      : original.diagrams,
   };
+
+  const hasDbMismatch = blueprint.code.files && (
+    isMongo
+      ? (!blueprint.code.files['backend/schema.js'] || blueprint.code.files['backend/prisma/schema.prisma'])
+      : (!blueprint.code.files['backend/schema.sql'] || blueprint.code.files['backend/schema.js'])
+  );
+
+  if (!blueprint.code.files || isMongo !== originalIsMongo || hasDbMismatch) {
+    try {
+      blueprint.code.files = generateMonorepoFiles(blueprint);
+    } catch {
+      // ignore
+    }
+  }
+
+  if (blueprint.code.files) {
+    if (blueprint.code.frontend && blueprint.code.frontend.trim()) {
+      blueprint.code.files['frontend/src/App.tsx'] = blueprint.code.frontend;
+    }
+    if (blueprint.code.backend && blueprint.code.backend.trim()) {
+      blueprint.code.files['backend/src/app.ts'] = blueprint.code.backend;
+    }
+    if (blueprint.code.sql && blueprint.code.sql.trim()) {
+      if (isMongo) {
+        blueprint.code.files['backend/schema.js'] = blueprint.code.sql;
+        delete blueprint.code.files['backend/schema.sql'];
+        delete blueprint.code.files['backend/prisma/schema.prisma'];
+      } else {
+        blueprint.code.files['backend/schema.sql'] = blueprint.code.sql;
+        delete blueprint.code.files['backend/schema.js'];
+      }
+    }
+  }
+
+  return blueprint;
 }
 
 function mergeRefinePatch(original: Blueprint, patch: Record<string, unknown>): Blueprint {
