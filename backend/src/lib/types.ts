@@ -57,6 +57,7 @@ export interface StarterCode {
   frontend: string;
   backend: string;
   sql: string;
+  files?: Record<string, string>;
 }
 
 export interface Effort {
@@ -64,6 +65,12 @@ export interface Effort {
   complexity: string;
   cost: string;
   team: string;
+}
+
+export interface BlueprintDiagrams {
+  er?: string;
+  arch?: string;
+  apiFlow?: string;
 }
 
 export interface Blueprint {
@@ -78,6 +85,7 @@ export interface Blueprint {
   architecture: Architecture;
   code: StarterCode;
   effort: Effort;
+  diagrams?: BlueprintDiagrams;
 }
 
 // ─── Saved blueprint (with persistence metadata) ──────────
@@ -139,6 +147,7 @@ export const BlueprintSchema = z.object({
     frontend: z.string(),
     backend: z.string(),
     sql: z.string(),
+    files: z.record(z.string()).optional(),
   }),
   effort: z.object({
     time: z.string(),
@@ -146,4 +155,9 @@ export const BlueprintSchema = z.object({
     cost: z.string(),
     team: z.string(),
   }),
+  diagrams: z.object({
+    er: z.string().optional(),
+    arch: z.string().optional(),
+    apiFlow: z.string().optional(),
+  }).optional(),
 });

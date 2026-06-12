@@ -44,6 +44,7 @@ export interface StarterCode {
   frontend: string;
   backend: string;
   sql: string;
+  files?: Record<string, string>;
 }
 
 export interface Effort {
@@ -51,6 +52,12 @@ export interface Effort {
   complexity: string;
   cost: string;
   team: string;
+}
+
+export interface BlueprintDiagrams {
+  er?: string;
+  arch?: string;
+  apiFlow?: string;
 }
 
 export interface Blueprint {
@@ -65,6 +72,7 @@ export interface Blueprint {
   architecture: Architecture;
   code: StarterCode;
   effort: Effort;
+  diagrams?: BlueprintDiagrams;
 }
 
 // ─── Saved blueprint (with persistence metadata) ──────────
