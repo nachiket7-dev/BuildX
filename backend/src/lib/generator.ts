@@ -23,7 +23,7 @@ CRITICAL RULES:
 - Escape internal quotes in strings as \\"
 - Use \\n for newlines inside code string values
 
-Return exactly this JSON shape (fill every field with real, specific content for the given app idea):
+Return exactly this JSON shape (fill every field with real, specific content for the given app idea, choosing the database technology like MongoDB or PostgreSQL dynamically depending on user request or app needs):
 {
   "appName": "concise product name",
   "description": "2-3 sentences: what it does, who its for, key value prop",
@@ -39,10 +39,8 @@ Return exactly this JSON shape (fill every field with real, specific content for
     {
       "table": "users",
       "columns": [
-        { "name": "id", "type": "UUID PRIMARY KEY DEFAULT gen_random_uuid()", "note": "PK" },
-        { "name": "email", "type": "VARCHAR(255) NOT NULL UNIQUE", "note": "" },
-        { "name": "password_hash", "type": "VARCHAR(255)", "note": "" },
-        { "name": "created_at", "type": "TIMESTAMPTZ DEFAULT NOW()", "note": "" }
+        { "name": "id", "type": "UUID PRIMARY KEY DEFAULT gen_random_uuid() (for SQL) OR ObjectId (for MongoDB)", "note": "PK" },
+        { "name": "email", "type": "VARCHAR(255) NOT NULL UNIQUE (for SQL) OR String (for MongoDB)", "note": "" }
       ]
     }
   ],
@@ -57,15 +55,15 @@ Return exactly this JSON shape (fill every field with real, specific content for
   "architecture": {
     "frontend": "React 18 + TypeScript + Vite + Tailwind CSS + React Query",
     "backend": "Node.js + Express + TypeScript + Zod",
-    "database": "PostgreSQL 15 + Prisma ORM",
+    "database": "PostgreSQL 15 + Prisma ORM OR MongoDB + Mongoose OR SQLITE",
     "auth": "JWT access tokens (15m) + refresh tokens (7d) + bcrypt",
-    "hosting": "Vercel (frontend) + Railway (backend + DB)",
-    "flow": "React → Express API → PostgreSQL"
+    "hosting": "Vercel (frontend) + Railway (backend + DB) OR Vercel (FE) + Atlas/Render (BE & DB)",
+    "flow": "React → Express API → Database"
   },
   "code": {
     "frontend": "import React, { useState, useEffect } from 'react';\\n\\nexport default function Dashboard() {\\n  const [data, setData] = useState([]);\\n  useEffect(() => { fetch('/api/items').then(r => r.json()).then(setData); }, []);\\n  return <div>{JSON.stringify(data)}</div>;\\n}",
-    "backend": "import { Router, Request, Response } from 'express';\\nimport { z } from 'zod';\\nconst router = Router();\\nrouter.get('/', async (req: Request, res: Response) => {\\n  try { res.json({ items: [] }); } catch (err) { res.status(500).json({ error: 'Server error' }); }\\n});\\nexport default router;",
-    "sql": "CREATE EXTENSION IF NOT EXISTS pgcrypto;\\n\\nCREATE TABLE users (\\n  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\\n  email VARCHAR(255) NOT NULL UNIQUE,\\n  password_hash VARCHAR(255),\\n  created_at TIMESTAMPTZ DEFAULT NOW()\\n);"
+    "backend": "import { Router, Request, Response } from 'express';\\nconst router = Router();\\nrouter.get('/', async (req: Request, res: Response) => {\\n  try { res.json({ items: [] }); } catch (err) { res.status(500).json({ error: 'Server error' }); }\\n});\\nexport default router;",
+    "sql": "CREATE TABLE ... (for SQL) OR Mongoose schema definitions (for MongoDB)"
   },
   "effort": {
     "time": "8-12 weeks with 2 developers",
@@ -79,10 +77,12 @@ Requirements:
 1. complexity must be exactly one of: Low, Medium, High
 2. method values must be exactly one of: GET, POST, PUT, PATCH, DELETE
 3. features.core must have at least 6 items specific to this app
-4. schema must have 5-8 tables with proper columns and foreign keys
+4. schema must have 5-8 tables/collections with proper columns/fields
 5. endpoints must have 12-20 routes covering all features
 6. screens must have 6-10 screens with detailed component lists
-7. code values must be real working code, not stubs`;
+7. code values must be real working code (SQL or Mongo-appropriate based on database architecture chosen)
+8. Choose database (MongoDB, PostgreSQL, MySQL, SQLite etc.) dynamically depending on the prompt or technology request.
+9. Adjust code.sql and schema format accordingly (use collections/fields for MongoDB, tables/columns for SQL)`;
 
 const VALID_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 type ValidMethod = typeof VALID_METHODS[number];

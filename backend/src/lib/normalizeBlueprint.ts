@@ -1,4 +1,5 @@
 import { Blueprint, BlueprintSchema } from './types';
+import { generateMonorepoFiles } from './scaffold';
 
 const VALID_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 type ValidMethod = (typeof VALID_METHODS)[number];
@@ -182,7 +183,7 @@ export function applyBlueprintFallbacks(partial: Record<string, unknown>): Bluep
     sqlCode = '-- No SQL generated';
   }
 
-  return {
+  const blueprint: Blueprint = {
     appName: unescapeString(String(partial.appName ?? 'Untitled App').trim() || 'Untitled App'),
     description: unescapeString(String(partial.description ?? 'No description provided.').trim() || 'No description provided.'),
     targetUsers: unescapeString(String(partial.targetUsers ?? 'General users').trim() || 'General users'),
@@ -219,6 +220,10 @@ export function applyBlueprintFallbacks(partial: Record<string, unknown>): Bluep
       frontend: unescapeString(String(code.frontend ?? '// No frontend code generated')),
       backend: unescapeString(String(code.backend ?? '// No backend code generated')),
       sql: isMongo ? sqlCode : formatSQL(sqlCode),
+      // Carry forward any existing files map (populated below if missing)
+      files: (typeof code.files === 'object' && code.files !== null && !Array.isArray(code.files))
+        ? code.files as Record<string, string>
+        : undefined,
     },
     effort: {
       time: String(effort.time ?? 'Estimate unavailable'),
@@ -226,7 +231,52 @@ export function applyBlueprintFallbacks(partial: Record<string, unknown>): Bluep
       cost: String(effort.cost ?? 'Contact for estimate'),
       team: String(effort.team ?? '2-3 developers'),
     },
+    // Carry forward any agent-generated diagrams
+    ...(partial.diagrams && typeof partial.diagrams === 'object'
+      ? { diagrams: partial.diagrams as Blueprint['diagrams'] }
+      : {}),
   };
+
+  // Auto-populate or regenerate code.files from scaffold generators when not provided
+  // or when there is a mismatch with the database type.
+  const hasDbMismatch = blueprint.code.files && (
+    isMongo
+      ? (!blueprint.code.files['backend/schema.js'] || blueprint.code.files['backend/prisma/schema.prisma'])
+      : (!blueprint.code.files['backend/schema.sql'] || blueprint.code.files['backend/schema.js'])
+  );
+
+  if (!blueprint.code.files || Object.keys(blueprint.code.files).length === 0 || hasDbMismatch) {
+    try {
+      blueprint.code.files = generateMonorepoFiles(blueprint);
+    } catch {
+      // Non-critical: if scaffold generation fails, code.files stays undefined
+      // and the frontend CodeStudio will fall back to the legacy tab view.
+    }
+  }
+
+  // Ensure that files in the folder tree stay in sync with the top-level custom code properties
+  if (blueprint.code.files) {
+    if (blueprint.code.frontend && blueprint.code.frontend.trim()) {
+      blueprint.code.files['frontend/src/App.tsx'] = blueprint.code.frontend;
+    }
+    if (blueprint.code.backend && blueprint.code.backend.trim()) {
+      blueprint.code.files['backend/src/app.ts'] = blueprint.code.backend;
+    }
+    if (blueprint.code.sql && blueprint.code.sql.trim()) {
+      if (isMongo) {
+        blueprint.code.files['backend/schema.js'] = blueprint.code.sql;
+        // Remove stale SQL/Prisma files for MongoDB projects
+        delete blueprint.code.files['backend/schema.sql'];
+        delete blueprint.code.files['backend/prisma/schema.prisma'];
+      } else {
+        blueprint.code.files['backend/schema.sql'] = blueprint.code.sql;
+        // Remove stale Mongoose files for SQL projects
+        delete blueprint.code.files['backend/schema.js'];
+      }
+    }
+  }
+
+  return blueprint;
 }
 
 /** Generate Mongoose schema code from normalized schema tables (for MongoDB blueprints). */
