@@ -216,7 +216,7 @@ export function BlueprintOutput({
       className="px-4 sm:px-6 pb-28 max-w-5xl mx-auto animate-fade-slide-up"
       aria-labelledby="blueprint-title"
     >
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 sm:gap-6 py-6 sm:py-8">
+      <div className="flex flex-col gap-4 sm:gap-6 py-5 sm:py-8">
         <div className="flex-1 min-w-0">
           <h2
             id="blueprint-title"
@@ -259,7 +259,7 @@ export function BlueprintOutput({
         </div>
 
         <div
-          className="bp-actions -order-1 sm:order-none"
+          className="bp-actions"
           role="toolbar"
           aria-label="Blueprint actions"
         >
@@ -278,7 +278,7 @@ export function BlueprintOutput({
               ) : (
                 <>
                   <Link2 size={15} strokeWidth={2} aria-hidden />
-                  Share
+                  <span className="hidden sm:inline">Share</span>
                 </>
               )}
             </button>
@@ -298,12 +298,12 @@ export function BlueprintOutput({
               {publicState ? (
                 <>
                   <Globe size={15} strokeWidth={2} aria-hidden />
-                  Public
+                  <span className="hidden sm:inline">Public</span>
                 </>
               ) : (
                 <>
                   <Lock size={15} strokeWidth={2} aria-hidden />
-                  Private
+                  <span className="hidden sm:inline">Private</span>
                 </>
               )}
             </button>
@@ -317,7 +317,8 @@ export function BlueprintOutput({
             className="bp-action bp-action--mint"
           >
             <Download size={15} strokeWidth={2} aria-hidden />
-            {downloading ? 'Exporting…' : 'Download'}
+            <span className="hidden sm:inline">{downloading ? 'Exporting…' : 'Download'}</span>
+            <span className="sm:hidden">{downloading ? '…' : ''}</span>
           </button>
 
           {blueprintId && (
@@ -330,13 +331,13 @@ export function BlueprintOutput({
               title="Re-generate this blueprint from scratch using its original idea"
             >
               <RefreshCw size={15} strokeWidth={2} aria-hidden className={regenerating ? 'animate-spin' : ''} />
-              {regenerating ? 'Regenerating…' : 'Regenerate'}
+              <span className="hidden sm:inline">{regenerating ? 'Regenerating…' : 'Regenerate'}</span>
             </button>
           )}
 
           <button type="button" onClick={onReset} className="bp-action bp-action--ghost">
             <Plus size={15} strokeWidth={2} aria-hidden />
-            New
+            <span className="hidden sm:inline">New</span>
           </button>
         </div>
       </div>
