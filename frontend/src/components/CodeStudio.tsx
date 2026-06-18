@@ -545,9 +545,9 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
   };
 
   return (
-    <div className="flex flex-col md:flex-row rounded-2xl border border-white/10 bg-bg-surface overflow-hidden h-[580px] w-full">
+    <div className="flex flex-col md:flex-row rounded-2xl border border-white/10 bg-bg-surface overflow-hidden h-[calc(100vh-16rem)] min-h-[420px] max-h-[580px] md:h-[580px] md:max-h-none w-full">
       {/* File Tree Explorer (Left) */}
-      <div className="w-full md:w-64 bg-bg-surface2 border-r border-white/5 flex flex-col h-1/3 md:h-full shrink-0 select-none">
+      <div className="w-full md:w-64 bg-bg-surface2 border-b md:border-b-0 md:border-r border-white/5 flex flex-col h-44 md:h-full shrink-0 select-none">
         <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
           <span className="font-mono-custom text-[10px] text-muted-foreground font-bold tracking-wider uppercase truncate">
             Workspace
@@ -555,7 +555,7 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
           <button
             onClick={handleDownloadAll}
             disabled={downloading}
-            className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded hover:bg-purple-500/20 hover:text-purple-300 font-mono-custom flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50"
+            className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded hover:bg-purple-500/20 hover:text-purple-300 font-mono-custom flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50 whitespace-nowrap"
           >
             {downloading ? (
               <div className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
@@ -573,7 +573,7 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
       </div>
 
       {/* Editor & View Area (Center) */}
-      <div className="flex-1 flex flex-col min-w-0 bg-black/45 h-2/3 md:h-full relative">
+      <div className="flex-1 flex flex-col min-w-0 bg-black/45 min-h-0 md:h-full relative">
         {/* Editor Tabs & Actions */}
         <div className="h-10 bg-bg-surface2 border-b border-white/5 flex items-center justify-between select-none shrink-0 pr-2">
           <div className="flex items-center overflow-x-auto scrollbar-none h-full flex-1">
