@@ -16,7 +16,7 @@ interface UseStreamBlueprintOptions {
 
 interface UseStreamBlueprintResult {
   blueprint: Blueprint | null;
-  savedMeta: Pick<SavedBlueprint, 'isPublic' | 'views'> | null;
+  savedMeta: Pick<SavedBlueprint, 'isPublic' | 'views' | 'isOwner'> | null;
   partialBlueprint: PartialBlueprint;
   isStreaming: boolean;
   isComplete: boolean;
@@ -26,6 +26,8 @@ interface UseStreamBlueprintResult {
   agentEvents: AgentEvent[];
   generate: (idea: string, model: string) => void;
   loadSaved: (id: string) => void;
+  isStreamSavedRoute: (id: string) => boolean;
+  updateBlueprint: (next: Blueprint) => void;
   reset: () => void;
   cancel: () => void;
 }
@@ -42,7 +44,7 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
   onSavedRef.current = onSaved;
 
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
-  const [savedMeta, setSavedMeta] = useState<Pick<SavedBlueprint, 'isPublic' | 'views'> | null>(null);
+  const [savedMeta, setSavedMeta] = useState<Pick<SavedBlueprint, 'isPublic' | 'views' | 'isOwner'> | null>(null);
   const [partialBlueprint, setPartialBlueprint] = useState<PartialBlueprint>({});
   const [isStreaming, setIsStreaming] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -51,6 +53,13 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
   const [progress, setProgress] = useState(0);
   const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+  /** Set synchronously on SSE `saved` so route load can skip before blueprintId state commits */
+  const streamSavedForRouteRef = useRef<string | null>(null);
+  /** Set synchronously on SSE `complete` so route load never clobbers streamed content */
+  const streamBlueprintRef = useRef<Blueprint | null>(null);
+  const loadGenerationRef = useRef(0);
+  const blueprintRef = useRef<Blueprint | null>(null);
+  blueprintRef.current = blueprint;
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();
@@ -71,6 +80,8 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     setBlueprintId(null);
     setProgress(0);
     setAgentEvents([]);
+    streamBlueprintRef.current = null;
+    streamSavedForRouteRef.current = null;
 
     let gotComplete = false;
     let gotSaved = false;
@@ -130,6 +141,7 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
 
           case 'complete': {
             const data = sseEvent.data as Blueprint;
+            streamBlueprintRef.current = data;
             setBlueprint(data);
             setPartialBlueprint(data);
             setProgress(95);
@@ -139,10 +151,12 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
 
           case 'saved': {
             const data = sseEvent.data as { id: string };
+            streamSavedForRouteRef.current = data.id;
             setBlueprintId(data.id);
             setProgress(100);
             gotSaved = true;
-            onSavedRef.current?.(data.id);
+            // Defer navigation so React commits the `complete` blueprint before the route effect runs
+            queueMicrotask(() => onSavedRef.current?.(data.id));
             break;
           }
 
@@ -171,10 +185,65 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     }
   }, [cancel]);
 
+  const isStreamSavedRoute = useCallback(
+    (id: string) => streamSavedForRouteRef.current === id,
+    []
+  );
+
+  const updateBlueprint = useCallback((next: Blueprint) => {
+    streamBlueprintRef.current = next;
+    setBlueprint(next);
+    setPartialBlueprint(next);
+    setIsComplete(true);
+  }, []);
+
   const loadSaved = useCallback(async (id: string) => {
+    const existingBlueprint = blueprintRef.current ?? streamBlueprintRef.current;
+    const isSessionBlueprint = Boolean(
+      existingBlueprint && (blueprintId === id || streamSavedForRouteRef.current === id)
+    );
+
+    // Keep in-memory streamed blueprint — only refresh ownership/meta from API
+    if (isSessionBlueprint) {
+      const generation = ++loadGenerationRef.current;
+      setError(null);
+      setBlueprintId(id);
+      setProgress(100);
+      setIsComplete(true);
+      setIsStreaming(false);
+      if (!blueprintRef.current && streamBlueprintRef.current) {
+        setBlueprint(streamBlueprintRef.current);
+        setPartialBlueprint(streamBlueprintRef.current);
+      }
+      try {
+        const saved = await fetchBlueprint(id);
+        if (generation !== loadGenerationRef.current) return;
+        // Never replace a freshly streamed blueprint with the API parse path
+        if (streamSavedForRouteRef.current === id || streamBlueprintRef.current) {
+          streamSavedForRouteRef.current = null;
+          setSavedMeta({
+            isPublic: saved.isPublic ?? false,
+            views: saved.views,
+            isOwner: saved.isOwner ?? false,
+          });
+          return;
+        }
+        setSavedMeta({
+          isPublic: saved.isPublic ?? false,
+          views: saved.views,
+          isOwner: saved.isOwner ?? false,
+        });
+      } catch (err) {
+        if (generation !== loadGenerationRef.current) return;
+        setError(err instanceof Error ? err.message : 'Failed to load blueprint.');
+      }
+      return;
+    }
+
     cancel();
+    const generation = ++loadGenerationRef.current;
+
     setIsStreaming(true);
-    setIsComplete(false);
     setError(null);
     setBlueprint(null);
     setSavedMeta(null);
@@ -182,23 +251,50 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     setBlueprintId(id);
     setProgress(0);
     setAgentEvents([]);
+    streamBlueprintRef.current = null;
+    streamSavedForRouteRef.current = null;
 
     try {
       const saved = await fetchBlueprint(id);
+      if (generation !== loadGenerationRef.current) return;
+      // A stream handoff finished while this fetch was in flight — keep streamed content
+      if (streamBlueprintRef.current && streamSavedForRouteRef.current === id) {
+        setBlueprint(streamBlueprintRef.current);
+        setPartialBlueprint(streamBlueprintRef.current);
+        streamSavedForRouteRef.current = null;
+        setSavedMeta({
+          isPublic: saved.isPublic ?? false,
+          views: saved.views,
+          isOwner: saved.isOwner ?? false,
+        });
+        setProgress(100);
+        setIsComplete(true);
+        return;
+      }
       setBlueprint(saved);
       setPartialBlueprint(saved);
-      setSavedMeta({ isPublic: saved.isPublic ?? false, views: saved.views });
+      setSavedMeta({
+        isPublic: saved.isPublic ?? false,
+        views: saved.views,
+        isOwner: saved.isOwner ?? false,
+      });
       setProgress(100);
       setIsComplete(true);
     } catch (err) {
+      if (generation !== loadGenerationRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load blueprint.');
     } finally {
-      setIsStreaming(false);
+      if (generation === loadGenerationRef.current) {
+        setIsStreaming(false);
+      }
     }
-  }, [cancel]);
+  }, [cancel, blueprintId]);
 
   const reset = useCallback(() => {
     cancel();
+    loadGenerationRef.current += 1;
+    streamSavedForRouteRef.current = null;
+    streamBlueprintRef.current = null;
     setBlueprint(null);
     setSavedMeta(null);
     setPartialBlueprint({});
@@ -222,6 +318,8 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     agentEvents,
     generate,
     loadSaved,
+    isStreamSavedRoute,
+    updateBlueprint,
     reset,
     cancel,
   };

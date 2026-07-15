@@ -21,6 +21,11 @@ function buildRefineSummary(
 ): string {
   const details: string[] = [];
 
+  const origArch = original.architecture ?? {
+    frontend: '', backend: '', database: '', auth: '', hosting: '', flow: '',
+  };
+  const updArch = updated.architecture ?? origArch;
+
   const archFields: Array<keyof Blueprint['architecture']> = [
     'frontend',
     'backend',
@@ -30,9 +35,9 @@ function buildRefineSummary(
   ];
 
   for (const field of archFields) {
-    if (updated.architecture[field] !== original.architecture[field]) {
+    if (updArch[field] !== origArch[field]) {
       details.push(
-        `${field} moved from ${original.architecture[field]} to ${updated.architecture[field]}`
+        `${field} moved from ${origArch[field]} to ${updArch[field]}`
       );
     }
   }
@@ -40,6 +45,9 @@ function buildRefineSummary(
   if (updated.complexity !== original.complexity) {
     details.push(`complexity revised from ${original.complexity} to ${updated.complexity}`);
   }
+
+  const origFeatures = original.features ?? { authentication: [], core: [], admin: [], optional: [] };
+  const updFeatures = updated.features ?? origFeatures;
 
   const featureGroups: Array<keyof Blueprint['features']> = [
     'authentication',
@@ -49,36 +57,41 @@ function buildRefineSummary(
   ];
 
   for (const group of featureGroups) {
-    const added = listNewItems(original.features[group], updated.features[group]);
+    const added = listNewItems(origFeatures[group] ?? [], updFeatures[group] ?? []);
     if (added.length > 0) {
       const label = group === 'core' ? 'core features' : `${group} features`;
       details.push(`added ${label}: ${added.join(', ')}`);
     }
   }
 
-  if (updated.schema.length !== original.schema.length) {
+  const origSchema = original.schema ?? [];
+  const updSchema = updated.schema ?? [];
+
+  if (updSchema.length !== origSchema.length) {
     details.push(
-      `data model now includes ${updated.schema.length} table${updated.schema.length === 1 ? '' : 's'} (previously ${original.schema.length})`
+      `data model now includes ${updSchema.length} table${updSchema.length === 1 ? '' : 's'} (previously ${origSchema.length})`
     );
   } else {
-    const renamedTables = updated.schema.filter(
-      (table, index) => table.table !== original.schema[index]?.table
+    const renamedTables = updSchema.filter(
+      (table, index) => table.table !== origSchema[index]?.table
     );
     if (renamedTables.length > 0) {
       details.push(`schema tables updated (${renamedTables.map((t) => t.table).join(', ')})`);
     }
   }
 
-  if (updated.endpoints.length !== original.endpoints.length) {
+  const origEndpoints = original.endpoints ?? [];
+  const updEndpoints = updated.endpoints ?? [];
+
+  if (updEndpoints.length !== origEndpoints.length) {
     details.push(
-      `API expanded to ${updated.endpoints.length} endpoint${updated.endpoints.length === 1 ? '' : 's'} (was ${original.endpoints.length})`
+      `API expanded to ${updEndpoints.length} endpoint${updEndpoints.length === 1 ? '' : 's'} (was ${origEndpoints.length})`
     );
   }
 
-  const newScreens = listNewItems(
-    original.screens.map((s) => s.name),
-    updated.screens.map((s) => s.name)
-  );
+  const origScreens = (original.screens ?? []).map((s) => s.name);
+  const updScreens = (updated.screens ?? []).map((s) => s.name);
+  const newScreens = listNewItems(origScreens, updScreens);
   if (newScreens.length > 0) {
     details.push(`new screens added: ${newScreens.join(', ')}`);
   }
@@ -156,8 +169,9 @@ export function useRefinement(
 
   const mutation = useMutation({
     mutationFn: ({ message, model }: { message: string; model: string }) => {
-      if (!blueprint) throw new Error('No blueprint loaded');
-      return refineBlueprint(blueprint, message, model, blueprintId);
+      const current = blueprintRef.current;
+      if (!current) throw new Error('No blueprint loaded');
+      return refineBlueprint(current, message, model, blueprintId);
     },
     onMutate: ({ message }) => {
       setError(null);
@@ -197,10 +211,10 @@ export function useRefinement(
 
   const refine = useCallback(
     (message: string, model: string) => {
-      if (!blueprint || mutation.isPending) return;
+      if (!blueprintRef.current || mutation.isPending) return;
       mutation.mutate({ message, model });
     },
-    [blueprint, mutation, toast]
+    [mutation]
   );
 
   const clearHistory = useCallback(() => {
