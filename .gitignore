@@ -38,3 +38,7 @@ data/
 **/data/*.db
 **/data/*.db-wal
 **/data/*.db-shm
+
+# BuildX Temporary Files
+scratch/
+skills-lock.json
