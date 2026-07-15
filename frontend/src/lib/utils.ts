@@ -123,7 +123,8 @@ export const TABS = [
   { id: 'ui', label: 'UI Screens' },
   { id: 'architecture', label: 'Architecture' },
   { id: 'diagrams', label: 'Diagrams' },
-  { id: 'code', label: 'Starter Code' },
+  { id: 'code', label: 'Codebase' },
+  { id: 'preview', label: 'Preview' },
   { id: 'effort', label: 'Effort' },
 ] as const;
 
@@ -224,3 +225,12 @@ export function formatSQL(sql: string): string {
   return formatted.join('\n\n');
 }
 
+/**
+ * Generate a cryptographically secure random state string for OAuth CSRF protection.
+ * Uses crypto.getRandomValues for security instead of Math.random.
+ */
+export function generateOAuthState(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
