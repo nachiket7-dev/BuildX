@@ -139,7 +139,10 @@ function stripMetaFields(input: Record<string, unknown>): Record<string, unknown
   return out;
 }
 
-export function applyBlueprintFallbacks(partial: Record<string, unknown>): Blueprint {
+export function applyBlueprintFallbacks(
+  partial: Record<string, unknown>,
+  options?: { skipScaffoldRegen?: boolean }
+): Blueprint {
   const f = (partial.features as Record<string, unknown>) ?? {};
   const a = (partial.architecture as Record<string, unknown>) ?? {};
   const code = (partial.code as Record<string, unknown>) ?? {};
@@ -235,17 +238,25 @@ export function applyBlueprintFallbacks(partial: Record<string, unknown>): Bluep
     ...(partial.diagrams && typeof partial.diagrams === 'object'
       ? { diagrams: partial.diagrams as Blueprint['diagrams'] }
       : {}),
+    ...(typeof partial.githubUrl === 'string' && partial.githubUrl.trim() && partial.githubUrl.includes('github.com')
+      ? { githubUrl: partial.githubUrl.trim() }
+      : {}),
+    ...(typeof partial.modelUsed === 'string' && partial.modelUsed.trim()
+      ? { modelUsed: partial.modelUsed.trim() }
+      : {}),
   };
 
-  // Auto-populate or regenerate code.files from scaffold generators when not provided
-  // or when there is a mismatch with the database type.
+  // Auto-populate code.files for AI output — skip when loading an already-saved blueprint
   const hasDbMismatch = blueprint.code.files && (
     isMongo
       ? (!blueprint.code.files['backend/schema.js'] || blueprint.code.files['backend/prisma/schema.prisma'])
       : (!blueprint.code.files['backend/schema.sql'] || blueprint.code.files['backend/schema.js'])
   );
 
-  if (!blueprint.code.files || Object.keys(blueprint.code.files).length === 0 || hasDbMismatch) {
+  if (
+    !options?.skipScaffoldRegen &&
+    (!blueprint.code.files || Object.keys(blueprint.code.files).length === 0 || hasDbMismatch)
+  ) {
     try {
       blueprint.code.files = generateMonorepoFiles(blueprint);
     } catch {
@@ -345,13 +356,16 @@ function mapToMongooseType(sqlType: string): string {
 }
 
 /** Coerce client-sent blueprint payloads (including saved metadata) into a valid Blueprint. */
-export function coerceBlueprintInput(input: unknown): Blueprint {
+export function coerceBlueprintInput(
+  input: unknown,
+  options?: { skipScaffoldRegen?: boolean }
+): Blueprint {
   const partial =
     typeof input === 'object' && input !== null
       ? stripMetaFields(input as Record<string, unknown>)
       : {};
 
-  const withFallbacks = applyBlueprintFallbacks(partial);
+  const withFallbacks = applyBlueprintFallbacks(partial, options);
   const result = BlueprintSchema.safeParse(withFallbacks);
   return result.success ? result.data : withFallbacks;
 }
