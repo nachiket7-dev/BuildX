@@ -17,6 +17,7 @@ const EMPTY_LOCAL_DB: LocalDbSchema = {
   blueprints: [],
   chat_messages: [],
   model_usage: [],
+  blueprint_files: [],
 };
 
 function isFallbackAllowed(): boolean {
@@ -35,6 +36,7 @@ interface LocalDbSchema {
   blueprints: any[];
   chat_messages: any[];
   model_usage: any[];
+  blueprint_files: any[];
 }
 
 function readLocalDb(): LocalDbSchema {
@@ -164,6 +166,16 @@ async function initDatabase(): Promise<void> {
             count INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (user_id, model, date)
           );
+
+          CREATE TABLE IF NOT EXISTS blueprint_files (
+            id           TEXT PRIMARY KEY,
+            blueprint_id TEXT NOT NULL REFERENCES blueprints(id) ON DELETE CASCADE,
+            file_path    TEXT NOT NULL,
+            content      TEXT NOT NULL,
+            language     TEXT NOT NULL,
+            generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (blueprint_id, file_path)
+          );
         `);
 
         // Migration: add is_public column if it doesn't exist (for existing databases)
@@ -175,6 +187,26 @@ async function initDatabase(): Promise<void> {
               WHERE table_name = 'blueprints' AND column_name = 'is_public'
             ) THEN
               ALTER TABLE blueprints ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT false;
+            END IF;
+          END $$;
+        `);
+
+        // Migration: add github_id and github_token columns if they don't exist
+        await client.query(`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'github_id'
+            ) THEN
+              ALTER TABLE users ADD COLUMN github_id TEXT UNIQUE;
+            END IF;
+
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'github_token'
+            ) THEN
+              ALTER TABLE users ADD COLUMN github_token TEXT;
             END IF;
           END $$;
         `);
@@ -385,9 +417,8 @@ interface BlueprintRecord {
 function parseBlueprintJson(raw: string, id: string): Blueprint {
   try {
     const parsed = JSON.parse(raw);
-    // Apply normalization to fix legacy MongoDB blueprints that used
-    // {collection, fields} instead of {table, columns}
-    return coerceBlueprintInput(parsed);
+    // Saved blueprints are already complete — normalize without regenerating scaffolds
+    return coerceBlueprintInput(parsed, { skipScaffoldRegen: true });
   } catch {
     throw new Error(`Blueprint ${id} contains invalid JSON`);
   }
@@ -610,12 +641,14 @@ export async function updateBlueprintVisibility(blueprintId: string, userId: str
   await ensureDb();
 
   if (dbMode === 'fallback') {
-    const db = readLocalDb();
-    const bp = db.blueprints.find(b => b.id === blueprintId && b.user_id === userId);
-    if (!bp) return false;
-    bp.is_public = isPublic;
-    writeLocalDb(db);
-    return true;
+    return withLocalDbLock(() => {
+      const db = readLocalDb();
+      const bp = db.blueprints.find(b => b.id === blueprintId && b.user_id === userId);
+      if (!bp) return false;
+      bp.is_public = isPublic;
+      writeLocalDb(db);
+      return true;
+    });
   }
 
   const result = await pool.query(
@@ -638,6 +671,8 @@ export interface UserRow {
   email: string;
   password: string;
   createdAt: string;
+  githubId?: string;
+  githubToken?: string;
 }
 
 export async function createUser(name: string, email: string, hashedPassword: string): Promise<string> {
@@ -683,17 +718,27 @@ export async function getUserByEmail(email: string): Promise<UserRow | null> {
       name: row.name,
       email: row.email,
       password: row.password,
-      createdAt: new Date(row.created_at).toISOString()
+      createdAt: new Date(row.created_at).toISOString(),
+      githubId: row.github_id,
+      githubToken: row.github_token
     };
   }
 
   const result = await pool.query(
-    'SELECT id, name, email, password, created_at as "createdAt" FROM users WHERE email = $1',
+    'SELECT id, name, email, password, created_at as "createdAt", github_id as "githubId", github_token as "githubToken" FROM users WHERE email = $1',
     [email]
   );
   if (result.rows.length === 0) return null;
   const row = result.rows[0];
-  return { ...row, createdAt: new Date(row.createdAt).toISOString() };
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    password: row.password,
+    createdAt: new Date(row.createdAt).toISOString(),
+    githubId: row.githubId,
+    githubToken: row.githubToken
+  };
 }
 
 export async function getUserById(id: string): Promise<Omit<UserRow, 'password'> | null> {
@@ -707,17 +752,117 @@ export async function getUserById(id: string): Promise<Omit<UserRow, 'password'>
       id: row.id,
       name: row.name,
       email: row.email,
-      createdAt: new Date(row.created_at).toISOString()
+      createdAt: new Date(row.created_at).toISOString(),
+      githubId: row.github_id,
+      githubToken: row.github_token
     };
   }
 
   const result = await pool.query(
-    'SELECT id, name, email, created_at as "createdAt" FROM users WHERE id = $1',
+    'SELECT id, name, email, created_at as "createdAt", github_id as "githubId", github_token as "githubToken" FROM users WHERE id = $1',
     [id]
   );
   if (result.rows.length === 0) return null;
   const row = result.rows[0];
-  return { ...row, createdAt: new Date(row.createdAt).toISOString() };
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    createdAt: new Date(row.createdAt).toISOString(),
+    githubId: row.githubId,
+    githubToken: row.githubToken
+  };
+}
+
+export async function getUserByGithubId(githubId: string): Promise<UserRow | null> {
+  await ensureDb();
+
+  if (dbMode === 'fallback') {
+    const db = readLocalDb();
+    const row = db.users.find(u => u.github_id === githubId);
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      password: row.password,
+      createdAt: new Date(row.created_at).toISOString(),
+      githubId: row.github_id,
+      githubToken: row.github_token
+    };
+  }
+
+  const result = await pool.query(
+    'SELECT id, name, email, password, created_at as "createdAt", github_id as "githubId", github_token as "githubToken" FROM users WHERE github_id = $1',
+    [githubId]
+  );
+  if (result.rows.length === 0) return null;
+  const row = result.rows[0];
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    password: row.password,
+    createdAt: new Date(row.createdAt).toISOString(),
+    githubId: row.githubId,
+    githubToken: row.githubToken
+  };
+}
+
+export async function createGithubUser(name: string, email: string, githubId: string, githubToken: string): Promise<string> {
+  await ensureDb();
+  const id = generateId();
+  const placeholderPassword = crypto.randomBytes(16).toString('hex');
+
+  if (dbMode === 'fallback') {
+    return withLocalDbLock(() => {
+      const db = readLocalDb();
+      if (db.users.some((u) => u.email === email)) {
+        const err = new Error('duplicate_email') as Error & { code: string };
+        err.code = '23505';
+        throw err;
+      }
+      db.users.push({
+        id,
+        name,
+        email,
+        password: placeholderPassword,
+        github_id: githubId,
+        github_token: githubToken,
+        created_at: new Date().toISOString(),
+      });
+      writeLocalDb(db);
+      return id;
+    });
+  }
+
+  await pool.query(
+    'INSERT INTO users (id, name, email, password, github_id, github_token) VALUES ($1, $2, $3, $4, $5, $6)',
+    [id, name, email, placeholderPassword, githubId, githubToken]
+  );
+  return id;
+}
+
+export async function linkUserGithub(userId: string, githubId: string, githubToken: string): Promise<boolean> {
+  await ensureDb();
+
+  if (dbMode === 'fallback') {
+    return withLocalDbLock(() => {
+      const db = readLocalDb();
+      const row = db.users.find((u) => u.id === userId);
+      if (!row) return false;
+      row.github_id = githubId;
+      row.github_token = githubToken;
+      writeLocalDb(db);
+      return true;
+    });
+  }
+
+  const result = await pool.query(
+    'UPDATE users SET github_id = $1, github_token = $2 WHERE id = $3',
+    [githubId, githubToken, userId]
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 // ─── User blueprints ──────────────────────────────────────
@@ -800,17 +945,19 @@ export async function saveChatMessage(blueprintId: string, userId: string, role:
   await ensureDb();
 
   if (dbMode === 'fallback') {
-    const db = readLocalDb();
-    const id = db.chat_messages.length + 1;
-    db.chat_messages.push({
-      id,
-      blueprint_id: blueprintId,
-      user_id: userId,
-      role,
-      content,
-      created_at: new Date().toISOString()
+    await withLocalDbLock(() => {
+      const db = readLocalDb();
+      const id = db.chat_messages.length + 1;
+      db.chat_messages.push({
+        id,
+        blueprint_id: blueprintId,
+        user_id: userId,
+        role,
+        content,
+        created_at: new Date().toISOString()
+      });
+      writeLocalDb(db);
     });
-    writeLocalDb(db);
     return;
   }
 
@@ -855,18 +1002,20 @@ export async function renameBlueprint(id: string, userId: string, newTitle: stri
   await ensureDb();
 
   if (dbMode === 'fallback') {
-    const db = readLocalDb();
-    const bp = db.blueprints.find(b => b.id === id && b.user_id === userId);
-    if (!bp) return false;
-    try {
-      const parsed = JSON.parse(bp.blueprint);
-      parsed.appName = newTitle;
-      bp.blueprint = JSON.stringify(parsed);
-    } catch (err) {
-      console.error('Error updating fallback local blueprint JSON for rename:', err);
-    }
-    writeLocalDb(db);
-    return true;
+    return withLocalDbLock(() => {
+      const db = readLocalDb();
+      const bp = db.blueprints.find(b => b.id === id && b.user_id === userId);
+      if (!bp) return false;
+      try {
+        const parsed = JSON.parse(bp.blueprint);
+        parsed.appName = newTitle;
+        bp.blueprint = JSON.stringify(parsed);
+      } catch (err) {
+        console.error('Error updating fallback local blueprint JSON for rename:', err);
+      }
+      writeLocalDb(db);
+      return true;
+    });
   }
 
   // Fetch the blueprint first to update the appName in the JSON string
@@ -898,20 +1047,138 @@ export async function deleteBlueprint(id: string, userId: string): Promise<boole
   await ensureDb();
 
   if (dbMode === 'fallback') {
-    const db = readLocalDb();
-    const index = db.blueprints.findIndex(b => b.id === id && b.user_id === userId);
-    if (index === -1) return false;
-    db.blueprints.splice(index, 1);
-    db.chat_messages = db.chat_messages.filter(m => m.blueprint_id !== id);
-    writeLocalDb(db);
-    return true;
+    return withLocalDbLock(() => {
+      const db = readLocalDb();
+      const index = db.blueprints.findIndex(b => b.id === id && b.user_id === userId);
+      if (index === -1) return false;
+      db.blueprints.splice(index, 1);
+      db.chat_messages = db.chat_messages.filter(m => m.blueprint_id !== id);
+      if (db.blueprint_files) {
+        db.blueprint_files = db.blueprint_files.filter(f => f.blueprint_id !== id);
+      }
+      writeLocalDb(db);
+      return true;
+    });
   }
 
-  // Chat messages will be deleted automatically due to ON DELETE CASCADE
+  // Chat messages and blueprint files will be deleted automatically due to ON DELETE CASCADE
   const result = await pool.query(
     'DELETE FROM blueprints WHERE id = $1 AND user_id = $2',
     [id, userId]
   );
   return (result.rowCount ?? 0) > 0;
 }
+
+export interface SavedBlueprintFile {
+  path: string;
+  content: string;
+  language: string;
+}
+
+/** Remove all generated virtual files for a blueprint (e.g. after refine/regenerate). */
+export async function clearBlueprintFiles(blueprintId: string): Promise<void> {
+  await ensureDb();
+
+  if (dbMode === 'fallback') {
+    return withLocalDbLock(() => {
+      const db = readLocalDb();
+      if (db.blueprint_files) {
+        db.blueprint_files = db.blueprint_files.filter((f) => f.blueprint_id !== blueprintId);
+      }
+      writeLocalDb(db);
+    });
+  }
+
+  await pool.query('DELETE FROM blueprint_files WHERE blueprint_id = $1', [blueprintId]);
+}
+
+export async function saveBlueprintFile(
+  blueprintId: string,
+  filePath: string,
+  content: string,
+  language: string
+): Promise<void> {
+  await ensureDb();
+  const fileId = `${blueprintId}:${filePath}`;
+
+  if (dbMode === 'fallback') {
+    await withLocalDbLock(() => {
+      const db = readLocalDb();
+      if (!db.blueprint_files) db.blueprint_files = [];
+      const index = db.blueprint_files.findIndex(f => f.blueprint_id === blueprintId && f.file_path === filePath);
+      
+      const fileRecord = {
+        id: fileId,
+        blueprint_id: blueprintId,
+        file_path: filePath,
+        content,
+        language,
+        generated_at: new Date().toISOString()
+      };
+
+      if (index > -1) {
+        db.blueprint_files[index] = fileRecord;
+      } else {
+        db.blueprint_files.push(fileRecord);
+      }
+      writeLocalDb(db);
+    });
+    return;
+  }
+
+  // UPSERT using Postgres ON CONFLICT clause
+  await pool.query(
+    `INSERT INTO blueprint_files (id, blueprint_id, file_path, content, language)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (blueprint_id, file_path)
+     DO UPDATE SET content = EXCLUDED.content, language = EXCLUDED.language`,
+    [fileId, blueprintId, filePath, content, language]
+  );
+}
+
+export async function getBlueprintFiles(blueprintId: string): Promise<SavedBlueprintFile[]> {
+  await ensureDb();
+
+  if (dbMode === 'fallback') {
+    const db = readLocalDb();
+    if (!db.blueprint_files) return [];
+    return db.blueprint_files
+      .filter(f => f.blueprint_id === blueprintId)
+      .map(f => ({
+        path: f.file_path,
+        content: f.content,
+        language: f.language
+      }));
+  }
+
+  const result = await pool.query(
+    'SELECT file_path as "path", content, language FROM blueprint_files WHERE blueprint_id = $1 ORDER BY file_path ASC',
+    [blueprintId]
+  );
+  return result.rows;
+}
+
+export async function getBlueprintFile(blueprintId: string, filePath: string): Promise<SavedBlueprintFile | null> {
+  await ensureDb();
+
+  if (dbMode === 'fallback') {
+    const db = readLocalDb();
+    if (!db.blueprint_files) return null;
+    const file = db.blueprint_files.find(f => f.blueprint_id === blueprintId && f.file_path === filePath);
+    if (!file) return null;
+    return {
+      path: file.file_path,
+      content: file.content,
+      language: file.language
+    };
+  }
+
+  const result = await pool.query(
+    'SELECT file_path as "path", content, language FROM blueprint_files WHERE blueprint_id = $1 AND file_path = $2',
+    [blueprintId, filePath]
+  );
+  if (result.rows.length === 0) return null;
+  return result.rows[0];
+}
+
 
