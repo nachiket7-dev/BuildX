@@ -79,6 +79,49 @@ export interface SSEEvent {
   data: unknown;
 }
 
+async function* readSSEStream(
+  response: Response,
+  signal?: AbortSignal
+): AsyncGenerator<SSEEvent> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Streaming not supported by browser');
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    if (signal?.aborted) break;
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    let currentEvent = '';
+    let currentData = '';
+
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        currentEvent = line.slice(7).trim();
+      } else if (line.startsWith('data: ')) {
+        currentData = line.slice(6);
+      } else if (line === '' && currentEvent && currentData) {
+        try {
+          yield { event: currentEvent, data: JSON.parse(currentData) };
+        } catch {
+          yield { event: currentEvent, data: currentData };
+        }
+        currentEvent = '';
+        currentData = '';
+      } else if (line.startsWith(':')) {
+        // SSE comment
+      }
+    }
+  }
+}
+
 export async function* generateBlueprintStream(
   idea: string,
   model: string,
@@ -107,44 +150,38 @@ export async function* generateBlueprintStream(
     throw new Error(errorMsg);
   }
 
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('Streaming not supported by browser');
+  yield* readSSEStream(response, signal);
+}
 
-  const decoder = new TextDecoder();
-  let buffer = '';
+export async function* regenerateBlueprintStream(
+  blueprintId: string,
+  model: string,
+  signal?: AbortSignal
+): AsyncGenerator<SSEEvent> {
+  const url = `${BASE_URL}/api/blueprint/regenerate-stream`;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ id: blueprintId, model }),
+    signal,
+  });
 
-    buffer += decoder.decode(value, { stream: true });
-
-    // Parse SSE events from the buffer
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || ''; // Keep the incomplete last line
-
-    let currentEvent = '';
-    let currentData = '';
-
-    for (const line of lines) {
-      if (line.startsWith('event: ')) {
-        currentEvent = line.slice(7).trim();
-      } else if (line.startsWith('data: ')) {
-        currentData = line.slice(6);
-      } else if (line === '' && currentEvent && currentData) {
-        // Empty line = end of SSE event
-        try {
-          yield { event: currentEvent, data: JSON.parse(currentData) };
-        } catch {
-          yield { event: currentEvent, data: currentData };
-        }
-        currentEvent = '';
-        currentData = '';
-      } else if (line.startsWith(':')) {
-        // SSE comment, skip
-      }
+  if (!response.ok) {
+    let errorMsg = 'Regeneration failed';
+    try {
+      const errorData = await response.json();
+      errorMsg = errorData.error || errorMsg;
+    } catch {
+      // ignore parse error
     }
+    if (response.status === 401) {
+      throw new Error('Please sign in to regenerate blueprints.');
+    }
+    throw new Error(errorMsg);
   }
+
+  yield* readSSEStream(response, signal);
 }
 
 // ─── Fetch saved blueprint ────────────────────────────────
@@ -220,4 +257,182 @@ export async function checkHealth(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export interface LlmProviderHealth {
+  service: string;
+  ready: boolean;
+  providers: Record<string, { configured: boolean; label: string }>;
+  message?: string;
+}
+
+export async function fetchLlmProviderHealth(): Promise<LlmProviderHealth> {
+  const response = await apiClient.get<LlmProviderHealth>('/api/blueprint/health', { timeout: 5000 });
+  return response.data;
+}
+
+// ─── Code Generation & Files API ──────────────────────────
+
+export interface VirtualFileDetails {
+  path: string;
+  language: string;
+}
+
+export interface VirtualFileFull extends VirtualFileDetails {
+  content: string;
+}
+
+/** Lists the metadata (path + language) of all generated files */
+export async function fetchBlueprintFiles(blueprintId: string): Promise<VirtualFileDetails[]> {
+  const response = await apiClient.get<ApiResponse<{ files: VirtualFileDetails[] }>>(
+    `/api/blueprint/${blueprintId}/files`,
+    { headers: getAuthHeaders() }
+  );
+  return response.data.data.files;
+}
+
+/** Fetches all generated files with contents in a single request */
+export async function fetchBlueprintFilesWithContent(blueprintId: string): Promise<VirtualFileFull[]> {
+  const response = await apiClient.get<ApiResponse<{ files: VirtualFileFull[] }>>(
+    `/api/blueprint/${blueprintId}/files/contents`,
+    { headers: getAuthHeaders() }
+  );
+  return response.data.data.files;
+}
+
+/** Fetches full content for a single virtual file */
+export async function fetchBlueprintFileContent(blueprintId: string, path: string): Promise<VirtualFileFull> {
+  const response = await apiClient.get<ApiResponse<{ file: VirtualFileFull }>>(
+    `/api/blueprint/${blueprintId}/files/${encodeURIComponent(path)}`,
+    { headers: getAuthHeaders() }
+  );
+  return response.data.data.file;
+}
+
+/** Saves or updates content for a single virtual file */
+export async function saveBlueprintFile(
+  blueprintId: string,
+  path: string,
+  content: string,
+  language: string
+): Promise<void> {
+  await apiClient.post(
+    `/api/blueprint/${blueprintId}/files`,
+    { path, content, language },
+    { headers: getAuthHeaders() }
+  );
+}
+
+/** Streams code generation SSE events */
+export async function* generateCodeStream(
+  blueprintId: string,
+  model: string,
+  signal?: AbortSignal
+): AsyncGenerator<SSEEvent> {
+  const url = `${BASE_URL}/api/blueprint/${blueprintId}/codegen`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ model }),
+    signal,
+  });
+
+  if (!response.ok) {
+    let errorMsg = 'Server error';
+    try {
+      const errorData = await response.json();
+      errorMsg = errorData.error || errorMsg;
+    } catch {
+      // ignore parse error
+    }
+    if (response.status === 401) {
+      throw new Error('Please sign in to generate code.');
+    }
+    throw new Error(errorMsg);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Streaming not supported by browser');
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // Parse SSE events from the buffer
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || ''; // Keep the incomplete last line
+
+    let currentEvent = '';
+    let currentData = '';
+
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        currentEvent = line.slice(7).trim();
+      } else if (line.startsWith('data: ')) {
+        currentData = line.slice(6);
+      } else if (line === '' && currentEvent && currentData) {
+        try {
+          yield { event: currentEvent, data: JSON.parse(currentData) };
+        } catch {
+          yield { event: currentEvent, data: currentData };
+        }
+        currentEvent = '';
+        currentData = '';
+      } else if (line.startsWith(':')) {
+        // SSE comment, skip
+      }
+    }
+  }
+}
+
+// ─── Live Preview API ──────────────────────────────────────
+
+/** Returns the full URL that serves the self-contained preview.html for the sandbox iframe */
+export function getBlueprintPreviewUrl(blueprintId: string): string {
+  const base = import.meta.env.VITE_API_URL ?? '';
+  return `${base}/api/blueprint/${blueprintId}/preview`;
+}
+
+export interface PreviewResult {
+  html: string;
+  /** 'deterministic' = built from blueprint data instantly, 'ai' = LLM-generated */
+  source: 'deterministic' | 'ai';
+}
+
+/** Fetches preview HTML with auth headers (required for private blueprints) */
+export async function fetchBlueprintPreviewHtml(blueprintId: string): Promise<PreviewResult> {
+  const url = getBlueprintPreviewUrl(blueprintId);
+  const response = await fetch(url, { headers: getAuthHeaders() });
+  if (!response.ok) {
+    let message = 'Preview not found or access denied';
+    try {
+      const data = await response.json() as { error?: string };
+      if (data.error) message = data.error;
+    } catch {
+      const text = await response.text();
+      if (text) message = text.slice(0, 200);
+    }
+    throw new Error(message);
+  }
+  const html = await response.text();
+  if (html.trimStart().startsWith('{')) {
+    throw new Error('Preview not available — sign in if this is a private blueprint.');
+  }
+  const source = response.headers.get('X-Preview-Source') === 'ai' ? 'ai' : 'deterministic';
+  return { html, source };
+}
+
+/** Forces regeneration of the preview HTML and waits for confirmation */
+export async function regenerateBlueprintPreview(blueprintId: string, model?: string): Promise<void> {
+  await apiClient.post(
+    `/api/blueprint/${blueprintId}/preview/regenerate`,
+    { model },
+    { headers: getAuthHeaders() }
+  );
 }

@@ -73,6 +73,8 @@ export interface Blueprint {
   code: StarterCode;
   effort: Effort;
   diagrams?: BlueprintDiagrams;
+  githubUrl?: string;
+  modelUsed?: string;
 }
 
 // ─── Saved blueprint (with persistence metadata) ──────────
@@ -82,6 +84,7 @@ export interface SavedBlueprint extends Blueprint {
   views: number;
   createdAt: string;
   isPublic?: boolean;
+  isOwner?: boolean;
 }
 
 export interface BlueprintListItem {
@@ -113,6 +116,7 @@ export type TabId =
   | 'architecture'
   | 'diagrams'
   | 'code'
+  | 'preview'
   | 'effort';
 
 // ─── Partial blueprint for streaming ──────────────────────
