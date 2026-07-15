@@ -1,4 +1,4 @@
-import { getGroqClient, resolveModel, getRefineMaxTokens } from './groq';
+import { getLLMProvider, getRefineMaxTokensForModel } from './llm/router';
 import { extractJSON } from './jsonExtract';
 import { tryParsePartial } from './stream';
 import type { Blueprint } from './types';
@@ -28,18 +28,26 @@ function buildRefineContext(blueprint: Blueprint): RefineContext {
 
 /** Build a trimmed version of the blueprint for the system prompt to save tokens */
 function buildTrimmedContext(blueprint: Blueprint): Record<string, unknown> {
+  const code = blueprint.code ?? { frontend: '', backend: '', sql: '' };
+  const trim = (s: string | undefined, max = 200) => {
+    const text = s ?? '';
+    return text.length > max ? text.slice(0, max) + '... (truncated)' : text;
+  };
   return {
-    ...blueprint,
+    appName: blueprint.appName,
+    description: blueprint.description,
+    targetUsers: blueprint.targetUsers,
+    complexity: blueprint.complexity,
+    features: blueprint.features,
+    schema: blueprint.schema,
+    endpoints: blueprint.endpoints,
+    screens: blueprint.screens,
+    architecture: blueprint.architecture,
+    effort: blueprint.effort,
     code: {
-      frontend: blueprint.code.frontend.length > 200
-        ? blueprint.code.frontend.slice(0, 200) + '... (truncated)'
-        : blueprint.code.frontend,
-      backend: blueprint.code.backend.length > 200
-        ? blueprint.code.backend.slice(0, 200) + '... (truncated)'
-        : blueprint.code.backend,
-      sql: blueprint.code.sql.length > 200
-        ? blueprint.code.sql.slice(0, 200) + '... (truncated)'
-        : blueprint.code.sql,
+      frontend: trim(code.frontend),
+      backend: trim(code.backend),
+      sql: trim(code.sql),
     },
   };
 }
@@ -208,6 +216,7 @@ function applyFallbacks(partial: Record<string, unknown>, original: Blueprint): 
     diagrams: (partial.diagrams && typeof partial.diagrams === 'object')
       ? partial.diagrams as Blueprint['diagrams']
       : original.diagrams,
+    githubUrl: original.githubUrl,
   };
 
   const hasDbMismatch = blueprint.code.files && (
@@ -315,32 +324,28 @@ export async function refineBlueprint(
   refinementMessage: string,
   requestedModel?: string
 ): Promise<Blueprint> {
-  const client = getGroqClient();
-  const groqModel = resolveModel(requestedModel);
-  const maxTokens = getRefineMaxTokens(groqModel);
+  const provider = getLLMProvider(requestedModel);
+  const maxTokens = getRefineMaxTokensForModel(requestedModel);
   const context = buildRefineContext(originalBlueprint);
 
-  console.log(`[Refine] model=${groqModel} | max_tokens=${maxTokens} | request="${refinementMessage.slice(0, 100)}"`);
+  console.log(`[Refine] model=${requestedModel || 'default'} | max_tokens=${maxTokens} | request="${refinementMessage.slice(0, 100)}"`);
 
   const userContent = `Modification request: ${refinementMessage}
 
 Return the updated blueprint as JSON (same keys as input).`;
 
-  async function callGroq(temperature: number, strict = false) {
+  async function callLLM(temperature: number, strict = false) {
     const systemPrompt = strict
       ? `${buildSystemPrompt(context)}\n\nCRITICAL: Return compact valid JSON only. No code blocks. Maximize correctness over verbosity.`
       : buildSystemPrompt(context);
 
-    return client.chat.completions.create({
-      model: groqModel,
-      max_tokens: maxTokens,
-      temperature,
-      response_format: { type: 'json_object' },
-      messages: [
+    return provider.complete(
+      [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userContent },
       ],
-    });
+      { temperature, maxTokens, responseFormat: { type: 'json_object' } }
+    );
   }
 
   async function runWithRetries(): Promise<Blueprint> {
@@ -353,26 +358,12 @@ Return the updated blueprint as JSON (same keys as input).`;
     let lastErr: Error | null = null;
     for (const { temperature, strict } of attempts) {
       try {
-        const completion = await callGroq(temperature, strict);
-        const rawText = completion.choices[0]?.message?.content;
+        const rawText = await callLLM(temperature, strict);
         if (!rawText) {
           throw new Error('AI returned an empty response for refinement.');
         }
 
-        const finishReason = completion.choices[0]?.finish_reason;
-        console.log(`[Refine] ${rawText.length} chars received. Finish: ${finishReason}`);
-
-        if (finishReason === 'length') {
-          // Truncated output → JSON is almost certainly incomplete. Try to
-          // recover a partial patch; if that fails, throw so we retry.
-          console.warn('[Refine] Response truncated — hit max_tokens. Attempting partial recovery.');
-          try {
-            return parseRefineResponse(rawText, originalBlueprint);
-          } catch {
-            throw new Error('AI response was truncated (hit token limit). Retrying with tighter output.');
-          }
-        }
-
+        console.log(`[Refine] ${rawText.length} chars received.`);
         return parseRefineResponse(rawText, originalBlueprint);
       } catch (err) {
         lastErr = err instanceof Error ? err : new Error(String(err));
@@ -385,7 +376,7 @@ Return the updated blueprint as JSON (same keys as input).`;
           (msg.includes('400') && msg.includes('json'))
         ) {
           console.warn('[Refine] JSON generation failed, falling back to non-JSON mode');
-          return runWithoutJsonMode(originalBlueprint, refinementMessage, context, groqModel, maxTokens);
+          return runWithoutJsonMode(originalBlueprint, refinementMessage, context, requestedModel, maxTokens);
         }
         console.warn(`[Refine] Attempt failed (${temperature}/${strict}):`, msg);
       }
@@ -397,29 +388,26 @@ Return the updated blueprint as JSON (same keys as input).`;
   return runWithRetries();
 }
 
-/** Fallback when Groq model rejects response_format json_object */
+/** Fallback when the model rejects response_format json_object */
 async function runWithoutJsonMode(
   originalBlueprint: Blueprint,
   refinementMessage: string,
   context: RefineContext,
-  groqModel: string,
+  requestedModel: string | undefined,
   maxTokens: number
 ): Promise<Blueprint> {
-  const client = getGroqClient();
+  const provider = getLLMProvider(requestedModel);
   const systemPrompt = buildSystemPrompt(context);
   const userContent = `Modification request: ${refinementMessage}\n\nReturn the updated blueprint as JSON.`;
 
   for (const temperature of [0.2, 0]) {
-    const completion = await client.chat.completions.create({
-      model: groqModel,
-      max_tokens: maxTokens,
-      temperature,
-      messages: [
+    const rawText = await provider.complete(
+      [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userContent },
       ],
-    });
-    const rawText = completion.choices[0]?.message?.content;
+      { temperature, maxTokens }
+    );
     if (!rawText) continue;
     try {
       return parseRefineResponse(rawText, originalBlueprint);
