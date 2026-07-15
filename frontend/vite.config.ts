@@ -16,6 +16,8 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
+        timeout: 0,        // disable proxy timeout — Nemotron can take 2-5 minutes
+        proxyTimeout: 0,   // disable upstream read timeout for SSE streams
       },
       '/health': {
         target: 'http://localhost:3001',

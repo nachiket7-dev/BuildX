@@ -13,7 +13,7 @@ import { SkipLink } from './components/SkipLink';
 import { PageHead } from './components/PageHead';
 import { PageTransition } from './components/PageTransition';
 import { BlueprintLoadingSkeleton } from './components/BlueprintLoadingSkeleton';
-import { useStreamBlueprint } from './hooks/useStreamBlueprint';
+import { useBlueprintSession, BlueprintSessionProvider } from './hooks/useBlueprintSession';
 import { useRefinement } from './hooks/useRefinement';
 import { useAuth, useAuthProvider, AuthContext } from './hooks/useAuth';
 import { useModel } from './hooks/useModel';
@@ -21,7 +21,9 @@ import { useToast } from './hooks/useToast';
 import { invalidateBlueprintQueries } from './hooks/useBlueprints';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './components/LoginPage';
+import { GithubCallbackPage } from './components/GithubCallbackPage';
 import { HomePage } from './components/HomePage';
+import { AgentPage } from './components/AgentPage';
 import type { Blueprint } from './lib/types';
 
 type AppShellOutletContext = { sidebarOpen: boolean };
@@ -33,13 +35,7 @@ function BlueprintPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const celebratedRef = useRef(false);
-  const handleSaved = useCallback(
-    (savedId: string) => {
-      void invalidateBlueprintQueries(queryClient);
-      navigate(`/blueprint/${savedId}`, { replace: true });
-    },
-    [navigate, queryClient]
-  );
+  const loadAttemptRef = useRef<string | null>(null);
 
   const {
     blueprint,
@@ -53,21 +49,53 @@ function BlueprintPage() {
     agentEvents,
     generate,
     loadSaved,
+    isStreamSavedRoute,
+    updateBlueprint,
     reset,
     cancel,
-  } = useStreamBlueprint({ onSaved: handleSaved });
+  } = useBlueprintSession();
 
   const { selectedModel } = useModel();
   const [refinedBlueprint, setRefinedBlueprint] = useState<Blueprint | null>(null);
   const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [loadedId, setLoadedId] = useState<string | null>(null);
+  const blueprintContentKey = `${blueprint?.appName ?? ''}:${blueprint?.schema?.length ?? 0}:${blueprint?.endpoints?.length ?? 0}`;
 
   const activeBlueprint = refinedBlueprint ?? blueprint;
   const effectiveId = blueprintId ?? routeId ?? null;
 
   const handleBlueprintUpdate = useCallback((updated: Blueprint) => {
-    setRefinedBlueprint(updated);
-  }, []);
+    setRefinedBlueprint((prev) => {
+      const base = prev ?? blueprint;
+      if (!base) {
+        updateBlueprint(updated);
+        return updated;
+      }
+      // Full blueprint from refine/regenerate — replace entirely
+      const isFullUpdate = Boolean(
+        updated.appName &&
+        Array.isArray(updated.schema) &&
+        Array.isArray(updated.endpoints) &&
+        updated.features?.core
+      );
+      const next = isFullUpdate
+        ? updated
+        : {
+            ...base,
+            ...updated,
+            features: updated.features ?? base.features,
+            schema: updated.schema ?? base.schema,
+            endpoints: updated.endpoints ?? base.endpoints,
+            screens: updated.screens ?? base.screens,
+            architecture: updated.architecture ?? base.architecture,
+            code: updated.code ?? base.code,
+            effort: updated.effort ?? base.effort,
+            diagrams: updated.diagrams ?? base.diagrams,
+          };
+      updateBlueprint(next);
+      return next;
+    });
+  }, [blueprint, updateBlueprint]);
 
   const { messages, isRefining, refine, clearHistory } = useRefinement(
     activeBlueprint,
@@ -77,8 +105,7 @@ function BlueprintPage() {
 
   useEffect(() => {
     if (!routeId) {
-      // Only clear when leaving a URL-loaded blueprint (/blueprint/:id → /create).
-      // Do NOT reset after generating on home — blueprint may exist before navigate runs.
+      loadAttemptRef.current = null;
       if (loadedId && !isStreaming) {
         cancel();
         reset();
@@ -91,28 +118,56 @@ function BlueprintPage() {
       return;
     }
 
-    if (isStreaming) return;
-    if (routeId === loadedId && (blueprint || error)) return;
-    if (routeId && blueprintId === routeId && blueprint) {
+    // Stream handoff: never fetch from API until the streamed blueprint is in state
+    if (isStreamSavedRoute(routeId)) {
+      if (!blueprint) return;
       if (loadedId !== routeId) setLoadedId(routeId);
+      loadAttemptRef.current = routeId;
+      if (!savedMeta) void loadSaved(routeId);
       return;
     }
 
-    cancel();
+    // Already have this blueprint in session (e.g. just generated, then navigated here)
+    if (blueprint && blueprintId === routeId) {
+      if (loadedId !== routeId) setLoadedId(routeId);
+      loadAttemptRef.current = routeId;
+      if (!savedMeta) void loadSaved(routeId);
+      return;
+    }
+
+    // Avoid duplicate fetches for the same route
+    if (loadAttemptRef.current === routeId) {
+      return;
+    }
+
+    // Allow retry after a failed load
+    if (error && !blueprint && !isStreaming) {
+      loadAttemptRef.current = null;
+    }
+
+    loadAttemptRef.current = routeId;
     setRefinedBlueprint(null);
     setModelUsed(null);
     setLoadedId(routeId);
     celebratedRef.current = false;
     loadSaved(routeId);
-  }, [routeId, isStreaming, loadedId, blueprint, blueprintId, error, cancel, reset, clearHistory, loadSaved]);
+  }, [routeId, blueprintId, blueprint, loadedId, isStreaming, savedMeta, error, cancel, reset, clearHistory, loadSaved, isStreamSavedRoute]);
 
-  // Safety net: ensure URL updates after save when generation started on /
+  // Safety net: ensure URL updates after save when generation started on /create
   useEffect(() => {
-    if (!routeId && blueprintId && isComplete && !isStreaming && !loadedId) {
+    if (
+      !routeId &&
+      blueprint &&
+      blueprintId &&
+      isComplete &&
+      !isStreaming &&
+      !loadedId &&
+      !isStreamSavedRoute(blueprintId)
+    ) {
       invalidateBlueprintQueries(queryClient);
       navigate(`/blueprint/${blueprintId}`, { replace: true });
     }
-  }, [routeId, blueprintId, isComplete, isStreaming, navigate, queryClient, loadedId]);
+  }, [routeId, blueprint, blueprintId, isComplete, isStreaming, navigate, queryClient, loadedId, isStreamSavedRoute]);
 
   useEffect(() => {
     if (blueprint && !routeId) {
@@ -120,6 +175,12 @@ function BlueprintPage() {
       clearHistory();
     }
   }, [blueprint, routeId, clearHistory]);
+
+  useEffect(() => {
+    if (activeBlueprint?.modelUsed) {
+      setModelUsed(activeBlueprint.modelUsed);
+    }
+  }, [activeBlueprint?.modelUsed, loadedId]);
 
   useEffect(() => {
     if (isComplete && activeBlueprint && !celebratedRef.current && modelUsed) {
@@ -192,9 +253,11 @@ function BlueprintPage() {
               <BlueprintOutput
                 blueprint={activeBlueprint}
                 blueprintId={effectiveId}
+                blueprintContentKey={blueprintContentKey}
                 isPublic={savedMeta?.isPublic ?? false}
+                isOwner={savedMeta?.isOwner ?? (!routeId && Boolean(blueprintId))}
                 onReset={handleReset}
-                modelUsed={modelUsed ?? undefined}
+                modelUsed={modelUsed ?? activeBlueprint.modelUsed}
                 onRefineMessage={(msg) => refine(msg, selectedModel)}
                 isRefining={isRefining}
                 onBlueprintUpdate={handleBlueprintUpdate}
@@ -224,31 +287,33 @@ function AppShell() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-x-hidden">
-      <SkipLink />
-      <AmbientBackground />
+    <BlueprintSessionProvider>
+      <div className="min-h-screen flex flex-col relative overflow-x-hidden">
+        <SkipLink />
+        <AmbientBackground />
 
-      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+        <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-      <div
-        className={`app-shell-content relative z-10 flex flex-col min-h-screen transition-all duration-300 overflow-x-hidden ${
-          sidebarOpen ? 'app-shell-content--sidebar md:ml-[280px]' : ''
-        }`}
-      >
-        <Header
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          showSidebarToggle
-          sidebarOpen={sidebarOpen}
-        />
+        <div
+          className={`app-shell-content relative z-10 flex flex-col min-h-screen transition-all duration-300 overflow-x-hidden ${
+            sidebarOpen ? 'app-shell-content--sidebar md:ml-[280px]' : ''
+          }`}
+        >
+          <Header
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            showSidebarToggle
+            sidebarOpen={sidebarOpen}
+          />
 
-        <Outlet context={{ sidebarOpen } satisfies AppShellOutletContext} />
+          <Outlet context={{ sidebarOpen } satisfies AppShellOutletContext} />
 
-        <footer className="app-footer">
-          <p>BuildX — Idea to deployable blueprint in one flow</p>
-          <p className="app-footer__sub">Powered by Groq · PostgreSQL · React</p>
-        </footer>
+          <footer className="app-footer">
+            <p>BuildX — Idea to deployable blueprint in one flow</p>
+            <p className="app-footer__sub">Powered by Groq · PostgreSQL · React</p>
+          </footer>
+        </div>
       </div>
-    </div>
+    </BlueprintSessionProvider>
   );
 }
 
@@ -264,9 +329,26 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/login/callback" element={<GithubCallbackPage />} />
         <Route element={<AppShell />}>
           <Route path="/blueprint/:id" element={<BlueprintPageRoute />} />
           <Route path="/gallery" element={<GalleryPage />} />
+          <Route
+            path="/agent"
+            element={
+              <ProtectedRoute>
+                <AgentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/agent/:id"
+            element={
+              <ProtectedRoute>
+                <AgentPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/create"
             element={
