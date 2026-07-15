@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { generateOAuthState } from '../lib/utils';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Logo } from './Logo';
 import { useAuth } from '../hooks/useAuth';
 import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
-import { Compass, Home, Layers, LogOut, PanelLeft, Sparkles } from 'lucide-react';
+import { Compass, Github, Home, Layers, LogOut, PanelLeft, Sparkles } from 'lucide-react';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -125,6 +126,41 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen }: Head
                       <Layers size={13} />
                       My Blueprints
                     </Link>
+                    {user.githubLinked ? (
+                      <div
+                        className="user-menu__item"
+                        style={{ opacity: 0.6, cursor: 'default' }}
+                      >
+                        <Github size={13} />
+                        <span className="flex items-center gap-1.5">
+                          GitHub Connected
+                          <span
+                            className="w-1.5 h-1.5 rounded-full inline-block"
+                            style={{ background: 'var(--green)' }}
+                          />
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setShowMenu(false);
+                          sessionStorage.setItem('buildx_github_link', 'true');
+                          sessionStorage.setItem('buildx_auth_redirect', `${window.location.pathname}${window.location.search}${window.location.hash}`);
+                          const state = generateOAuthState();
+                          sessionStorage.setItem('buildx_github_oauth_state', state);
+                          const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || '';
+                          const redirectUri = encodeURIComponent(window.location.origin + '/login/callback');
+                          window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=user:email,repo&redirect_uri=${redirectUri}&state=${state}`;
+                        }}
+                        className="user-menu__item focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                      >
+                        <Github size={13} />
+                        Link GitHub
+                      </button>
+                    )}
+                    <div className="user-menu__divider" />
                     <button
                       type="button"
                       role="menuitem"
