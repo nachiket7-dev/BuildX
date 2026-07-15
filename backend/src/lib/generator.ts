@@ -1,4 +1,4 @@
-import { getGroqClient, resolveModel, getMaxTokens } from './groq';
+import { getLLMProvider, getMaxTokensForModel } from './llm/router';
 import { extractJSON } from './jsonExtract';
 import { Blueprint, BlueprintSchema } from './types';
 import { Response } from 'express';
@@ -115,55 +115,53 @@ function parseAndValidate(rawText: string): Blueprint {
 
 // ─── Non-streaming generation (original) ──────────────────
 
+const FALLBACK_MODELS = ['gemini-3.5-flash', 'gpt-oss-120b', 'nemotron-3-550b'];
+
 export async function generateBlueprint(idea: string, requestedModel?: string): Promise<Blueprint> {
-  const client = getGroqClient();
-  const groqModel = resolveModel(requestedModel);
-  const maxTokens = getMaxTokens(groqModel);
+  const modelsToTry = requestedModel
+    ? [requestedModel, ...FALLBACK_MODELS.filter((m) => m !== requestedModel)]
+    : FALLBACK_MODELS;
 
-  console.log(`[Groq] model=${groqModel} | max_tokens=${maxTokens} | idea="${idea.slice(0, 80)}"`);
+  let lastError: Error | null = null;
 
-  const messages = [
-    { role: 'system' as const, content: SYSTEM_PROMPT },
-    {
-      role: 'user' as const,
-      content: `App idea: ${idea}\n\nRespond with ONLY the JSON object. No markdown, no explanation.`,
-    },
-  ];
+  for (const model of modelsToTry) {
+    try {
+      const provider = getLLMProvider(model);
+      const maxTokens = getMaxTokensForModel(model);
 
-  const completion = await client.chat.completions.create({
-    model: groqModel,
-    max_tokens: maxTokens,
-    temperature: 0.4,
-    messages,
-  });
+      console.log(`[LLM] Trying model=${model} | max_tokens=${maxTokens} | ideaLength=${idea.length}`);
 
-  const rawText = completion.choices[0]?.message?.content;
-  if (!rawText) {
-    throw new Error('Groq returned an empty response. Please try again.');
+      const messages = [
+        { role: 'system' as const, content: SYSTEM_PROMPT },
+        {
+          role: 'user' as const,
+          content: `App idea: ${idea}\n\nRespond with ONLY the JSON object. No markdown, no explanation.`,
+        },
+      ];
+
+      const rawText = await provider.complete(messages, { temperature: 0.4, maxTokens });
+      if (!rawText) {
+        throw new Error('LLM returned an empty response. Please try again.');
+      }
+
+      console.log(`[LLM] ${rawText.length} chars received.`);
+
+      try {
+        return parseAndValidate(rawText);
+      } catch (firstErr) {
+        console.warn(`[LLM] JSON parse failed for ${model}, retrying with temperature: 0`);
+        const retryText = await provider.complete(messages, { temperature: 0, maxTokens });
+        if (!retryText) throw firstErr;
+        return parseAndValidate(retryText);
+      }
+    } catch (err) {
+      console.error(`[LLM] Failed generation using model ${model}:`, (err as Error).message);
+      lastError = err as Error;
+      console.log('[LLM] Attempting fallback to next model...');
+    }
   }
 
-  const finishReason = completion.choices[0].finish_reason;
-  console.log(`[Groq] ${rawText.length} chars received. Finish: ${finishReason}`);
-
-  if (finishReason === 'length') {
-    console.warn('[Groq] Response truncated — hit max_tokens. JSON may be incomplete.');
-  }
-
-  // Auto-retry once with temperature: 0 if parsing fails
-  try {
-    return parseAndValidate(rawText);
-  } catch (firstErr) {
-    console.warn('[Groq] JSON parse failed, retrying with temperature: 0');
-    const retry = await client.chat.completions.create({
-      model: groqModel,
-      max_tokens: maxTokens,
-      temperature: 0,
-      messages,
-    });
-    const retryText = retry.choices[0]?.message?.content;
-    if (!retryText) throw firstErr;
-    return parseAndValidate(retryText);
-  }
+  throw lastError || new Error('All model attempts failed');
 }
 
 // ─── Streaming generation (SSE) ───────────────────────────
@@ -173,11 +171,10 @@ export async function generateBlueprintStream(
   res: Response,
   requestedModel?: string
 ): Promise<Blueprint> {
-  const client = getGroqClient();
-  const groqModel = resolveModel(requestedModel);
-  const maxTokens = getMaxTokens(groqModel);
+  const provider = getLLMProvider(requestedModel);
+  const maxTokens = getMaxTokensForModel(requestedModel);
 
-  console.log(`[Groq:stream] model=${groqModel} | max_tokens=${maxTokens} | idea="${idea.slice(0, 80)}"`);
+  console.log(`[LLM:stream] model=${requestedModel || 'default'} | max_tokens=${maxTokens} | ideaLength=${idea.length}`);
 
   const messages = [
     { role: 'system' as const, content: SYSTEM_PROMPT },
@@ -190,22 +187,13 @@ export async function generateBlueprintStream(
   initSSE(res);
   sendSSE(res, 'status', { message: 'Connecting to AI model...' });
 
-  const stream = await client.chat.completions.create({
-    model: groqModel,
-    max_tokens: maxTokens,
-    temperature: 0.4,
-    stream: true,
-    messages,
-  });
-
   let buffer = '';
   let charCount = 0;
   let chunkIndex = 0;
   let lastParsed: Record<string, unknown> | null = null;
   const emittedSections = new Set<SectionKey>();
 
-  for await (const chunk of stream) {
-    const content = chunk.choices[0]?.delta?.content || '';
+  for await (const content of provider.stream(messages, { temperature: 0.4, maxTokens })) {
     if (!content) continue;
 
     buffer += content;
@@ -236,22 +224,16 @@ export async function generateBlueprintStream(
     }
   }
 
-  console.log(`[Groq:stream] model=${groqModel} | ${charCount} chars received.`);
+  console.log(`[LLM:stream] ${charCount} chars received.`);
 
   // Final parse and validate — auto-retry once with temperature: 0 if parsing fails
   let blueprint: Blueprint;
   try {
     blueprint = parseAndValidate(buffer);
   } catch (firstErr) {
-    console.warn('[Groq:stream] JSON parse failed, retrying with temperature: 0');
+    console.warn('[LLM:stream] JSON parse failed, retrying with temperature: 0');
     sendSSE(res, 'status', { message: 'Retrying with higher precision...' });
-    const retry = await client.chat.completions.create({
-      model: groqModel,
-      max_tokens: maxTokens,
-      temperature: 0,
-      messages,
-    });
-    const retryText = retry.choices[0]?.message?.content;
+    const retryText = await provider.complete(messages, { temperature: 0, maxTokens });
     if (!retryText) throw firstErr;
     blueprint = parseAndValidate(retryText);
   }
