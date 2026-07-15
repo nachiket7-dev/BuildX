@@ -267,7 +267,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
         </h1>
 
         <p
-          className="text-[11px] sm:text-sm md:text-base mb-8 sm:mb-12 mx-auto max-w-lg animate-fade-slide-up"
+          className="text-xs sm:text-sm md:text-base mb-8 sm:mb-12 mx-auto max-w-lg animate-fade-slide-up"
           style={{
             color: 'var(--text2)',
             lineHeight: 1.7,
@@ -390,31 +390,58 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       >
                         <div className="model-select-menu__header">AI Model</div>
                         <div className="model-select-menu__list">
-                          {AVAILABLE_MODELS.map((model) => {
-                            const isSelected = selectedModel === model.id;
-                            return (
-                            <button
-                              type="button"
-                              key={model.id}
-                              role="option"
-                              aria-selected={isSelected}
-                              onClick={() => {
-                                setSelectedModel(model.id);
-                                setShowModelDropdown(false);
-                              }}
-                              className={`model-select-option ${isSelected ? 'model-select-option--active' : ''}`}
-                            >
-                              <span className="font-mono-custom text-xs flex items-center gap-1.5">
-                                {model.label}
-                              </span>
-                              {model.badge && (
-                                <span className="model-select-option__badge">
-                                  {model.badge}
-                                </span>
-                              )}
-                            </button>
-                            );
-                          })}
+                          {(() => {
+                            // Group models by provider
+                            const groups: Record<string, typeof AVAILABLE_MODELS[number][]> = {};
+                            for (const model of AVAILABLE_MODELS) {
+                              const p = (model as any).provider || 'groq';
+                              if (!groups[p]) groups[p] = [];
+                              groups[p].push(model as any);
+                            }
+                            const providerOrder = ['groq', 'gemini', 'nvidia'];
+                            const providerLabels: Record<string, string> = {
+                              groq: '⚡ Groq — Fast & Free',
+                              gemini: '✨ Google AI Studio',
+                              nvidia: '🔬 NVIDIA NIM',
+                            };
+                            return providerOrder.map(provider => {
+                              const models = groups[provider];
+                              if (!models?.length) return null;
+                              return (
+                                <div key={provider}>
+                                  <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest opacity-50 select-none">
+                                    {providerLabels[provider]}
+                                  </div>
+                                  {models.map((model) => {
+                                    const isSelected = selectedModel === model.id;
+                                    return (
+                                      <button
+                                        type="button"
+                                        key={model.id}
+                                        role="option"
+                                        aria-selected={isSelected}
+                                        onClick={() => {
+                                          setSelectedModel(model.id);
+                                          setShowModelDropdown(false);
+                                        }}
+                                        className={`model-select-option ${isSelected ? 'model-select-option--active' : ''}`}
+                                      >
+                                        <span className="font-mono-custom text-xs flex items-center gap-1.5">
+                                          {model.label}
+                                        </span>
+                                        {model.badge && (
+                                          <span className="model-select-option__badge">
+                                            {model.badge}
+                                          </span>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            });
+                          })()}
+
                         </div>
                       </div>
                     </>

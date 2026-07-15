@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Blueprint } from '../lib/types';
 import { escapeHtml, formatSQL } from '../lib/utils';
 import { 
@@ -13,10 +13,16 @@ import {
   ChevronDown,
   Download,
   Copy,
-  Check
+  Check,
+  X,
+  Play,
+  Cpu
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { getAuthHeaders } from '../lib/api';
+import { useCodeGeneration } from '../hooks/useCodeGeneration';
+import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
+import { useAuth } from '../hooks/useAuth';
 
 function getFileIcon(name: string, size = 14) {
   if (name.endsWith('.sql') || name === 'schema.js' || name === 'mongoose.ts') {
@@ -36,8 +42,11 @@ function getFileIcon(name: string, size = 14) {
 
 interface CodeStudioProps {
   blueprint: Blueprint;
+  blueprintId?: string | null;
+  blueprintContentKey?: string;
   onRefineMessage?: (msg: string) => void;
   isRefining?: boolean;
+  codegen: any;
 }
 
 interface VirtualFile {
@@ -80,7 +89,6 @@ function buildFileTree(paths: string[]): TreeNode[] {
         };
         currentLevel.push(existingNode);
         
-        // Sort folders first, then files alphabetically
         currentLevel.sort((a, b) => {
           if (a.isFolder && !b.isFolder) return -1;
           if (!a.isFolder && b.isFolder) return 1;
@@ -102,25 +110,21 @@ function highlightCode(content: string, language: string): string {
   if (language === 'ts' || language === 'tsx' || language === 'js' || language === 'javascript') {
     const placeholders: string[] = [];
     
-    // Extract multi-line comments
     html = html.replace(/\/\*[\s\S]*?\*\//g, (match) => {
       placeholders.push(`<span class="text-emerald-500/80 italic">${match}</span>`);
       return `___PLACEHOLDER_${placeholders.length - 1}___`;
     });
     
-    // Extract single-line comments
     html = html.replace(/\/\/.*$/gm, (match) => {
       placeholders.push(`<span class="text-emerald-500/80 italic">${match}</span>`);
       return `___PLACEHOLDER_${placeholders.length - 1}___`;
     });
     
-    // Extract strings
     html = html.replace(/(["'`])(?:\\.|[^\\])*?\1/g, (match) => {
       placeholders.push(`<span class="text-amber-300/90">${match}</span>`);
       return `___PLACEHOLDER_${placeholders.length - 1}___`;
     });
     
-    // Keywords
     const keywords = [
       'const', 'let', 'var', 'function', 'class', 'extends', 'implements', 
       'import', 'export', 'from', 'default', 'as', 'return', 'if', 'else', 
@@ -132,31 +136,26 @@ function highlightCode(content: string, language: string): string {
     const keywordRegex = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
     html = html.replace(keywordRegex, '<span class="text-purple-400 font-bold">$1</span>');
     
-    // Types
     const types = ['string', 'number', 'boolean', 'any', 'void', 'unknown', 'never', 'object', 'Record', 'Promise', 'ReactNode', 'React'];
     const typesRegex = new RegExp(`\\b(${types.join('|')})\\b`, 'g');
     html = html.replace(typesRegex, '<span class="text-blue-400 font-semibold">$1</span>');
     
-    // Restore
     for (let i = placeholders.length - 1; i >= 0; i--) {
       html = html.replace(`___PLACEHOLDER_${i}___`, placeholders[i]);
     }
   } else if (language === 'sql') {
     const placeholders: string[] = [];
     
-    // Comments
     html = html.replace(/--.*$/gm, (match) => {
       placeholders.push(`<span class="text-emerald-500/80 italic">${match}</span>`);
       return `___PLACEHOLDER_${placeholders.length - 1}___`;
     });
     
-    // Strings
     html = html.replace(/'(?:\\.|[^'])*?'/g, (match) => {
       placeholders.push(`<span class="text-amber-300/90">${match}</span>`);
       return `___PLACEHOLDER_${placeholders.length - 1}___`;
     });
     
-    // Keywords
     const sqlKeywords = [
       'SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'TABLE', 
       'ALTER', 'DROP', 'INDEX', 'FOREIGN', 'KEY', 'PRIMARY', 'REFERENCES', 
@@ -169,23 +168,19 @@ function highlightCode(content: string, language: string): string {
     const sqlKeywordsRegex = new RegExp(`\\b(${sqlKeywords.join('|')})\\b`, 'gi');
     html = html.replace(sqlKeywordsRegex, '<span class="text-purple-400 font-bold">$1</span>');
     
-    // Restore
     for (let i = placeholders.length - 1; i >= 0; i--) {
       html = html.replace(`___PLACEHOLDER_${i}___`, placeholders[i]);
     }
   } else if (language === 'json') {
     const placeholders: string[] = [];
     
-    // Strings
     html = html.replace(/"(?:\\.|[^"])*?"/g, (match) => {
       placeholders.push(`<span class="text-amber-300/90">${match}</span>`);
       return `___PLACEHOLDER_${placeholders.length - 1}___`;
     });
     
-    // Numbers, Booleans, Null
     html = html.replace(/\b(true|false|null|\d+)\b/g, '<span class="text-blue-400">$1</span>');
     
-    // Restore
     for (let i = placeholders.length - 1; i >= 0; i--) {
       html = html.replace(`___PLACEHOLDER_${i}___`, placeholders[i]);
     }
@@ -194,7 +189,7 @@ function highlightCode(content: string, language: string): string {
   return html;
 }
 
-export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: CodeStudioProps) {
+export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefineMessage, isRefining = false, codegen }: CodeStudioProps) {
   const [openFiles, setOpenFiles] = useState<string[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string>('');
   const [refineInput, setRefineInput] = useState('');
@@ -202,6 +197,84 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
   const [downloading, setDownloading] = useState(false);
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
+  
+  // Destructure hook state passed from parent
+  const {
+    isGenerating,
+    progress: codegenProgress,
+    files: generatedFilesMap,
+    generateCode,
+    loadGeneratedFiles,
+    saveFileContent
+  } = codegen;
+  const { selectedModel, setSelectedModel } = useModel();
+  const { user } = useAuth();
+
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+
+  const ModelSelector = () => {
+    const activeModelInfo = AVAILABLE_MODELS.find(m => m.id === selectedModel);
+    
+    return (
+      <div className="relative inline-block text-left shrink-0">
+        <button
+          type="button"
+          onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold text-purple-300 bg-purple-500/10 hover:bg-purple-500/15 border border-purple-500/20 hover:border-purple-500/30 transition-all select-none font-mono-custom cursor-pointer active:scale-95"
+        >
+          <Cpu size={11} className="text-purple-400" />
+          <span>{activeModelInfo ? activeModelInfo.label : selectedModel}</span>
+          <ChevronDown size={10} className={`text-purple-400/70 transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {isModelDropdownOpen && (
+          <>
+            <div 
+              className="fixed inset-0 z-30" 
+              onClick={() => setIsModelDropdownOpen(false)} 
+            />
+            
+            <div className="absolute right-0 mt-1.5 w-56 rounded-xl border border-white/10 bg-bg-surface2/95 backdrop-blur-md shadow-2xl p-1.5 z-40 space-y-0.5 animate-fade-in font-mono-custom text-[11px] origin-top-right">
+              {AVAILABLE_MODELS.map((model) => {
+                const isSelected = model.id === selectedModel;
+                return (
+                  <button
+                    key={model.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedModel(model.id as any);
+                      setIsModelDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between ${
+                      isSelected
+                        ? 'bg-purple-500/15 text-purple-300 font-bold'
+                        : 'text-muted-foreground hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    <span>{model.label}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
+                      isSelected 
+                        ? 'bg-purple-500/20 border-purple-500/30 text-purple-300' 
+                        : 'bg-white/5 border-white/10 text-muted-foreground'
+                    }`}>
+                      {model.provider.toUpperCase()}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Load generated files when blueprint id or content changes (e.g. after refine)
+  useEffect(() => {
+    if (blueprintId && !isGenerating) {
+      loadGeneratedFiles(blueprintId);
+    }
+  }, [blueprintId, blueprintContentKey, loadGeneratedFiles, isGenerating]);
 
   const isMongo = (blueprint.architecture?.database || '').toLowerCase().includes('mongo');
 
@@ -254,7 +327,6 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
       }
       lines.push('}, { timestamps: true });');
       lines.push('');
-      `const ${modelName} = mongoose.model('${modelName}', ${modelName}Schema);`;
       lines.push(`const ${modelName} = mongoose.model('${modelName}', ${modelName}Schema);`);
       lines.push('');
     }
@@ -274,11 +346,16 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
     return raw || '-- No SQL generated';
   };
 
-  // Build files array dynamically if blueprint.code.files is provided, otherwise fallback
+  // DB/codegen files take priority; fall back to blueprint starter snippets for legacy view
+  const hasDbGeneratedCode = Object.keys(generatedFilesMap).length > 0;
+  const activeFilesMap = hasDbGeneratedCode
+    ? generatedFilesMap
+    : (blueprint.code?.files || {});
+
   const files: VirtualFile[] = [];
 
-  if (blueprint.code?.files && Object.keys(blueprint.code.files).length > 0) {
-    Object.entries(blueprint.code.files).forEach(([filePath, content]) => {
+  if (Object.keys(activeFilesMap).length > 0) {
+    Object.entries(activeFilesMap).forEach(([filePath, content]) => {
       const parts = filePath.split('/');
       const name = parts[parts.length - 1];
       const folder = parts.slice(0, -1).join('/') || '.';
@@ -297,12 +374,12 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
         name,
         folder,
         language,
-        content: unescapeString(content),
+        content: unescapeString(content as string),
         icon: ''
       });
     });
   } else {
-    // Fallback/legacy files mapping
+    // Fallback template configurations
     files.push(
       {
         path: 'frontend/src/App.tsx',
@@ -385,7 +462,7 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
     );
   }
 
-  // Set default active file on load & handle blueprint changes robustly
+  // Set default active file on load
   useEffect(() => {
     if (files.length > 0) {
       const validOpenFiles = openFiles.filter(path => files.some(f => f.path === path));
@@ -405,11 +482,13 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
       setActiveFilePath('');
       setOpenFiles([]);
     }
-  }, [blueprint]);
+  }, [blueprint, generatedFilesMap]);
 
   const activeFile = openFiles.includes(activeFilePath)
     ? files.find((f) => f.path === activeFilePath)
     : undefined;
+
+
 
   const handleOpenFile = (path: string) => {
     setActiveFilePath(path);
@@ -439,11 +518,12 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
     setTimeout(() => setCopied(false), 2000);
   };
 
+
+
   const handleDownloadAll = async () => {
     setDownloading(true);
     try {
       const BASE_URL = import.meta.env.VITE_API_URL ?? '';
-      const blueprintId = (blueprint as any).id || null;
       const url = blueprintId
         ? `${BASE_URL}/api/blueprint/export?id=${blueprintId}`
         : `${BASE_URL}/api/blueprint/export`;
@@ -544,6 +624,111 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
     setRefineInput('');
   };
 
+  // Determine if full code files are generated yet (DB/codegen only — not starter snippets)
+  const hasGeneratedCode = hasDbGeneratedCode;
+
+  if (codegenProgress.status === 'loading' && !hasGeneratedCode && !isGenerating) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-bg-surface text-center py-20 min-h-[480px]">
+        <div className="w-12 h-12 rounded-full border-2 border-purple-500/30 border-t-purple-400 animate-spin mb-4" />
+        <p className="text-muted-foreground text-sm">Loading generated code files…</p>
+      </div>
+    );
+  }
+
+  // ─── Render Code Generator Error State ────────────────────
+  if (codegenProgress.status === 'error' && !hasGeneratedCode && !isGenerating) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-red-500/20 bg-bg-surface text-center py-20 min-h-[480px]">
+        <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20 mb-6 shrink-0">
+          <X size={32} />
+        </div>
+        <h2 className="font-display font-bold text-xl text-white mb-3">Code Generation Failed</h2>
+        <p className="text-muted-foreground text-sm max-w-lg mb-8 leading-relaxed">
+          {codegenProgress.error || 'Something went wrong while generating or loading code.'}
+        </p>
+        {blueprintId && user && (
+          <button
+            onClick={() => generateCode(blueprintId, selectedModel)}
+            className="px-6 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-xl text-sm font-semibold border border-purple-500/30 transition-colors"
+          >
+            Try Again
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Render Code Generator Splash Panel ───────────────────
+  if (!hasGeneratedCode && !isGenerating && files.length === 0) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-bg-surface text-center py-20 min-h-[480px]">
+        <div className="w-16 h-16 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20 mb-6 shrink-0 shadow-lg shadow-purple-500/5">
+          <Sparkles size={32} className="animate-pulse text-purple-400" />
+        </div>
+        <h2 className="font-display font-bold text-xl sm:text-2xl text-white mb-3">
+          Generate Full Application Codebase
+        </h2>
+        <p className="text-muted-foreground text-sm max-w-lg mb-8 leading-relaxed">
+          Transform your architecture blueprint specifications into complete, functional source code files. Writes backend endpoints, database integration routes, schemas, and modern React components.
+        </p>
+
+        {blueprintId ? (
+          user ? (
+            <div className="flex flex-col items-center gap-4">
+              <button
+                onClick={() => generateCode(blueprintId, selectedModel)}
+                className="px-8 py-3.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-xl font-display font-semibold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-purple-500/20"
+              >
+                <Play size={16} fill="currentColor" />
+                Start Code Generation
+              </button>
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <ModelSelector />
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/25 rounded-xl max-w-sm text-amber-400/90 text-xs font-medium">
+              Sign in to generate a full application codebase from this blueprint.
+            </div>
+          )
+        ) : (
+          <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/25 rounded-xl max-w-sm text-amber-400/90 text-xs font-medium">
+            ⚠️ Save this blueprint to unlock the codebase generator and preview sandbox.
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Render Generation Progress Overlay ───────────────────
+  if (isGenerating) {
+    const percent = codegenProgress.totalFiles > 0
+      ? Math.round((codegenProgress.currentFileIndex / codegenProgress.totalFiles) * 100)
+      : 0;
+    return (
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-bg-surface text-center py-20 min-h-[480px]">
+        <div className="w-16 h-16 rounded-full border-4 border-purple-500 border-t-transparent animate-spin mb-8 flex items-center justify-center shrink-0" />
+        <h3 className="font-display font-bold text-lg text-white mb-2">
+          Generating Application Files...
+        </h3>
+        <p className="text-xs text-purple-400 font-mono-custom mb-6">
+          {codegenProgress.currentFilePath || 'Connecting to model...'}
+        </p>
+
+        <div className="w-full max-w-xs bg-white/5 rounded-full h-1.5 overflow-hidden mb-3">
+          <div 
+            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-300"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+        <div className="text-[10px] text-muted-foreground font-mono-custom">
+          File {codegenProgress.currentFileIndex} of {codegenProgress.totalFiles} ({percent}%)
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col md:flex-row rounded-2xl border border-white/10 bg-bg-surface overflow-hidden h-[calc(100vh-16rem)] min-h-[420px] max-h-[580px] md:h-[580px] md:max-h-none w-full">
       {/* File Tree Explorer (Left) */}
@@ -604,20 +789,29 @@ export function CodeStudio({ blueprint, onRefineMessage, isRefining = false }: C
               );
             })}
           </div>
-          {activeFile && (
-            <button
-              onClick={handleCopyCode}
-              className="p-1.5 text-muted-foreground hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0"
-              title="Copy file content"
-            >
-              {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-              <span>{copied ? 'Copied' : 'Copy'}</span>
-            </button>
-          )}
+          
+          <div className="flex items-center gap-2 pr-2">
+            <ModelSelector />
+            <div className="w-px h-4 bg-white/10 shrink-0" />
+            <div className="flex items-center gap-1.5">
+              {activeFile && (
+              <>
+                <button
+                  onClick={handleCopyCode}
+                  className="p-1.5 text-muted-foreground hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0"
+                  title="Copy file content"
+                >
+                  {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                  <span>{copied ? 'Copied' : 'Copy'}</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
         </div>
 
         {/* Editor content */}
-        <div className="flex-1 p-4 overflow-auto font-mono-custom text-xs text-white leading-relaxed relative">
+        <div className="flex-1 p-4 overflow-auto font-mono-custom text-xs text-white leading-relaxed relative min-h-0">
           {activeFile ? (
             <pre className="whitespace-pre tab-size-2 scrollbar-thin">
               <code
