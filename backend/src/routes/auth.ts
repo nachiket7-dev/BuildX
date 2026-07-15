@@ -1,9 +1,28 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { createUser, getUserByEmail, getUserById, listUserBlueprints, renameBlueprint, deleteBlueprint } from '../lib/db';
+import {
+  createUser,
+  getUserByEmail,
+  getUserById,
+  listUserBlueprints,
+  renameBlueprint,
+  deleteBlueprint,
+  getUserByGithubId,
+  createGithubUser,
+  linkUserGithub
+} from '../lib/db';
 import { generateToken, requireAuth } from '../lib/auth';
 
 const router = Router();
+
+function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 15000): Promise<globalThis.Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, {
+    ...options,
+    signal: controller.signal as any,
+  }).finally(() => clearTimeout(id));
+}
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/auth/signup
@@ -111,7 +130,12 @@ router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void
 
   res.json({
     success: true,
-    user: { id: user.id, name: user.name, email: user.email },
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      githubLinked: Boolean(user.githubId),
+    },
   });
 });
 
@@ -167,6 +191,231 @@ router.delete('/blueprint/:id', requireAuth, async (req: Request, res: Response)
   } catch (err) {
     console.error('[Auth] delete error:', (err as Error).message);
     res.status(500).json({ error: 'Failed to delete blueprint' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/auth/github/callback
+// Body: { code }
+// Returns: { success, token, user: { id, name, email } }
+// ─────────────────────────────────────────────────────────────
+router.post('/github/callback', async (req: Request, res: Response): Promise<void> => {
+  const { code, redirect_uri } = req.body;
+
+  if (!code || typeof code !== 'string') {
+    res.status(400).json({ error: 'OAuth authorization code is required' });
+    return;
+  }
+
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    console.error('[Auth] GitHub OAuth credentials not configured on backend');
+    res.status(500).json({ error: 'GitHub OAuth is not configured on the server' });
+    return;
+  }
+
+  try {
+    // 1. Exchange code for access token
+    const tokenBody: Record<string, string> = {
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+    };
+    if (redirect_uri) {
+      tokenBody.redirect_uri = redirect_uri;
+    }
+
+    const tokenRes = await fetchWithTimeout('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(tokenBody),
+    });
+
+    if (!tokenRes.ok) {
+      throw new Error(`GitHub token exchange failed: ${tokenRes.statusText}`);
+    }
+
+    const tokenData = await tokenRes.json() as { access_token?: string; error?: string; error_description?: string };
+    if (tokenData.error || !tokenData.access_token) {
+      throw new Error(tokenData.error_description || tokenData.error || 'Failed to obtain access token');
+    }
+
+    const accessToken = tokenData.access_token;
+
+    // 2. Fetch user profile
+    const userRes = await fetchWithTimeout('https://api.github.com/user', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'User-Agent': 'BuildX-App',
+      },
+    });
+
+    if (!userRes.ok) {
+      throw new Error(`GitHub user fetch failed: ${userRes.statusText}`);
+    }
+
+    const userData = await userRes.json() as { id: number; login: string; name?: string; email?: string | null };
+    const githubId = String(userData.id);
+    const githubName = userData.name || userData.login;
+
+    // 3. Fetch user emails (if primary email is private or null)
+    let email = userData.email || '';
+    if (!email) {
+      const emailsRes = await fetchWithTimeout('https://api.github.com/user/emails', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'User-Agent': 'BuildX-App',
+        },
+      });
+      if (emailsRes.ok) {
+        const emailsData = await emailsRes.json() as Array<{ email: string; primary: boolean; verified: boolean }>;
+        const primaryEmail = emailsData.find((e) => e.primary && e.verified) || emailsData.find((e) => e.verified);
+        if (primaryEmail) {
+          email = primaryEmail.email;
+        }
+      }
+    }
+
+    if (!email) {
+      res.status(400).json({ error: 'A verified primary email is required on your GitHub account' });
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // 4. Authenticate user
+    let user = await getUserByGithubId(githubId);
+    
+    if (user) {
+      // User exists with this GitHub account — update/refresh token
+      await linkUserGithub(user.id, githubId, accessToken);
+    } else {
+      // Check if a user with this email already exists
+      const existingUser = await getUserByEmail(normalizedEmail);
+      if (existingUser) {
+        if (existingUser.githubId && existingUser.githubId !== githubId) {
+          res.status(409).json({ error: 'This email is already linked to a different GitHub account' });
+          return;
+        }
+        // Link GitHub to this existing email account
+        await linkUserGithub(existingUser.id, githubId, accessToken);
+        user = await getUserByGithubId(githubId);
+      } else {
+        // Create new user
+        const userId = await createGithubUser(githubName, normalizedEmail, githubId, accessToken);
+        user = await getUserByGithubId(githubId);
+      }
+    }
+
+    if (!user) {
+      throw new Error('Failed to retrieve user record after authentication');
+    }
+
+    const token = generateToken({ userId: user.id, email: user.email });
+
+    console.log(`[Auth] GitHub Login: ${user.name} (${user.email})`);
+    res.json({
+      success: true,
+      token,
+      user: { id: user.id, name: user.name, email: user.email },
+    });
+  } catch (err) {
+    const errMsg = (err as Error).message;
+    console.error('[Auth] GitHub OAuth error:', errMsg);
+    res.status(500).json({ error: 'GitHub authentication failed', details: errMsg });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/auth/github/link
+// Headers: Authorization: Bearer <token>
+// Body: { code }
+// Links a GitHub account to the currently authenticated user
+// ─────────────────────────────────────────────────────────────
+router.post('/github/link', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { code, redirect_uri } = req.body;
+
+  if (!code || typeof code !== 'string') {
+    res.status(400).json({ error: 'OAuth authorization code is required' });
+    return;
+  }
+
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    console.error('[Auth] GitHub OAuth credentials not configured on backend');
+    res.status(500).json({ error: 'GitHub OAuth is not configured on the server' });
+    return;
+  }
+
+  try {
+    // 1. Exchange code for access token
+    const tokenBody: Record<string, string> = {
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+    };
+    if (redirect_uri) {
+      tokenBody.redirect_uri = redirect_uri;
+    }
+
+    const tokenRes = await fetchWithTimeout('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(tokenBody),
+    });
+
+    if (!tokenRes.ok) {
+      throw new Error(`GitHub token exchange failed: ${tokenRes.statusText}`);
+    }
+
+    const tokenData = await tokenRes.json() as { access_token?: string; error?: string; error_description?: string };
+    if (tokenData.error || !tokenData.access_token) {
+      throw new Error(tokenData.error_description || tokenData.error || 'Failed to obtain access token');
+    }
+
+    const accessToken = tokenData.access_token;
+
+    // 2. Fetch GitHub user profile
+    const userRes = await fetchWithTimeout('https://api.github.com/user', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'User-Agent': 'BuildX-App',
+      },
+    });
+
+    if (!userRes.ok) {
+      throw new Error(`GitHub user fetch failed: ${userRes.statusText}`);
+    }
+
+    const userData = await userRes.json() as { id: number; login: string };
+    const githubId = String(userData.id);
+
+    // 3. Check if this GitHub account is already linked to another user
+    const existingGhUser = await getUserByGithubId(githubId);
+    if (existingGhUser && existingGhUser.id !== req.user!.userId) {
+      res.status(409).json({ error: 'This GitHub account is already linked to a different BuildX account' });
+      return;
+    }
+
+    // 4. Link to current user
+    await linkUserGithub(req.user!.userId, githubId, accessToken);
+
+    console.log(`[Auth] GitHub linked for user ${req.user!.userId}`);
+    res.json({ success: true, githubLinked: true });
+  } catch (err) {
+    const errMsg = (err as Error).message;
+    console.error('[Auth] GitHub link error:', errMsg);
+    res.status(500).json({ error: 'Failed to link GitHub account', details: errMsg });
   }
 });
 
