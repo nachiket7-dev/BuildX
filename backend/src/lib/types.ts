@@ -86,6 +86,8 @@ export interface Blueprint {
   code: StarterCode;
   effort: Effort;
   diagrams?: BlueprintDiagrams;
+  githubUrl?: string;
+  modelUsed?: string;
 }
 
 // ─── Saved blueprint (with persistence metadata) ──────────
@@ -160,4 +162,6 @@ export const BlueprintSchema = z.object({
     arch: z.string().optional(),
     apiFlow: z.string().optional(),
   }).optional(),
+  githubUrl: z.string().optional(),
+  modelUsed: z.string().optional(),
 });

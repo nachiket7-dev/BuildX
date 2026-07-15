@@ -1,9 +1,11 @@
 import { Response } from 'express';
-import { getGroqClient, resolveModel, getAgentMaxTokens } from './groq';
+import { getLLMProvider, getAgentMaxTokensForModel } from './llm/router';
 import { Blueprint } from './types';
 import { initSSE, sendSSE } from './stream';
 import { parseAgentJSON } from './jsonExtract';
 import { coerceBlueprintInput } from './normalizeBlueprint';
+import type { LLMProvider } from './llm/types';
+import type { CompletionOptions, LLMMessage } from './llm/types';
 
 type AgentName = 'pm' | 'architect' | 'api_dev' | 'designer' | 'coder' | 'qa';
 
@@ -14,26 +16,116 @@ interface AgentEvent {
   log?: string;
 }
 
-export async function generateBlueprintAgentic(
-  idea: string,
-  res: Response,
-  requestedModel?: string
-): Promise<Blueprint> {
-  const client = getGroqClient();
-  const groqModel = resolveModel(requestedModel);
-  const maxTokens = getAgentMaxTokens(groqModel);
+export interface AgenticEventSink {
+  status?: (message: string) => void;
+  progress?: (percent: number) => void;
+  agentEvent?: (event: AgentEvent) => void;
+  section?: (key: string, value: unknown) => void;
+  complete?: (blueprint: Blueprint) => void;
+}
 
-  console.log(`[Orchestrator] Starting Agentic generation. Model: ${groqModel}`);
-
+/** Wire orchestrator events to an SSE response (generate-stream / regenerate-stream). */
+export function createSSEAgenticSink(res: Response): AgenticEventSink {
   initSSE(res);
+  return {
+    status: (message) => sendSSE(res, 'status', { message }),
+    progress: (percent) => sendSSE(res, 'progress', { percent }),
+    agentEvent: (event) => sendSSE(res, 'agent_event', event),
+    section: (key, value) => sendSSE(res, 'section', { key, value }),
+    complete: (blueprint) => sendSSE(res, 'complete', blueprint),
+  };
+}
+
+function createLogAgenticSink(): AgenticEventSink {
+  return {
+    status: (message) => console.log(`[Orchestrator] ${message}`),
+    progress: (percent) => console.log(`[Orchestrator] Progress: ${percent}%`),
+    agentEvent: (event) => console.log(`[Agent: ${event.agent}] [${event.status}] ${event.log}`),
+  };
+}
+
+function isRetriableLLMError(err: unknown): boolean {
+  const message = (err as Error)?.message?.toLowerCase() || '';
+  const status = (err as { status?: number; statusCode?: number })?.status
+    ?? (err as { status?: number; statusCode?: number })?.statusCode
+    ?? 0;
+  return (
+    status === 429 ||
+    status === 503 ||
+    message.includes('rate limit') ||
+    message.includes('resourceexhausted') ||
+    message.includes('timed out') ||
+    message.includes('timeout') ||
+    message.includes('econnreset')
+  );
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function completeWithRetry(
+  provider: LLMProvider,
+  messages: LLMMessage[],
+  options: CompletionOptions,
+  maxRetries = 2
+): Promise<string> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await provider.complete(messages, options);
+    } catch (err) {
+      if (isRetriableLLMError(err) && attempt < maxRetries) {
+        const waitMs = Math.pow(2, attempt) * 2000;
+        console.warn(`[Orchestrator] Retrying LLM call (${attempt}/${maxRetries}) in ${waitMs}ms...`);
+        await sleep(waitMs);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('Max LLM retries exceeded');
+}
+
+/** Normalize Mongo-style architect output to relational schema shape. */
+function normalizeSchema(rawSchema: unknown[]): Blueprint['schema'] {
+  return rawSchema.map((entry) => {
+    const row = entry as Record<string, unknown>;
+    if (typeof row.table === 'string' && Array.isArray(row.columns)) {
+      return row as unknown as Blueprint['schema'][number];
+    }
+
+    const tableName = String(row.collection || row.table || 'items');
+    const fields = (Array.isArray(row.fields) ? row.fields : Array.isArray(row.columns) ? row.columns : []) as Array<Record<string, unknown>>;
+
+    return {
+      table: tableName,
+      columns: fields.map((field) => ({
+        name: String(field.name || 'field'),
+        type: String(field.type || 'String'),
+        note: field.note ? String(field.note) : undefined,
+      })),
+    };
+  });
+}
+
+/** Core 6-agent pipeline — used by generate-stream and regenerate-stream. */
+export async function runAgenticBlueprintPipeline(
+  idea: string,
+  requestedModel?: string,
+  sink?: AgenticEventSink
+): Promise<Blueprint> {
+  const events = sink ?? createLogAgenticSink();
+  const provider = getLLMProvider(requestedModel);
+  const maxTokens = getAgentMaxTokensForModel(requestedModel);
+
+  console.log(`[Orchestrator] Starting Agentic generation using LLM Router.`);
 
   const notifyAgent = (agent: AgentName, status: AgentEvent['status'], log: string, message?: string) => {
-    sendSSE(res, 'agent_event', { agent, status, log, message });
-    console.log(`[Agent: ${agent}] [${status}] ${log}`);
+    events.agentEvent?.({ agent, status, log, message });
   };
 
-  sendSSE(res, 'status', { message: 'Booting Agent Workspace...' });
-  sendSSE(res, 'progress', { percent: 5 });
+  events.status?.('Booting Agent Workspace...');
+  events.progress?.(5);
 
   let appName = 'Untitled App';
   let description = '';
@@ -62,16 +154,14 @@ export async function generateBlueprintAgentic(
 
   // ─── STAGE 1: PRODUCT MANAGER AGENT ───────────────────────────────────────
   notifyAgent('pm', 'thinking', 'Analyzing application idea and identifying user personas...');
-  sendSSE(res, 'progress', { percent: 15 });
+  events.progress?.(15);
 
-  const pmCompletion = await client.chat.completions.create({
-    model: groqModel,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: pmPrompt(idea) }],
-    temperature: 0.3,
-  });
+  const pmRaw = await completeWithRetry(
+    provider,
+    [{ role: 'user', content: pmPrompt(idea) }],
+    { temperature: 0.3, maxTokens }
+  );
 
-  const pmRaw = pmCompletion.choices[0]?.message?.content || '{}';
   const pmData = parseAgentJSON<{
     appName?: string;
     description?: string;
@@ -113,31 +203,29 @@ export async function generateBlueprintAgentic(
     'completed',
     `Drafted specifications for ${appName}. Identified ${features.core?.length ?? 0} core features.`
   );
-  sendSSE(res, 'section', { key: 'appName', value: appName });
-  sendSSE(res, 'section', { key: 'description', value: description });
-  sendSSE(res, 'section', { key: 'targetUsers', value: targetUsers });
-  sendSSE(res, 'section', { key: 'complexity', value: complexity });
-  sendSSE(res, 'section', { key: 'features', value: features });
-  sendSSE(res, 'section', { key: 'architecture', value: architecture });
+  events.section?.('appName', appName);
+  events.section?.('description', description);
+  events.section?.('targetUsers', targetUsers);
+  events.section?.('complexity', complexity);
+  events.section?.('features', features);
+  events.section?.('architecture', architecture);
   if (diagrams.arch) {
-    sendSSE(res, 'section', { key: 'diagrams', value: diagrams });
+    events.section?.('diagrams', diagrams);
   }
 
   // ─── STAGE 2: DATABASE ARCHITECT AGENT ─────────────────────────────────────
   notifyAgent('architect', 'thinking', `Designing database schema for ${architecture.database || 'PostgreSQL'}...`);
-  sendSSE(res, 'progress', { percent: 30 });
+  events.progress?.(30);
 
-  const dbCompletion = await client.chat.completions.create({
-    model: groqModel,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: dbPrompt(features, architecture.database) }],
-    temperature: 0.2,
-  });
+  const dbRaw = await completeWithRetry(
+    provider,
+    [{ role: 'user', content: dbPrompt(features, architecture.database) }],
+    { temperature: 0.2, maxTokens }
+  );
 
-  const dbRaw = dbCompletion.choices[0]?.message?.content || '{}';
-  const dbData = parseAgentJSON<{ schema?: Blueprint['schema']; sql?: string; erDiagram?: string }>(dbRaw);
+  const dbData = parseAgentJSON<{ schema?: unknown[]; sql?: string; erDiagram?: string }>(dbRaw);
 
-  schema = dbData.schema || [];
+  schema = normalizeSchema(dbData.schema || []);
   code.sql = dbData.sql || '';
   if (dbData.erDiagram) {
     diagrams.er = dbData.erDiagram;
@@ -148,23 +236,21 @@ export async function generateBlueprintAgentic(
     'completed',
     `Designed database schema with ${schema.length} tables/collections and relationships.`
   );
-  sendSSE(res, 'section', { key: 'schema', value: schema });
+  events.section?.('schema', schema);
   if (diagrams.er) {
-    sendSSE(res, 'section', { key: 'diagrams', value: diagrams });
+    events.section?.('diagrams', diagrams);
   }
 
   // ─── STAGE 3: API DEVELOPER AGENT ─────────────────────────────────────────
   notifyAgent('api_dev', 'thinking', 'Mapping Express API endpoints and parameter schemas...');
-  sendSSE(res, 'progress', { percent: 45 });
+  events.progress?.(45);
 
-  const apiCompletion = await client.chat.completions.create({
-    model: groqModel,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: apiPrompt(appName, features, schema) }],
-    temperature: 0.2,
-  });
+  const apiRaw = await completeWithRetry(
+    provider,
+    [{ role: 'user', content: apiPrompt(appName, features, schema) }],
+    { temperature: 0.2, maxTokens }
+  );
 
-  const apiRaw = apiCompletion.choices[0]?.message?.content || '{}';
   const apiData = parseAgentJSON<{ endpoints?: Blueprint['endpoints'] }>(apiRaw);
 
   endpoints = apiData.endpoints || [];
@@ -174,20 +260,18 @@ export async function generateBlueprintAgentic(
     'completed',
     `Mapped ${endpoints.length} API endpoints with proper routing and authentication guards.`
   );
-  sendSSE(res, 'section', { key: 'endpoints', value: endpoints });
+  events.section?.('endpoints', endpoints);
 
   // ─── STAGE 4: UI/UX DESIGNER AGENT ─────────────────────────────────────────
   notifyAgent('designer', 'thinking', 'Creating UI layout definitions and frontend routing paths...');
-  sendSSE(res, 'progress', { percent: 60 });
+  events.progress?.(60);
 
-  const uiCompletion = await client.chat.completions.create({
-    model: groqModel,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: uiPrompt(appName, features, endpoints) }],
-    temperature: 0.3,
-  });
+  const uiRaw = await completeWithRetry(
+    provider,
+    [{ role: 'user', content: uiPrompt(appName, features, endpoints) }],
+    { temperature: 0.3, maxTokens }
+  );
 
-  const uiRaw = uiCompletion.choices[0]?.message?.content || '{}';
   const uiData = parseAgentJSON<{ screens?: Blueprint['screens']; apiFlowDiagram?: string }>(uiRaw);
 
   screens = uiData.screens || [];
@@ -196,23 +280,21 @@ export async function generateBlueprintAgentic(
   }
 
   notifyAgent('designer', 'completed', `Designed layouts for ${screens.length} layout templates.`);
-  sendSSE(res, 'section', { key: 'screens', value: screens });
+  events.section?.('screens', screens);
   if (diagrams.apiFlow) {
-    sendSSE(res, 'section', { key: 'diagrams', value: diagrams });
+    events.section?.('diagrams', diagrams);
   }
 
   // ─── STAGE 5: FULL-STACK CODER AGENT ───────────────────────────────────────
   notifyAgent('coder', 'thinking', `Generating React pages and Express controllers boilerplates for ${architecture.database || 'PostgreSQL'}...`);
-  sendSSE(res, 'progress', { percent: 75 });
+  events.progress?.(75);
 
-  const codeCompletion = await client.chat.completions.create({
-    model: groqModel,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: codePrompt(appName, description, schema, endpoints, architecture.database) }],
-    temperature: 0.3,
-  });
+  const codeRaw = await completeWithRetry(
+    provider,
+    [{ role: 'user', content: codePrompt(appName, description, schema, endpoints, architecture.database) }],
+    { temperature: 0.3, maxTokens }
+  );
 
-  const codeRaw = codeCompletion.choices[0]?.message?.content || '{}';
   const codeData = parseAgentJSON<{ frontend?: string; backend?: string }>(codeRaw);
 
   code.frontend = codeData.frontend || '';
@@ -238,13 +320,13 @@ export async function generateBlueprintAgentic(
   };
 
   notifyAgent('coder', 'completed', 'Finished compiling complete frontend & backend boilerplate workspaces.');
-  sendSSE(res, 'section', { key: 'architecture', value: architecture });
-  sendSSE(res, 'section', { key: 'code', value: code });
-  sendSSE(res, 'section', { key: 'effort', value: effort });
+  events.section?.('architecture', architecture);
+  events.section?.('code', code);
+  events.section?.('effort', effort);
 
   // ─── STAGE 6: QA EVALUATOR AGENT ───────────────────────────────────────────
   notifyAgent('qa', 'thinking', 'Running QA tests and auditing consistency check suite...');
-  sendSSE(res, 'progress', { percent: 90 });
+  events.progress?.(90);
 
   notifyAgent(
     'qa',
@@ -261,15 +343,17 @@ export async function generateBlueprintAgentic(
       }
     } else {
       notifyAgent('architect', 'correcting', 'Adding email index on users table for query performance...');
-      code.sql += `\n\nCREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`;
+      if (!code.sql.includes('idx_users_email')) {
+        code.sql += `\n\nCREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`;
+      }
     }
   }
 
   notifyAgent('qa', 'completed', 'Audit passed: specifications verified successfully.');
-  sendSSE(res, 'section', { key: 'code', value: code });
+  events.section?.('code', code);
 
-  sendSSE(res, 'progress', { percent: 100 });
-  sendSSE(res, 'status', { message: 'Compiler finalized. Ready for download.' });
+  events.progress?.(100);
+  events.status?.('Compiler finalized. Ready for download.');
 
   const finalBlueprint = coerceBlueprintInput({
     appName,
@@ -286,8 +370,18 @@ export async function generateBlueprintAgentic(
     diagrams,
   });
 
-  sendSSE(res, 'complete', finalBlueprint);
+  events.complete?.(finalBlueprint);
   return finalBlueprint;
+}
+
+/** SSE-backed agentic generation for new blueprints (POST /generate-stream). */
+export async function generateBlueprintAgentic(
+  idea: string,
+  res: Response,
+  requestedModel?: string
+): Promise<Blueprint> {
+  const sink = createSSEAgenticSink(res);
+  return runAgenticBlueprintPipeline(idea, requestedModel, sink);
 }
 
 function pmPrompt(idea: string): string {
@@ -427,7 +521,7 @@ function codePrompt(
 ): string {
   const isMongo = database.toLowerCase().includes('mongo');
   const dbClient = isMongo ? 'Mongoose models' : 'Prisma client or pg library queries';
-  
+
   return `You are a Developer Agent.
 App: ${appName}
 Description: ${description}
