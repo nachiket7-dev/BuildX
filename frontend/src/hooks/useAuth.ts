@@ -4,6 +4,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  githubLinked?: boolean;
 }
 
 interface AuthState {
@@ -13,6 +14,8 @@ interface AuthState {
   authReady: boolean;  // true after /me verification completes
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
+  loginWithGithub: (code: string) => Promise<void>;
+  linkGithub: (code: string) => Promise<void>;
   logout: () => void;
   error: string | null;
   clearError: () => void;
@@ -64,8 +67,12 @@ export function useAuthProvider(): AuthState {
       })
       .then((data) => {
         const u = (data as { user: User }).user;
-        setUser(u);
-        localStorage.setItem(USER_KEY, JSON.stringify(u));
+        setUser((prev) => {
+          const githubLinked = u.githubLinked || Boolean(prev?.githubLinked);
+          const merged = { ...u, githubLinked };
+          localStorage.setItem(USER_KEY, JSON.stringify(merged));
+          return merged;
+        });
       })
       .catch(() => {
         // Token expired or invalid
@@ -133,6 +140,69 @@ export function useAuthProvider(): AuthState {
     }
   }, []);
 
+  const loginWithGithub = useCallback(async (code: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+      const res = await fetch(`${BASE_URL}/api/auth/github/callback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, redirect_uri: window.location.origin + '/login/callback' }),
+      });
+      const data = await res.json() as any;
+      if (!res.ok) throw new Error(data.details ? `${data.error}: ${data.details}` : (data.error || 'GitHub login failed'));
+
+      const { token: t, user: u } = data as { token: string; user: User };
+      const linkedUser = { ...u, githubLinked: true };
+      setToken(t);
+      setUser(linkedUser);
+      setAuthReady(true);
+      localStorage.setItem(TOKEN_KEY, t);
+      localStorage.setItem(USER_KEY, JSON.stringify(linkedUser));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'GitHub login failed');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const linkGithub = useCallback(async (code: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+      const currentToken = localStorage.getItem(TOKEN_KEY);
+      const res = await fetch(`${BASE_URL}/api/auth/github/link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentToken}`,
+        },
+        body: JSON.stringify({ code, redirect_uri: window.location.origin + '/login/callback' }),
+      });
+      const data = await res.json() as any;
+      if (!res.ok) throw new Error(data.details ? `${data.error}: ${data.details}` : (data.error || 'GitHub link failed'));
+
+      // Update user state to reflect the linked status
+      setUser((prev) => prev ? { ...prev, githubLinked: true } : prev);
+      const storedUser = localStorage.getItem(USER_KEY);
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          parsed.githubLinked = true;
+          localStorage.setItem(USER_KEY, JSON.stringify(parsed));
+        } catch { /* ignore */ }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'GitHub link failed');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const logout = useCallback(() => {
     setUser(null);
     setToken(null);
@@ -140,5 +210,5 @@ export function useAuthProvider(): AuthState {
     localStorage.removeItem(USER_KEY);
   }, []);
 
-  return { user, token, isLoading, authReady, login, signup, logout, error, clearError };
+  return { user, token, isLoading, authReady, login, signup, loginWithGithub, linkGithub, logout, error, clearError };
 }
