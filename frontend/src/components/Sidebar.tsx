@@ -11,6 +11,7 @@ import {
   FileCode2,
   Pencil,
   Trash2,
+  Wand2,
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -173,6 +174,17 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
           >
             <Plus size={15} strokeWidth={2.5} />
             <span className="font-mono-custom text-xs font-medium">New Blueprint</span>
+          </button>
+
+          <button
+            onClick={() => {
+              navigate('/agent');
+              if (window.innerWidth < 768) onToggle();
+            }}
+            className="sidebar-new-btn w-full mt-2 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400"
+          >
+            <Wand2 size={14} className="animate-pulse" />
+            <span className="font-mono-custom text-xs font-medium">Nemotron Agent</span>
           </button>
         </div>
 
