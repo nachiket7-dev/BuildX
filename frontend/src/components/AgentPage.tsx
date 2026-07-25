@@ -66,6 +66,7 @@ export function AgentPage() {
 
   const codegen = useCodeGeneration();
 
+
   // Automatically refresh VFS files when codegen is done
   useEffect(() => {
     if (codegen.progress.status === 'completed' && id) {
@@ -329,10 +330,10 @@ export function AgentPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row h-[calc(100vh-64px)] overflow-hidden bg-[#0d0d0f]">
+    <div className="flex-1 flex flex-col md:flex-row h-[calc(100vh-64px)] min-h-0 overflow-hidden bg-[#0d0d0f]">
 
       {/* ── Left column: Chat ──────────────────────────────────────────────── */}
-      <div className="w-full md:w-[420px] flex flex-col border-r border-white/5 bg-[#111113]">
+      <div className="w-full md:w-[420px] flex flex-col min-h-0 border-r border-white/5 bg-[#111113]">
 
         {/* Header */}
         <div className="p-4 border-b border-white/5 flex flex-col gap-3 shrink-0">
@@ -407,7 +408,7 @@ export function AgentPage() {
         )}
 
         {/* Chat history */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && !isThinking && (
             <div className="text-center py-12 px-4">
               <Sparkles className="mx-auto text-emerald-400/30 mb-3" size={24} />
@@ -691,7 +692,7 @@ export function AgentPage() {
           </div>
 
           {/* Live Preview */}
-          <div className={`absolute inset-0 overflow-hidden ${activeTab === 'preview' ? '' : 'hidden'}`}>
+          <div className={`absolute inset-0 overflow-y-auto p-4 ${activeTab === 'preview' ? '' : 'hidden'}`}>
             <PreviewPanel blueprintId={id} appName={appName} key={previewKey} />
           </div>
         </div>
