@@ -7,6 +7,7 @@ import { generatePreviewHtml, buildDeterministicPreview, buildDynamicRunner } fr
 import {
   saveBlueprint,
   getBlueprintForUser,
+  getBlueprintAny,
   getBlueprintMeta,
   listBlueprints,
   getUsageCount,
@@ -1060,61 +1061,18 @@ router.get('/:id/preview', optionalAuth, async (req: Request, res: Response, nex
   }
 
   try {
-    const meta = await getBlueprintMeta(id, req.user?.userId || '');
-    if (!meta) {
-      res.status(404).json({ error: 'Blueprint not found or access denied' });
+    const blueprint = await getBlueprintAny(id);
+    if (!blueprint) {
+      res.status(404).json({ error: 'Blueprint not found' });
       return;
     }
 
-    // Try to load existing preview from saved files
-    let file = await getBlueprintFile(id, 'preview.html');
+    console.log(`[Preview Route] Serving rich interactive UI preview for ${id}...`);
+    const html = buildDeterministicPreview(blueprint.parsedBlueprint);
 
-    const files = await getBlueprintFiles(id);
-    const hasFiles = files.filter(f => f.path !== 'preview.html').length > 0;
-
-    if (hasFiles) {
-      const blueprint = await getBlueprintForUser(id, req.user?.userId || '');
-      if (!blueprint) {
-        res.status(404).json({ error: 'Blueprint specifications not found' });
-        return;
-      }
-      console.log(`[Preview Route] Serving dynamic React runner for ${id}...`);
-      const html = buildDynamicRunner(blueprint.parsedBlueprint, files);
-      res.setHeader('Content-Type', 'text/html');
-      res.setHeader('X-Preview-Source', 'framework');
-      res.send(html);
-      return;
-    }
-
-    // Detect missing, blank, or stale previews (old React/Babel CDN format produced by the previous generator)
-    const isBlankOrStale = !file
-      || file.content.trim().length < 200
-      || (file.content.includes('unpkg.com/react') || file.content.includes('@babel/standalone'))
-      || (!file.content.includes('BuildX Preview') && !file.content.includes('onclick='));
-
-    if (isBlankOrStale) {
-      const blueprint = await getBlueprintForUser(id, req.user?.userId || '');
-      if (!blueprint) {
-        res.status(404).json({ error: 'Blueprint specifications not found' });
-        return;
-      }
-
-      console.log(`[Preview Route] Generating deterministic preview for ${id}...`);
-      // Use deterministic builder — instant, no LLM, guaranteed never blank
-      const html = buildDeterministicPreview(blueprint.parsedBlueprint);
-      await saveBlueprintFile(id, 'preview.html', html, 'html');
-
-      file = {
-        path: 'preview.html',
-        content: html,
-        language: 'html',
-      };
-    }
-
-    // Set response headers and return the raw HTML string
     res.setHeader('Content-Type', 'text/html');
     res.setHeader('X-Preview-Source', 'deterministic');
-    res.send(file!.content);
+    res.send(html);
   } catch (err: any) {
     console.error('[Preview Route] Error:', err.message);
     res.status(500).send(`<html><body><h3>Preview Generation Failed</h3><p>${err.message || 'Unknown error'}</p></body></html>`);
