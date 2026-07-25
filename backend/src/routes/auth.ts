@@ -9,7 +9,8 @@ import {
   deleteBlueprint,
   getUserByGithubId,
   createGithubUser,
-  linkUserGithub
+  linkUserGithub,
+  getChatMessages
 } from '../lib/db';
 import { generateToken, requireAuth } from '../lib/auth';
 
@@ -155,7 +156,21 @@ router.get('/my-blueprints', requireAuth, async (req: Request, res: Response): P
 });
 
 // ─────────────────────────────────────────────────────────────
-// PATCH /api/auth/blueprint/:id/rename
+// GET /api/auth/chat/:id
+// Headers: Authorization: Bearer <token>
+// Returns: { success, data: ChatMessageRow[] }
+// ─────────────────────────────────────────────────────────────
+router.get('/chat/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const messages = await getChatMessages(req.params.id, req.user!.userId);
+    res.json({ success: true, data: messages });
+  } catch (err) {
+    console.error('[Auth] chat history error:', (err as Error).message);
+    res.status(500).json({ error: 'Failed to load chat history' });
+  }
+});
+
+
 // Body: { title: string }
 // ─────────────────────────────────────────────────────────────
 router.patch('/blueprint/:id/rename', requireAuth, async (req: Request, res: Response): Promise<void> => {
