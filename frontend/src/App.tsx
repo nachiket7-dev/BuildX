@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Routes, Route, useParams, useNavigate, Navigate, Outlet, useOutletContext } from 'react-router-dom';
+import { Routes, Route, useParams, useNavigate, Navigate, Outlet, useOutletContext, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
@@ -279,6 +279,11 @@ function BlueprintPage() {
 
 function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { pathname } = useLocation();
+
+  // Agent workspace pages need a fixed-height, no-scroll shell so the internal
+  // chat column can scroll independently. All other pages retain min-h-screen.
+  const isAgentPage = pathname.startsWith('/agent');
 
   useEffect(() => {
     if (window.innerWidth >= 768) {
@@ -288,14 +293,14 @@ function AppShell() {
 
   return (
     <BlueprintSessionProvider>
-      <div className="min-h-screen flex flex-col relative overflow-x-hidden">
+      <div className={`flex flex-col relative overflow-x-hidden ${isAgentPage ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
         <SkipLink />
         <AmbientBackground />
 
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
         <div
-          className={`app-shell-content relative z-10 flex flex-col min-h-screen transition-all duration-300 overflow-x-hidden ${
+          className={`app-shell-content relative z-10 flex flex-col transition-all duration-300 overflow-x-hidden ${isAgentPage ? 'h-screen overflow-hidden' : 'min-h-screen'} ${
             sidebarOpen ? 'app-shell-content--sidebar md:ml-[280px]' : ''
           }`}
         >
@@ -307,10 +312,13 @@ function AppShell() {
 
           <Outlet context={{ sidebarOpen } satisfies AppShellOutletContext} />
 
-          <footer className="app-footer">
-            <p>BuildX — Idea to deployable blueprint in one flow</p>
-            <p className="app-footer__sub">Powered by Groq · PostgreSQL · React</p>
-          </footer>
+          {/* Footer is hidden on agent pages — it would push the shell beyond 100vh */}
+          {!isAgentPage && (
+            <footer className="app-footer">
+              <p>BuildX — Idea to deployable blueprint in one flow</p>
+              <p className="app-footer__sub">Powered by Groq · PostgreSQL · React</p>
+            </footer>
+          )}
         </div>
       </div>
     </BlueprintSessionProvider>
