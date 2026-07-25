@@ -110,7 +110,7 @@ export function PreviewPanel({ blueprintId, appName }: PreviewPanelProps) {
   }, [previewHtml]);
 
   return (
-    <div className="flex flex-col gap-3 w-full">
+    <div className="flex flex-col gap-3 w-full h-full min-h-[500px]">
       {/* Source banner — shown when deterministic preview is active */}
       {previewSource === 'deterministic' && !isLoading && !loadError && (
         <div
@@ -226,7 +226,7 @@ export function PreviewPanel({ blueprintId, appName }: PreviewPanelProps) {
       </div>
 
       {/* Browser chrome frame */}
-      <div className="w-full flex flex-col rounded-2xl border border-white/10 overflow-hidden bg-bg-surface2 shadow-2xl shadow-black/40">
+      <div className="w-full flex-1 min-h-0 flex flex-col rounded-2xl border border-white/10 overflow-hidden bg-bg-surface2 shadow-2xl shadow-black/40">
         {/* Address bar */}
         <div className="flex items-center gap-3 px-4 py-2.5 bg-bg-surface border-b border-white/5 select-none shrink-0">
           <div className="flex items-center gap-1.5">
@@ -244,9 +244,9 @@ export function PreviewPanel({ blueprintId, appName }: PreviewPanelProps) {
         </div>
 
         {/* Iframe stage */}
-        <div className="w-full bg-[#0d0d0f] flex justify-center overflow-hidden" style={{ minHeight: '560px' }}>
+        <div className="w-full flex-1 min-h-0 bg-[#0d0d0f] flex justify-center overflow-hidden relative">
           <div
-            className="relative transition-all duration-300 ease-in-out"
+            className="relative h-full transition-all duration-300 ease-in-out"
             style={{ width: activeViewport.width, maxWidth: '100%' }}
           >
             {/* Loading skeleton */}
@@ -285,8 +285,7 @@ export function PreviewPanel({ blueprintId, appName }: PreviewPanelProps) {
                 srcDoc={previewHtml}
                 title={`${appName || 'App'} Live Preview`}
                 onLoad={handleIframeLoad}
-                className={`w-full transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                style={{ height: '560px', border: 'none' }}
+                className={`w-full h-full border-none transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
               />
             )}

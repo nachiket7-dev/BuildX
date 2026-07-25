@@ -401,8 +401,8 @@ export function getBlueprintPreviewUrl(blueprintId: string): string {
 
 export interface PreviewResult {
   html: string;
-  /** 'deterministic' = built from blueprint data instantly, 'ai' = LLM-generated */
-  source: 'deterministic' | 'ai';
+  /** 'deterministic' = built from blueprint data, 'ai' = LLM-generated, 'framework' = live compiled from VFS files */
+  source: 'deterministic' | 'ai' | 'framework';
 }
 
 /** Fetches preview HTML with auth headers (required for private blueprints) */
@@ -424,7 +424,8 @@ export async function fetchBlueprintPreviewHtml(blueprintId: string): Promise<Pr
   if (html.trimStart().startsWith('{')) {
     throw new Error('Preview not available — sign in if this is a private blueprint.');
   }
-  const source = response.headers.get('X-Preview-Source') === 'ai' ? 'ai' : 'deterministic';
+  const raw = response.headers.get('X-Preview-Source');
+  const source = (raw === 'ai' ? 'ai' : raw === 'framework' ? 'framework' : 'deterministic') as 'ai' | 'framework' | 'deterministic';
   return { html, source };
 }
 
