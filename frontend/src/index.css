@@ -25,46 +25,46 @@
     --ring: 255 72% 60%;
     --radius: 0.75rem;
 
-    /* React Bits classic — violet + mint aurora */
-    --bg: #07060c;
-    --surface: #0d0b14;
-    --surface2: #13101c;
-    --surface3: #1a1626;
+    /* Vercel / Linear-grade Obsidian Theme */
+    --bg: #000000;
+    --surface: #09090b;
+    --surface2: #121215;
+    --surface3: #18181b;
 
-    --border-rgba: rgba(255, 255, 255, 0.06);
-    --border2: rgba(255, 255, 255, 0.09);
+    --border-rgba: rgba(255, 255, 255, 0.08);
+    --border2: rgba(255, 255, 255, 0.12);
 
-    --accent-hex: #5227ff;
-    --accent2: #9d7aff;
-    --accent3: #7cff67;
-    --accent-deep: #3d1f99;
-    --accent-glow: rgba(82, 39, 255, 0.15);
-    --accent-rgb: 82, 39, 255;
+    --accent-hex: #6366f1;
+    --accent2: #818cf8;
+    --accent3: #10b981;
+    --accent-deep: #4f46e5;
+    --accent-glow: rgba(99, 102, 241, 0.12);
+    --accent-rgb: 99, 102, 241;
 
-    --green: #7cff67;
-    --green-dim: rgba(124, 255, 103, 0.12);
+    --green: #10b981;
+    --green-dim: rgba(16, 185, 129, 0.1);
     --amber: #f59e0b;
     --amber-dim: rgba(245, 158, 11, 0.08);
     --coral: #ef4444;
     --coral-dim: rgba(239, 68, 68, 0.08);
-    --blue: #60a5fa;
-    --blue-dim: rgba(96, 165, 250, 0.1);
-    --purple: #9d7aff;
-    --purple-dim: rgba(157, 122, 255, 0.12);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59, 130, 246, 0.1);
+    --purple: #a855f7;
+    --purple-dim: rgba(168, 85, 247, 0.1);
 
-    --text: #f5f3ff;
-    --text2: #a8a3b8;
-    --text3: #6b6578;
+    --text: #ffffff;
+    --text2: #a1a1aa;
+    --text3: #71717a;
 
-    /* Shell (header + sidebar) — tied to theme */
-    --shell-bg: rgba(13, 11, 20, 0.88);
-    --shell-bg-solid: #0d0b14;
-    --shell-border: rgba(82, 39, 255, 0.12);
-    --shell-border-subtle: rgba(255, 255, 255, 0.06);
-    --shell-inset-glow: rgba(82, 39, 255, 0.08);
-    --nav-active-bg: var(--accent-glow);
-    --nav-active-border: rgba(82, 39, 255, 0.28);
-    --nav-active-text: var(--accent2);
+    /* Shell (header + sidebar) */
+    --shell-bg: rgba(9, 9, 11, 0.85);
+    --shell-bg-solid: #09090b;
+    --shell-border: rgba(255, 255, 255, 0.08);
+    --shell-border-subtle: rgba(255, 255, 255, 0.05);
+    --shell-inset-glow: rgba(99, 102, 241, 0.06);
+    --nav-active-bg: rgba(255, 255, 255, 0.06);
+    --nav-active-border: rgba(255, 255, 255, 0.2);
+    --nav-active-text: #ffffff;
 
     /* Typography */
     --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
@@ -95,10 +95,6 @@
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: 'ss01' on, 'cv11' on;
     letter-spacing: -0.015em;
-    /* Subtle radial glow in page center */
-    background-image:
-      radial-gradient(ellipse 60% 40% at 50% 0%, rgba(82, 39, 255, 0.05) 0%, transparent 70%),
-      radial-gradient(ellipse 50% 50% at 80% 90%, rgba(124, 255, 103, 0.04) 0%, transparent 60%);
   }
 
   #root {
@@ -1334,17 +1330,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  padding: 0.625rem 1rem;
   position: sticky;
   top: 0;
   z-index: 50;
-  border-bottom: 1px solid var(--shell-border);
-  backdrop-filter: blur(24px) saturate(150%);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
-  background: var(--shell-bg);
-  box-shadow:
-    0 1px 0 var(--shell-inset-glow),
-    0 4px 24px rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  background: rgba(0, 0, 0, 0.75);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04);
 }
 
 /* Nav links (header) */
@@ -2834,16 +2828,14 @@
   height: 480px;
   z-index: -1;
   background:
-    radial-gradient(ellipse 75% 60% at 50% 35%, rgba(82, 39, 255, 0.22) 0%, transparent 65%),
-    radial-gradient(ellipse 55% 45% at 25% 55%, rgba(59, 31, 153, 0.1) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 78% 48%, rgba(124, 255, 103, 0.08) 0%, transparent 55%);
-  filter: blur(48px);
+    radial-gradient(ellipse 60% 50% at 50% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 70%);
+  filter: blur(60px);
   animation: hero-glow-pulse 8s ease-in-out infinite alternate;
 }
 
 @keyframes hero-glow-pulse {
-  0% { opacity: 0.7; transform: translateX(-50%) scale(1); }
-  100% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+  0% { opacity: 0.6; transform: translateX(-50%) scale(1); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1.04); }
 }
 
 /* ─── Sidebar (glass + aurora accent) ────────────────────── */

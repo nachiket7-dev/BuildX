@@ -4,7 +4,8 @@ import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
 import { SpotlightCard } from './SpotlightCard';
 import { DecryptedText } from './DecryptedText';
 import { BlurText } from './BlurText';
-import { Zap, GitMerge, FolderArchive, MessageSquare, Share2, Cpu } from 'lucide-react';
+import { BentoGrid } from './BentoGrid';
+import { Zap, GitMerge, FolderArchive, MessageSquare, Share2, Cpu, Sparkles, ArrowRight, CornerDownLeft } from 'lucide-react';
 
 interface HeroProps {
   onGenerate: (idea: string) => void;
@@ -233,18 +234,15 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
         <div
           className="inline-flex items-center gap-2 font-mono-custom text-[10px] sm:text-xs rounded-full px-3 sm:px-4 py-1.5 mb-6 sm:mb-8 border animate-fade-slide-up max-w-full"
           style={{
-            color: 'var(--accent2)',
-            borderColor: 'rgba(20,184,166,0.25)',
-            background: 'var(--accent-glow)',
+            color: 'var(--text2)',
+            borderColor: 'rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.04)',
             letterSpacing: '0.5px',
           }}
         >
-          <div
-            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            style={{ background: 'var(--accent)' }}
-          />
+          <Sparkles size={11} className="text-indigo-400 flex-shrink-0" />
           <span className="truncate">
-            <DecryptedText text="Idea → Full-Stack Blueprint in seconds" delay={300} speed={25} />
+            <DecryptedText text="Idea to Full-Stack Blueprint in seconds" delay={300} speed={25} />
           </span>
         </div>
 
@@ -285,34 +283,25 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
           className="animate-fade-slide-up relative"
           style={{ animationDelay: '0.3s', animationFillMode: 'both' }}
         >
-          {/* Spotlight background glow behind input */}
           <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] pointer-events-none opacity-20 transition-opacity duration-500 blur-[80px]"
+            className={`relative rounded-2xl p-4 sm:p-7 mb-5 transition-all duration-300 text-left border`}
             style={{
-              background: isFocused
-                ? 'radial-gradient(circle, var(--accent-hex) 0%, var(--accent-deep) 35%, transparent 70%)'
-                : 'radial-gradient(circle, rgba(20, 184, 166, 0.4) 0%, transparent 60%)',
-              zIndex: -1,
-            }}
-          />
-          <div
-            className={`card border-beam-wrapper ${isFocused || idea.length > 0 ? 'border-beam-active' : ''} p-4 sm:p-7 mb-5 transition-all duration-300 text-left`}
-            style={{
-              boxShadow:
-                idea.length > 0
-                  ? '0 0 60px rgba(20,184,166,0.14)'
-                  : '0 0 40px rgba(20,184,166,0.06)',
-              borderColor:
-                idea.length > 0
-                  ? 'rgba(20,184,166,0.25)'
-                  : 'var(--border2)',
+              background: 'var(--surface2)',
+              borderColor: isFocused
+                ? 'rgba(99,102,241,0.4)'
+                : idea.length > 0
+                  ? 'rgba(255,255,255,0.14)'
+                  : 'rgba(255,255,255,0.08)',
+              boxShadow: isFocused
+                ? '0 0 0 3px rgba(99,102,241,0.08)'
+                : 'none',
             }}
           >
-            <div
-              className="font-mono-custom text-xs mb-3 uppercase tracking-widest"
-              style={{ color: 'var(--text3)' }}
-            >
-              // describe your app idea
+            <div className="flex items-center gap-2 mb-3">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-neutral-500">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <span className="text-xs text-neutral-500 font-mono tracking-wide">Describe your app idea</span>
             </div>
 
             <textarea
@@ -347,7 +336,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                 </div>
                 <span className="font-mono-custom text-[11px] sm:text-xs" style={{ color: charCount >= MIN_CHARS ? 'var(--green)' : 'var(--text3)' }}>
                   {charCount}/{MIN_CHARS}
-                  <span className="hidden sm:inline"> · ⌘↵ generate</span>
+                  <span className="hidden sm:inline ml-2 opacity-60">· <kbd className="font-sans text-[10px] px-1 py-0.5 rounded border border-white/10 bg-white/[0.04]">⌘</kbd><kbd className="font-sans text-[10px] px-1 py-0.5 rounded border border-white/10 bg-white/[0.04] ml-0.5">↵</kbd></span>
                 </span>
               </div>
 
@@ -400,9 +389,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                             }
                             const providerOrder = ['groq', 'gemini', 'nvidia'];
                             const providerLabels: Record<string, string> = {
-                              groq: '⚡ Groq — Fast & Free',
-                              gemini: '✨ Google AI Studio',
-                              nvidia: '🔬 NVIDIA NIM',
+                              groq: 'Groq · Fast Inference',
+                              gemini: 'Google AI Studio',
+                              nvidia: 'NVIDIA NIM',
                             };
                             return providerOrder.map(provider => {
                               const models = groups[provider];
@@ -452,23 +441,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                 type="submit"
                 disabled={!canSubmit}
                 aria-busy={isLoading}
-                className="btn-shiny flex flex-1 sm:flex-none items-center justify-center gap-2 sm:gap-2.5 rounded-[10px] px-4 sm:px-6 py-2.5 sm:py-3 font-display font-semibold text-xs sm:text-sm text-white disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
+                className="flex flex-1 sm:flex-none items-center justify-center gap-2 rounded-xl px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 style={{
-                  background: 'var(--accent)',
-                  boxShadow: canSubmit ? '0 0 24px var(--accent-glow)' : 'none',
-                }}
-                onMouseEnter={(e) => {
-                  if (canSubmit) {
-                    (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                      '0 4px 32px rgba(82, 39, 255, 0.35)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
-                  (e.currentTarget as HTMLButtonElement).style.boxShadow = canSubmit
-                    ? '0 0 24px var(--accent-glow)'
-                    : 'none';
+                  background: canSubmit ? '#6366f1' : 'rgba(99,102,241,0.3)',
                 }}
               >
                 {isLoading ? (
@@ -478,9 +453,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                   </>
                 ) : (
                   <>
-                    <Zap size={14} className="fill-white text-white" />
                     <span className="hidden sm:inline">Generate Blueprint</span>
                     <span className="sm:hidden">Generate</span>
+                    <ArrowRight size={14} />
                   </>
                 )}
               </button>
@@ -490,8 +465,8 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
         </form>
 
         {/* Example chips */}
-        <p className="example-chips-label animate-fade-slide-up" style={{ animationDelay: '0.4s', animationFillMode: 'both' }}>
-          // quick examples
+        <p className="example-chips-label animate-fade-slide-up text-xs text-neutral-500 mb-2" style={{ animationDelay: '0.4s', animationFillMode: 'both' }}>
+          Quick examples
         </p>
         <div
           className="example-chips animate-fade-slide-up"
@@ -573,6 +548,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
         </div>
       </ScrollReveal>
 
+      {/* ─── Bento Grid Feature Showcase ──────────────────── */}
+      <BentoGrid />
+
       {/* ─── Section 4: How it works ─────────────────────── */}
       <ScrollReveal className="px-4 sm:px-6 py-12 sm:py-16 max-w-3xl mx-auto overflow-hidden">
         <div className="text-center mb-12">
@@ -640,57 +618,29 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
 
       {/* ─── Section 5: CTA ──────────────────────────────── */}
       <ScrollReveal className="px-4 sm:px-6 py-12 sm:py-20 max-w-3xl mx-auto text-center overflow-hidden">
-        <div
-          className="p-[1.5px] rounded-2xl"
-          style={{
-            background: 'linear-gradient(135deg, rgba(20,184,166,0.45), rgba(15,118,110,0.25) 50%, rgba(94,234,212,0.35))',
-            boxShadow: '0 12px 40px rgba(20,184,166,0.08)'
-          }}
-        >
-          <div
-            className="p-8 sm:p-12 rounded-[15px]"
-            style={{
-              background: 'linear-gradient(135deg, rgba(10,10,18,0.9), rgba(15,15,25,0.85))',
-              backdropFilter: 'blur(20px)',
-            }}
-          >
+        <div className="rounded-2xl border border-white/[0.08] bg-neutral-900/40 p-8 sm:p-14">
           <h2
-            className="font-display font-extrabold text-xl sm:text-2xl mb-3"
-            style={{ color: 'var(--text)', letterSpacing: '-1px' }}
+            className="font-display font-bold text-xl sm:text-2xl mb-3 tracking-tight"
+            style={{ color: 'var(--text)', letterSpacing: '-0.5px' }}
           >
-            Ready to build something amazing?
+            Ready to build something?
           </h2>
           <p className="text-sm mb-8 max-w-md mx-auto" style={{ color: 'var(--text3)' }}>
-            Stop planning in spreadsheets. Let AI architect your next project.
+            Stop planning in spreadsheets. Let AI architect your next project in seconds.
           </p>
           <button
             onClick={() => {
               window.scrollTo({ top: 0, behavior: 'smooth' });
               textareaRef.current?.focus();
             }}
-            className="btn-shiny inline-flex items-center gap-2 sm:gap-2.5 rounded-[10px] px-6 sm:px-8 py-3 sm:py-3.5 font-display font-semibold text-xs sm:text-sm text-white"
-            style={{
-              background: 'var(--accent)',
-              boxShadow: '0 0 24px var(--accent-glow)',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)';
-              (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                '0 4px 32px rgba(20,184,166,0.4)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 24px var(--accent-glow)';
-            }}
+            className="inline-flex items-center gap-2 rounded-xl px-6 sm:px-8 py-3 sm:py-3.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90"
+            style={{ background: '#6366f1' }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="white">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
-            Start Building — It's Free
+            <span>Start Building — It's Free</span>
+            <ArrowRight size={15} />
           </button>
         </div>
-      </div>
-    </ScrollReveal>
+      </ScrollReveal>
 
     </>
   );

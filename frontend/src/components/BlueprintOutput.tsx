@@ -12,7 +12,6 @@ import {
   Plus,
   RefreshCw,
   Users,
-  Columns,
 } from 'lucide-react';
 import type { Blueprint, TabId, PartialBlueprint } from '../lib/types';
 import { TabBar } from './TabBar';
@@ -22,7 +21,6 @@ import {
   ApiPanel,
   UiPanel,
   ArchPanel,
-  CodePanel,
   EffortPanel,
 } from './BlueprintPanels';
 import { DiagramsPanel } from './DiagramsPanel';
@@ -33,11 +31,9 @@ import { useVisibilityMutation } from '../hooks/useBlueprints';
 import { useToast } from '../hooks/useToast';
 import { AVAILABLE_MODELS, useModel } from '../hooks/useModel';
 import { RefinementChat } from './RefinementChat';
-import { PreviewPanel } from './PreviewPanel';
 import { StreamingView } from './StreamingView';
 import type { AgentEvent } from '../hooks/useStreamBlueprint';
 import type { ChatMessage } from '../hooks/useRefinement';
-import { CodePreviewSplit } from './CodePreviewSplit';
 import { useCodeGeneration } from '../hooks/useCodeGeneration';
 
 interface BlueprintOutputProps {
@@ -89,7 +85,6 @@ export function BlueprintOutput({
   const { selectedModel } = useModel();
   const effectiveModel = modelUsed ?? selectedModel;
   const { user } = useAuth();
-  const [isSplitMode, setIsSplitMode] = useState(false);
   const { toast } = useToast();
   const codegen = useCodeGeneration();
   const visibility = useVisibilityMutation(blueprintId);
@@ -527,17 +522,7 @@ export function BlueprintOutput({
             </>
           )}
 
-          {blueprintId && (activeTab === 'code' || activeTab === 'preview') && (
-            <button
-              type="button"
-              onClick={() => setIsSplitMode(!isSplitMode)}
-              className={`bp-action ${isSplitMode ? 'bp-action--active bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bp-action--ghost'}`}
-              title="Toggle side-by-side workspace layout"
-            >
-              <Columns size={15} strokeWidth={2} aria-hidden />
-              <span className="hidden sm:inline">{isSplitMode ? 'Single View' : 'Split View'}</span>
-            </button>
-          )}
+
 
           <button type="button" onClick={onReset} className="bp-action bp-action--ghost">
             <Plus size={15} strokeWidth={2} aria-hidden />
@@ -569,47 +554,6 @@ export function BlueprintOutput({
       {activeTab === 'architecture' && <ArchPanel blueprint={blueprint} />}
       {activeTab === 'diagrams' && <DiagramsPanel blueprint={blueprint} />}
 
-      {isSplitMode && (activeTab === 'code' || activeTab === 'preview') ? (
-        <div className="mt-2">
-          <CodePreviewSplit
-            codeElement={
-              <CodePanel blueprint={blueprint} blueprintId={blueprintId} blueprintContentKey={blueprintContentKey} onRefineMessage={onRefineMessage} isRefining={isRefining} codegen={codegen} />
-            }
-            previewElement={
-              blueprintId ? (
-                <PreviewPanel blueprintId={blueprintId} appName={blueprint.appName} />
-              ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-center gap-4 border border-white/10 rounded-2xl bg-bg-surface">
-                  <div className="text-4xl">👁️</div>
-                  <p className="text-sm text-muted-foreground max-w-sm">
-                    Save this blueprint to unlock the AI-generated live preview sandbox.
-                  </p>
-                </div>
-              )
-            }
-          />
-        </div>
-      ) : (
-        <>
-          {activeTab === 'code' && (
-            <CodePanel blueprint={blueprint} blueprintId={blueprintId} blueprintContentKey={blueprintContentKey} onRefineMessage={onRefineMessage} isRefining={isRefining} codegen={codegen} />
-          )}
-          {activeTab === 'preview' && (
-            <div className="mt-2">
-              {blueprintId ? (
-                <PreviewPanel blueprintId={blueprintId} appName={blueprint.appName} />
-              ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-                  <div className="text-4xl">👁️</div>
-                  <p className="text-sm text-muted-foreground max-w-sm">
-                    Save this blueprint to unlock the AI-generated live preview sandbox.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
       {activeTab === 'effort' && <EffortPanel blueprint={blueprint} />}
 
       {refinement && (

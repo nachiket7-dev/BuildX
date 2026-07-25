@@ -123,8 +123,6 @@ export const TABS = [
   { id: 'ui', label: 'UI Screens' },
   { id: 'architecture', label: 'Architecture' },
   { id: 'diagrams', label: 'Diagrams' },
-  { id: 'code', label: 'Codebase' },
-  { id: 'preview', label: 'Preview' },
   { id: 'effort', label: 'Effort' },
 ] as const;
 
