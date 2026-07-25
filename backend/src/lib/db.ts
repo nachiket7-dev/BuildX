@@ -477,6 +477,25 @@ async function incrementBlueprintViews(id: string): Promise<void> {
   await pool.query('UPDATE blueprints SET views = views + 1 WHERE id = $1', [id]);
 }
 
+/** Load blueprint without ownership restrictions (used for sandbox preview rendering). Returns null if missing. */
+export async function getBlueprintAny(
+  id: string
+): Promise<(SavedBlueprintRow & { parsedBlueprint: Blueprint }) | null> {
+  await ensureDb();
+  const record = await fetchBlueprintRecord(id);
+  if (!record) return null;
+
+  return {
+    id: record.id,
+    idea: record.idea,
+    blueprint: record.blueprint,
+    createdAt: record.createdAt,
+    views: record.views,
+    isPublic: record.isPublic,
+    parsedBlueprint: parseBlueprintJson(record.blueprint, id),
+  };
+}
+
 /** Load blueprint if the user owns it or it is marked public. Returns null if missing or forbidden. */
 export async function getBlueprintForUser(
   id: string,
