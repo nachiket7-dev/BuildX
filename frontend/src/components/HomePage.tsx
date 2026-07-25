@@ -15,6 +15,7 @@ import { AmbientBackground } from './AmbientBackground';
 import { MarketingHeader } from './MarketingHeader';
 import { PageHead } from './PageHead';
 import { BlurText } from './BlurText';
+import { BentoGrid } from './BentoGrid';
 import { SpotlightCard } from './SpotlightCard';
 import { useAuth } from '../hooks/useAuth';
 
@@ -192,40 +193,7 @@ export function HomePage() {
 
         <main id="main-content" className="flex-1" tabIndex={-1}>
           <section id="features" className="landing-section" aria-labelledby="features-title">
-            <div className="landing-section__head">
-              <p className="landing-section__eyebrow">Everything included</p>
-              <h2 id="features-title" className="landing-section__title">
-                One flow from idea to codebase
-              </h2>
-              <p className="landing-section__desc">
-                No blank pages. BuildX outputs the artifacts teams actually need before writing
-                production code.
-              </p>
-            </div>
-            <div className="landing-features">
-              {FEATURES.map((feature, i) => (
-                <SpotlightCard
-                  key={feature.title}
-                  className="landing-feature-card p-5 interactive-lift h-full"
-                  spotlightColor="rgba(82, 39, 255, 0.22)"
-                  spotlightSize={300}
-                  style={{ animationDelay: `${i * 50}ms` }}
-                >
-                  <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
-                    style={{ background: feature.gradient }}
-                  >
-                    <feature.icon size={22} style={{ color: '#e8ffe3' }} />
-                  </div>
-                  <h3 className="font-display font-bold text-base mb-2" style={{ color: 'var(--text)' }}>
-                    {feature.title}
-                  </h3>
-                  <p className="text-sm leading-relaxed" style={{ color: 'var(--text2)' }}>
-                    {feature.description}
-                  </p>
-                </SpotlightCard>
-              ))}
-            </div>
+            <BentoGrid />
           </section>
 
           <section className="landing-section" aria-labelledby="how-title">

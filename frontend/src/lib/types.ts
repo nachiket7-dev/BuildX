@@ -115,8 +115,6 @@ export type TabId =
   | 'ui'
   | 'architecture'
   | 'diagrams'
-  | 'code'
-  | 'preview'
   | 'effort';
 
 // ─── Partial blueprint for streaming ──────────────────────
