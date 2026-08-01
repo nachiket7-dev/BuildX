@@ -1,9 +1,9 @@
-import { LLMProvider } from './types';
+import { LLMProvider, LLMMessage, CompletionOptions, PipelineStage, PipelineRoute } from './types';
 import { GroqProvider } from './groq';
 import { NvidiaProvider } from './nvidia';
 import { GeminiProvider } from './gemini';
 
-// ─── Default Model IDs ──────────────────────────────────────
+// ─── Default Model IDs ──────────────────────────────────────────────────────
 export const DEFAULT_MODEL_KEY = 'gemini-3.5-flash';
 const DEFAULT_MODEL = DEFAULT_MODEL_KEY;
 
@@ -21,28 +21,54 @@ export const PRIMARY_MODEL_KEYS = [
 
 /** Legacy keys stored in DB / localStorage → current primary key */
 export const LEGACY_MODEL_ALIASES: Record<string, string> = {
-  'llama-3.1-8b': 'gemini-3.5-flash',
-  'llama-3.3-70b': 'gemini-3.5-flash',
-  'gemini-2.5-flash': 'gemini-3.5-flash',
-  'gemini-2.5-pro': 'gemini-3.1-pro',
-  'gemini-3.0-flash': 'gemini-3.5-flash',
-  'gemini-3.0-pro': 'gemini-3.1-pro',
-  'gemini-3-flash-preview': 'gemini-3.5-flash',
+  'llama-3.1-8b':          'gemini-3.5-flash',
+  'llama-3.3-70b':         'gemini-3.5-flash',
+  'gemini-2.5-flash':      'gemini-3.5-flash',
+  'gemini-2.5-pro':        'gemini-3.1-pro',
+  'gemini-3.0-flash':      'gemini-3.5-flash',
+  'gemini-3.0-pro':        'gemini-3.1-pro',
+  'gemini-3-flash-preview':'gemini-3.5-flash',
 };
 
-// Map external model key strings to internal provider configurations
+// ─── Model Map ──────────────────────────────────────────────────────────────
+/** Maps external model key strings to internal provider configurations. */
 export const MODEL_MAP: Record<string, { provider: string; modelId: string }> = {
   // Groq
-  'qwen-3-32b': { provider: 'groq', modelId: 'qwen/qwen3-32b' },
-  'gpt-oss-120b': { provider: 'groq', modelId: GPT_OSS_MODEL_ID },
+  'qwen-3-32b':      { provider: 'groq',   modelId: 'qwen/qwen3-32b' },
+  'gpt-oss-120b':    { provider: 'groq',   modelId: GPT_OSS_MODEL_ID },
 
   // Google AI Studio
-  'gemini-3.5-flash': { provider: 'gemini', modelId: 'gemini-3.5-flash' },
-  'gemini-3.1-pro':   { provider: 'gemini', modelId: 'gemini-3.1-pro-preview' },
+  'gemini-3.5-flash':{ provider: 'gemini', modelId: 'gemini-3.5-flash' },
+  'gemini-3.1-pro':  { provider: 'gemini', modelId: 'gemini-3.1-pro-preview' },
 
-  // NVIDIA NIM
+  // NVIDIA NIM — Nemotron 3 Ultra 550B
   'nemotron-3-550b': { provider: 'nvidia', modelId: 'nvidia/nemotron-3-ultra-550b-a55b' },
+
+  // NVIDIA NIM — Z-AI GLM-5.2 (pipeline DIFF_GENERATION primary + universal fallback)
+  'glm-5.2':         { provider: 'nvidia', modelId: 'z-ai/glm-5.2' },
+
+  // NVIDIA NIM — Moonshot Kimi K2.6 (AUTO_FIX primary + PLANNING secondary fallback)
+  'kimi-k2.6':       { provider: 'nvidia', modelId: 'moonshotai/kimi-k2.6' },
 };
+
+// ─── Pipeline Routes ─────────────────────────────────────────────────────────
+/**
+ * Defines primary + fallback model assignments per pipeline stage.
+ *
+ * Routing map (per spec):
+ *   PLANNING       → Nemotron 3 Ultra (primary)  | Kimi K2.6 (fallback)
+ *   INGESTION      → Gemini 3.5 Flash (primary)  | GLM-5.2 (fallback)
+ *   DIFF_GENERATION→ GLM-5.2 (primary)           | Gemini 3.5 Flash (fallback)
+ *   AUTO_FIX       → Kimi K2.6 (primary)         | GLM-5.2 (fallback)
+ */
+export const PIPELINE_ROUTES: Record<PipelineStage, PipelineRoute> = {
+  PLANNING:        { primary: 'nemotron-3-550b',  fallback: 'kimi-k2.6'          },
+  INGESTION:       { primary: 'gemini-3.5-flash', fallback: 'glm-5.2'            },
+  DIFF_GENERATION: { primary: 'glm-5.2',          fallback: 'gemini-3.5-flash'   },
+  AUTO_FIX:        { primary: 'kimi-k2.6',        fallback: 'glm-5.2'            },
+};
+
+// ─── Model Key Resolution ────────────────────────────────────────────────────
 
 /** Resolve legacy aliases and validate model keys */
 export function resolveModelKey(requestedModel?: string): string {
@@ -91,6 +117,8 @@ export function isPremiumModel(requestedModel?: string): boolean {
   return modelKey === GPT_OSS_FRONTEND_ID || resolveModelId(modelKey) === GPT_OSS_MODEL_ID;
 }
 
+// ─── Provider Factory ────────────────────────────────────────────────────────
+
 export function getLLMProvider(requestedModel?: string): LLMProvider {
   const modelKey = resolveModelKey(requestedModel);
 
@@ -110,18 +138,142 @@ export function getLLMProvider(requestedModel?: string): LLMProvider {
   console.log(`[LLM Router] Routing request to: provider=${provider}, modelId=${modelId}`);
 
   switch (provider) {
-    case 'groq':
-      return new GroqProvider(modelId);
-    case 'nvidia':
-      return new NvidiaProvider(modelId);
-    case 'gemini':
-      return new GeminiProvider(modelId);
+    case 'groq':   return new GroqProvider(modelId);
+    case 'nvidia': return new NvidiaProvider(modelId);
+    case 'gemini': return new GeminiProvider(modelId);
     default:
       throw new Error(`Unsupported LLM provider: ${provider}. Use one of: groq, gemini, nvidia.`);
   }
 }
 
-// ─── Token Budgets by Provider ──────────────────────────────
+// ─── Pipeline-Stage Provider ─────────────────────────────────────────────────
+
+/**
+ * Returns the **primary** provider for a given pipeline stage,
+ * ignoring the user's model selection (stages have fixed assignments).
+ */
+export function getPipelineProvider(stage: PipelineStage): LLMProvider {
+  const route = PIPELINE_ROUTES[stage];
+  return getLLMProvider(route.primary);
+}
+
+/**
+ * Returns the **fallback** provider for a given pipeline stage.
+ */
+export function getPipelineFallbackProvider(stage: PipelineStage): LLMProvider {
+  const route = PIPELINE_ROUTES[stage];
+  return getLLMProvider(route.fallback);
+}
+
+// ─── Failover Execution Helpers ──────────────────────────────────────────────
+
+/**
+ * Completes a prompt using the stage-assigned primary model.
+ * If the primary call throws (network error, 429, 500, timeout), automatically
+ * retries once with the stage-assigned fallback model.
+ *
+ * Logs both attempts with stage label for observability.
+ */
+export async function completeWithPipelineFallback(
+  stage: PipelineStage,
+  messages: LLMMessage[],
+  options?: CompletionOptions
+): Promise<{ text: string; usedFallback: boolean; model: string }> {
+  const route = PIPELINE_ROUTES[stage];
+  const primaryKey = route.primary;
+  const fallbackKey = route.fallback;
+
+  // ── Primary attempt ──────────────────────────────────────────────────────
+  try {
+    console.log(`[Pipeline:${stage}] Attempting primary model: ${primaryKey}`);
+    const provider = getLLMProvider(primaryKey);
+    const text = await provider.complete(messages, options);
+    console.log(`[Pipeline:${stage}] Primary (${primaryKey}) succeeded.`);
+    return { text, usedFallback: false, model: primaryKey };
+  } catch (primaryErr: any) {
+    const errLabel = primaryErr?.status ?? primaryErr?.message ?? String(primaryErr);
+    console.warn(
+      `[Pipeline:${stage}] Primary model (${primaryKey}) failed [${errLabel}]. ` +
+      `Triggering fallback: ${fallbackKey}`
+    );
+  }
+
+  // ── Fallback attempt ─────────────────────────────────────────────────────
+  try {
+    console.log(`[Pipeline:${stage}] Attempting fallback model: ${fallbackKey}`);
+    const fallbackProvider = getLLMProvider(fallbackKey);
+    const text = await fallbackProvider.complete(messages, options);
+    console.log(`[Pipeline:${stage}] Fallback (${fallbackKey}) succeeded.`);
+    return { text, usedFallback: true, model: fallbackKey };
+  } catch (fallbackErr: any) {
+    const errLabel = fallbackErr?.status ?? fallbackErr?.message ?? String(fallbackErr);
+    console.error(
+      `[Pipeline:${stage}] Fallback model (${fallbackKey}) also failed [${errLabel}]. ` +
+      `Both primary and fallback exhausted.`
+    );
+    throw new Error(
+      `[Pipeline:${stage}] All models exhausted. ` +
+      `Primary: ${primaryKey}, Fallback: ${fallbackKey}. Last error: ${errLabel}`
+    );
+  }
+}
+
+/**
+ * Streams output using the stage-assigned primary model.
+ * If the primary stream throws during setup, falls back to `complete()` on the
+ * fallback model and yields the full text as a single chunk.
+ *
+ * Note: mid-stream failures are NOT retried (partial output already flushed).
+ */
+export async function* streamWithPipelineFallback(
+  stage: PipelineStage,
+  messages: LLMMessage[],
+  options?: CompletionOptions
+): AsyncIterable<string> {
+  const route = PIPELINE_ROUTES[stage];
+  const primaryKey = route.primary;
+  const fallbackKey = route.fallback;
+
+  // ── Try streaming from primary ───────────────────────────────────────────
+  try {
+    console.log(`[Pipeline:${stage}] Attempting streaming from primary: ${primaryKey}`);
+    const provider = getLLMProvider(primaryKey);
+    // Eagerly resolve the stream before yielding to detect setup errors
+    const iter = provider.stream(messages, options);
+    // Yield chunks — if it throws mid-stream that's a partial-output failure
+    // which we cannot safely recover from (consumer may have already received data)
+    for await (const chunk of iter) {
+      yield chunk;
+    }
+    console.log(`[Pipeline:${stage}] Primary stream (${primaryKey}) completed.`);
+    return;
+  } catch (primaryErr: any) {
+    const errLabel = primaryErr?.status ?? primaryErr?.message ?? String(primaryErr);
+    console.warn(
+      `[Pipeline:${stage}] Primary stream (${primaryKey}) failed at setup [${errLabel}]. ` +
+      `Falling back to complete() on ${fallbackKey}`
+    );
+  }
+
+  // ── Fallback: complete() on secondary, yield as single chunk ────────────
+  try {
+    console.log(`[Pipeline:${stage}] Fallback complete() on: ${fallbackKey}`);
+    const fallbackProvider = getLLMProvider(fallbackKey);
+    const text = await fallbackProvider.complete(messages, options);
+    console.log(`[Pipeline:${stage}] Fallback (${fallbackKey}) succeeded.`);
+    yield text;
+  } catch (fallbackErr: any) {
+    const errLabel = fallbackErr?.status ?? fallbackErr?.message ?? String(fallbackErr);
+    console.error(`[Pipeline:${stage}] Fallback also failed [${errLabel}].`);
+    throw new Error(
+      `[Pipeline:${stage}] All models exhausted (stream path). ` +
+      `Primary: ${primaryKey}, Fallback: ${fallbackKey}. Last error: ${errLabel}`
+    );
+  }
+}
+
+// ─── Token Budgets by Provider ───────────────────────────────────────────────
+
 export function getMaxTokensForModel(requestedModel?: string): number {
   const provider = resolveProviderKey(requestedModel);
   if (provider === 'gemini') return 8000;
@@ -131,8 +283,6 @@ export function getMaxTokensForModel(requestedModel?: string): number {
 
 export function getAgentMaxTokensForModel(requestedModel?: string): number {
   const provider = resolveProviderKey(requestedModel);
-  // These must be large enough to contain complete file source code in the JSON response.
-  // 3000 tokens (old Nemotron limit) caused guaranteed JSON truncation mid-files[].
   if (provider === 'gemini') return 16000;
   if (provider === 'nvidia') return 16000;
   return 8000; // groq
@@ -144,6 +294,18 @@ export function getRefineMaxTokensForModel(requestedModel?: string): number {
   if (provider === 'nvidia') return 4000;
   return 5000;
 }
+
+/** Token budget for pipeline stages (stage-specific, not user-model-specific). */
+export function getPipelineMaxTokens(stage: PipelineStage): number {
+  switch (stage) {
+    case 'PLANNING':        return 8000;  // Nemotron 550B — large reasoning budget
+    case 'INGESTION':       return 8000;  // Gemini Flash — fast + generous context
+    case 'DIFF_GENERATION': return 4096;  // GLM-5.2 — surgical patches, shorter output
+    case 'AUTO_FIX':        return 8192;  // Kimi K2.6 — code-repair focused, large context
+  }
+}
+
+// ─── Provider Health ─────────────────────────────────────────────────────────
 
 export function getProviderHealth(): Record<string, { configured: boolean; label: string }> {
   return {
@@ -157,7 +319,7 @@ export function getProviderHealth(): Record<string, { configured: boolean; label
     },
     nvidia: {
       configured: Boolean(process.env.NVIDIA_API_KEY),
-      label: 'NVIDIA NIM',
+      label: 'NVIDIA NIM (Nemotron + GLM-5.2 + Kimi K2.6)',
     },
   };
 }
