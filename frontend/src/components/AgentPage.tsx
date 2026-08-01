@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { fetchBlueprintFilesWithContent, fetchBlueprint, fetchMyBlueprints } from '../lib/api';
 import { PreviewPanel } from './PreviewPanel';
 import { useCodeGeneration } from '../hooks/useCodeGeneration';
 import {
-  Wand2,
+  Cpu,
   Folder,
   FileCode,
   Send,
@@ -21,6 +22,9 @@ import {
   Brain,
   Terminal,
   Settings,
+  Zap,
+  GitCompare,
+  Wrench,
 } from 'lucide-react';
 
 interface VfsFile {
@@ -50,7 +54,7 @@ export function AgentPage() {
   const [files, setFiles] = useState<VfsFile[]>([]);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [selectedFile, setSelectedFile] = useState<VfsFile | null>(null);
-  const [activeTab, setActiveTab] = useState<'explorer' | 'editor' | 'preview'>('explorer');
+  const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor');
 
   // Agent states
   const [prompt, setPrompt] = useState('');
@@ -61,9 +65,6 @@ export function AgentPage() {
   const [previewKey, setPreviewKey] = useState(0);
   const [agentModel, setAgentModel] = useState<string>('nemotron-3-550b');
   const [expandedThinking, setExpandedThinking] = useState<Record<number, boolean>>({});
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
   const codegen = useCodeGeneration();
 
 
@@ -89,7 +90,7 @@ export function AgentPage() {
   const modelLabel = (mid: string) =>
     mid === 'gemini-3.5-flash' ? 'Gemini 3.5 Flash'
     : mid === 'gemini-3.1-pro' ? 'Gemini 3.1 Pro'
-    : 'Nemotron 550B';
+    : 'Cortex (Nemotron 550B)';
 
   // Load user's blueprints for workspace selector
   useEffect(() => {
@@ -137,9 +138,23 @@ export function AgentPage() {
     }
   }, [id, token]);
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = useCallback(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTo({
+        top: chatScrollRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, liveThinkingSteps]);
+    scrollToBottom();
+  }, [messages, liveThinkingSteps, isThinking, expandedThinking, scrollToBottom]);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -273,10 +288,10 @@ export function AgentPage() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
-            <Wand2 className="text-emerald-400" size={32} />
+          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-4">
+            <Cpu className="text-indigo-400" size={32} />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">BuildX Code Agent</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">Cortex Agent Workspace</h1>
           <p className="text-gray-400 text-sm max-w-md">
             Select a project workspace to plan, edit files, and build code interactively with AI.
           </p>
@@ -284,7 +299,7 @@ export function AgentPage() {
 
         {loadingWorkspaces ? (
           <div className="flex flex-col items-center gap-2 py-12">
-            <Loader2 className="animate-spin text-emerald-400" size={24} />
+            <Loader2 className="animate-spin text-indigo-400" size={24} />
             <span className="text-xs text-gray-500 font-mono-custom">Loading workspaces…</span>
           </div>
         ) : workspaces.length === 0 ? (
@@ -292,374 +307,142 @@ export function AgentPage() {
             <p className="text-sm text-gray-400 mb-4">You don't have any blueprints yet.</p>
             <button
               onClick={() => navigate('/create')}
-              className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold rounded-xl transition-all"
+              className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold rounded-xl transition-all"
             >
               Build your first app
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full"
+            initial="hidden"
+            animate="show"
+            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
+          >
             {workspaces.map(w => (
-              <button
+              <motion.button
                 key={w.id}
                 onClick={() => navigate(`/agent/${w.id}`)}
-                className="flex items-start text-left p-5 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-emerald-500/20 rounded-2xl transition-all"
+                variants={{
+                  hidden: { opacity: 0, y: 20, scale: 0.97 },
+                  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+                }}
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex items-start text-left p-5 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-indigo-500/20 rounded-2xl transition-colors group"
               >
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-lg font-bold text-emerald-400 shrink-0 mr-4">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-lg font-bold text-indigo-400 shrink-0 mr-4 group-hover:scale-105 transition-transform">
                   {w.appName?.[0]?.toUpperCase() || 'A'}
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-semibold text-white truncate">{w.appName}</h3>
                   <p className="text-xs text-gray-400 truncate mt-1">{w.idea}</p>
-                  <span className="inline-block mt-3 text-[10px] font-mono-custom text-emerald-400 border border-emerald-500/10 px-2 py-0.5 rounded">
-                    Open Workspace →
+                  <span className="inline-block mt-3 text-[10px] font-mono-custom text-indigo-400 border border-indigo-500/10 px-2 py-0.5 rounded">
+                    Open IDE Studio →
                   </span>
                 </div>
-              </button>
+              </motion.button>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
     );
   }
 
-  // ── Active workspace ──────────────────────────────────────────────────────
+  // ── Active workspace: Studio 3-Column Layout ─────────────────────────────
   const TAB_STYLES = {
-    active: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/25',
+    active: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/25 shadow-sm',
     inactive: 'text-gray-400 hover:text-white hover:bg-white/[0.06] border border-transparent',
   };
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row h-[calc(100vh-64px)] min-h-0 overflow-hidden bg-[#0d0d0f]">
+    <div className="flex-1 flex flex-col md:flex-row min-h-[calc(100vh-4.5rem)] p-3 gap-3">
 
-      {/* ── Left column: Chat ──────────────────────────────────────────────── */}
-      <div className="w-full md:w-[420px] flex flex-col min-h-0 border-r border-white/5 bg-[#111113]">
-
-        {/* Header */}
-        <div className="p-4 border-b border-white/5 flex flex-col gap-3 shrink-0">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/agent')}
-              className="p-1.5 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors shrink-0"
-            >
-              <ArrowLeft size={16} />
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <Wand2 size={13} className="text-emerald-400 shrink-0" />
-                <span className="text-sm font-bold text-white">BuildX Code Agent</span>
-              </div>
-              {appName && (
-                <span className="text-[10px] font-mono-custom text-gray-500 block mt-0.5 truncate">
-                  Project: {appName}
-                </span>
-              )}
-            </div>
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono-custom shrink-0 transition-all ${isThinking ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
-              {isThinking && <Loader2 className="animate-spin text-emerald-400" size={10} />}
-              <span>{isThinking ? 'Thinking…' : 'Idle'}</span>
-            </div>
+      {/* ── 1. Left Sidebar (240px): VFS File Tree Navigation ────────────── */}
+      <aside className="w-full md:w-60 studio-card flex flex-col min-h-0 overflow-hidden shrink-0">
+        <div className="p-3 border-b border-white/5 flex items-center justify-between shrink-0 bg-white/[0.02]">
+          <div className="flex items-center gap-2">
+            <Folder size={14} className="text-purple-400" />
+            <span className="text-xs font-bold text-white font-mono-custom">Workspace Files</span>
           </div>
-
-          {/* Model selector */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-mono-custom uppercase tracking-widest text-gray-500 font-semibold">Model</span>
-            <div className="grid grid-cols-3 gap-1.5">
-              {([
-                { mid: 'nemotron-3-550b',  label: 'Nemotron',   sub: '550B · NVIDIA', accent: 'emerald' },
-                { mid: 'gemini-3.5-flash', label: 'Gemini 3.5', sub: 'Flash · Google', accent: 'blue' },
-                { mid: 'gemini-3.1-pro',   label: 'Gemini 3.1', sub: 'Pro · Google',   accent: 'purple' },
-              ] as const).map(m => {
-                const active = agentModel === m.mid;
-                const accentClass =
-                  m.accent === 'emerald' ? (active ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' : '')
-                  : m.accent === 'blue'   ? (active ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'     : '')
-                  : (active ? 'bg-purple-500/15 border-purple-500/30 text-purple-300' : '');
-                return (
-                  <button
-                    key={m.mid}
-                    onClick={() => setAgentModel(m.mid)}
-                    className={`flex flex-col items-start px-2.5 py-2 rounded-xl border text-left transition-all ${
-                      active ? accentClass : 'bg-white/[0.02] border-white/5 text-gray-400 hover:bg-white/[0.05] hover:text-white'
-                    }`}
-                  >
-                    <span className={`text-[11px] font-semibold leading-tight ${active ? '' : 'text-gray-300'}`}>
-                      {m.label}
-                    </span>
-                    <span className="text-[9px] font-mono-custom text-gray-500 mt-0.5 leading-tight">{m.sub}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <span className="text-[10px] font-mono-custom text-gray-500 bg-white/5 px-2 py-0.5 rounded">
+            {visibleFiles.length} files
+          </span>
         </div>
 
-        {/* Plan checklist */}
-        {plan && (
-          <div className="p-3 border-b border-white/5 bg-emerald-500/[0.02] shrink-0">
-            <div className="flex items-center gap-1.5 text-[10px] font-mono-custom text-emerald-400 uppercase tracking-widest font-semibold mb-1">
-              <CheckSquare size={11} />
-              <span>Task Checklist</span>
+        <div className="flex-1 overflow-y-auto p-2 space-y-1 font-mono-custom text-xs">
+          {loadingWorkspace ? (
+            <div className="flex items-center justify-center h-32 gap-2 text-gray-500 text-xs">
+              <Loader2 className="animate-spin text-emerald-400" size={14} />
+              <span>Loading VFS…</span>
             </div>
-            <pre className="text-xs text-gray-400 font-mono-custom whitespace-pre-wrap max-h-24 overflow-y-auto leading-relaxed">
-              {plan}
-            </pre>
-          </div>
-        )}
+          ) : visibleFiles.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 text-xs">
+              No workspace files. Click Initialize in main panel.
+            </div>
+          ) : (
+            visibleFiles.map(file => {
+              const isSelected = selectedFile?.path === file.path;
+              const fileName = file.path.split('/').pop() || file.path;
+              return (
+                <button
+                  key={file.path}
+                  onClick={() => {
+                    setSelectedFile(file);
+                    setActiveTab('editor');
+                  }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                    isSelected
+                      ? 'bg-purple-500/20 text-purple-200 font-semibold border border-purple-500/30'
+                      : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                  }`}
+                >
+                  <FileCode size={13} className={isSelected ? 'text-purple-400 shrink-0' : 'text-gray-500 shrink-0'} />
+                  <span className="truncate flex-1">{fileName}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </aside>
 
-        {/* Chat history */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 && !isThinking && (
-            <div className="text-center py-12 px-4">
-              <Sparkles className="mx-auto text-emerald-400/30 mb-3" size={24} />
-              <p className="text-xs text-gray-400 leading-relaxed font-mono-custom">
-                Describe what you want to build or modify. The agent will plan, reason, and edit files live.
-              </p>
+      {/* ── 2. Center Panel (Flex-1): Monaco Editor & Live Preview ───────── */}
+      <main className="flex-1 studio-card flex flex-col min-w-0 min-h-0 overflow-hidden relative border border-white/10">
+
+        {/* Tab Bar Header */}
+        <div className="flex items-center justify-between border-b border-white/5 px-3 h-11 shrink-0 bg-white/[0.02]">
+          <div className="flex items-center gap-1.5">
+            {(
+              [
+                { key: 'editor',   label: 'Code Editor',   icon: <FileCode size={13} /> },
+                { key: 'preview',  label: 'Live Preview',  icon: <PlayCircle size={13} /> },
+              ] as const
+            ).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === tab.key ? TAB_STYLES.active : TAB_STYLES.inactive
+                }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {selectedFile && activeTab === 'editor' && (
+            <div className="flex items-center gap-2 font-mono-custom text-[11px] text-gray-400 truncate">
+              <span className="text-gray-300 truncate">{selectedFile.path}</span>
+              <span className="uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px]">
+                {selectedFile.language}
+              </span>
             </div>
           )}
-
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex flex-col max-w-[88%] rounded-2xl text-xs leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-purple-500/10 border border-purple-500/20 text-purple-200 self-end ml-auto p-3.5'
-                  : 'bg-white/[0.03] border border-white/5 text-gray-300 self-start'
-              }`}
-            >
-              {msg.role === 'user' ? (
-                <>
-                  <span className="font-mono-custom text-[9px] uppercase tracking-wider text-purple-400/60 mb-1 block">You</span>
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
-                </>
-              ) : (
-                <>
-                  {/* Thinking block — collapsible */}
-                  {msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
-                    <div className="border-b border-white/5 px-3.5 pt-3 pb-2">
-                      <button
-                        onClick={() =>
-                          setExpandedThinking(prev => ({ ...prev, [i]: !prev[i] }))
-                        }
-                        className="flex items-center gap-1.5 text-[10px] font-mono-custom text-gray-500 hover:text-emerald-400 transition-colors w-full text-left"
-                      >
-                        <Brain size={10} className="text-emerald-500/60 shrink-0" />
-                        <span className="uppercase tracking-widest font-semibold">
-                          {modelLabel(msg.model ?? agentModel)} thought for {msg.thinkingSteps.length} step{msg.thinkingSteps.length !== 1 ? 's' : ''}
-                        </span>
-                        {expandedThinking[i] ? <ChevronDown size={10} className="ml-auto" /> : <ChevronRight size={10} className="ml-auto" />}
-                      </button>
-                      {expandedThinking[i] && (
-                        <div className="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
-                          {msg.thinkingSteps.map((step, si) => (
-                            <div key={si} className="text-[10px] font-mono-custom text-gray-500 leading-relaxed border-l-2 border-emerald-500/20 pl-2 py-0.5">
-                              {step}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {/* Assistant message */}
-                  <div className="p-3.5">
-                    <span className="font-mono-custom text-[9px] uppercase tracking-wider text-emerald-400/60 mb-1 block">
-                      {modelLabel(msg.model ?? agentModel)}
-                    </span>
-                    <div className="whitespace-pre-wrap text-gray-300">{msg.content}</div>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-
-          {/* Live thinking stream */}
-          {isThinking && (
-            <div className="self-start flex flex-col max-w-[88%] bg-white/[0.03] border border-white/5 rounded-2xl overflow-hidden text-xs">
-              <div className="flex items-center gap-2 px-3.5 pt-3 pb-2 border-b border-white/5">
-                <Loader2 className="animate-spin text-emerald-400 shrink-0" size={11} />
-                <span className="font-mono-custom text-[10px] uppercase tracking-widest text-emerald-400 font-semibold">
-                  {modelLabel(agentModel)} is thinking…
-                </span>
-              </div>
-              <div className="p-3 space-y-1.5 max-h-48 overflow-y-auto">
-                {liveThinkingSteps.length === 0 ? (
-                  <div className="text-[10px] font-mono-custom text-gray-500 animate-pulse">Initializing…</div>
-                ) : (
-                  liveThinkingSteps.map((step, si) => (
-                    <div
-                      key={si}
-                      className={`text-[10px] font-mono-custom leading-relaxed border-l-2 pl-2 py-0.5 transition-all ${
-                        si === liveThinkingSteps.length - 1
-                          ? 'border-emerald-400/60 text-emerald-300'
-                          : 'border-emerald-500/20 text-gray-500'
-                      }`}
-                    >
-                      {step}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
         </div>
 
-        {/* Prompt input */}
-        <form onSubmit={handleSend} className="p-3 border-t border-white/5 bg-[#0d0d0f] flex gap-2 shrink-0">
-          <input
-            value={prompt}
-            onChange={e => setPrompt(e.target.value)}
-            disabled={isThinking}
-            placeholder="Describe what to build or change…"
-            className="flex-1 bg-white/5 hover:bg-white/[0.07] focus:bg-white/[0.08] focus:ring-1 focus:ring-emerald-500/30 border border-white/5 focus:border-emerald-500/30 rounded-xl px-3 py-2 text-xs text-white outline-none placeholder-gray-600 transition-all disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={!prompt.trim() || isThinking}
-            className="p-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 transition-all disabled:opacity-30"
-          >
-            <Send size={14} />
-          </button>
-        </form>
-      </div>
-
-      {/* ── Right column: Code Studio ──────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-[#0a0a0c]">
-
-        {/* Tab bar */}
-        <div className="flex items-center gap-1.5 border-b border-white/5 px-4 h-12 shrink-0">
-          {(
-            [
-              { key: 'explorer', label: 'Workspace Files', icon: <Folder size={13} /> },
-              { key: 'editor',   label: 'Code Editor',     icon: <FileCode size={13} /> },
-              { key: 'preview',  label: 'Live Preview',    icon: <PlayCircle size={13} /> },
-            ] as const
-          ).map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === tab.key ? TAB_STYLES.active : TAB_STYLES.inactive
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Tab panels — all rendered simultaneously, toggled via display */}
+        {/* Tab Panels */}
         <div className="flex-1 overflow-hidden relative">
-
-          {/* Explorer */}
-          <div className={`absolute inset-0 overflow-y-auto p-4 ${activeTab === 'explorer' ? '' : 'hidden'}`}>
-            {loadingWorkspace ? (
-              <div className="flex items-center justify-center h-full gap-2 text-gray-500 text-xs">
-                <Loader2 className="animate-spin text-emerald-400" size={16} />
-                <span>Loading workspace VFS…</span>
-              </div>
-            ) : visibleFiles.length === 0 ? (
-              <div className="flex flex-col items-center justify-center min-h-[400px] text-center max-w-lg mx-auto p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
-                <Terminal className="text-emerald-400/30 mb-4 animate-pulse" size={44} />
-                <h3 className="text-sm font-bold text-white mb-2">Uninitialized VFS Workspace</h3>
-                <p className="text-xs text-gray-400 leading-relaxed mb-6">
-                  This workspace has no codebase files scaffolded yet. Initialize the React + Express full-stack codebase structure to enable live code editing and agent refinements.
-                </p>
-
-                {codegen.isGenerating ? (
-                  <div className="w-full bg-[#0d0d0f] border border-white/5 rounded-xl p-4 flex flex-col gap-3">
-                    <div className="flex items-center justify-between text-[11px] font-mono-custom">
-                      <span className="text-emerald-400 font-semibold animate-pulse">Generating codebase scaffold…</span>
-                      <span className="text-gray-500">
-                        {codegen.progress.currentFileIndex} / {codegen.progress.totalFiles}
-                      </span>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-500 transition-all duration-300"
-                        style={{
-                          width: `${
-                            codegen.progress.totalFiles > 0
-                              ? (codegen.progress.currentFileIndex / codegen.progress.totalFiles) * 100
-                              : 5
-                          }%`,
-                        }}
-                      />
-                    </div>
-
-                    <div className="text-[10px] font-mono-custom text-gray-500 truncate text-left">
-                      Writing: <span className="text-gray-300">{codegen.progress.currentFilePath || 'Connecting…'}</span>
-                    </div>
-                  </div>
-                ) : codegen.progress.status === 'error' ? (
-                  <div className="w-full bg-red-500/10 border border-red-500/20 text-red-300 rounded-xl p-4 text-xs mb-4 text-left">
-                    <p className="font-semibold mb-1">Scaffold generation failed:</p>
-                    <p className="text-gray-400 font-mono-custom text-[11px] leading-relaxed mb-3">{codegen.progress.error || 'Connection error.'}</p>
-                    <div className="text-[10px] text-gray-500 mb-4 bg-white/[0.02] p-2.5 rounded-lg border border-white/5 leading-relaxed">
-                      💡 <strong>Tip:</strong> If you are using <strong>Nemotron</strong>, it can occasionally fail due to rate limits or timeouts. Switch the active model to <strong>Gemini 3.5 Flash</strong> in the sidebar and retry — it builds the 19+ scaffold files in 30 seconds instead of 10 minutes.
-                    </div>
-                    <button
-                      onClick={() => codegen.generateCode(id, agentModel)}
-                      className="w-full py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold transition-all"
-                    >
-                      Retry Scaffolding
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-full flex flex-col gap-3">
-                    {agentModel.includes('nemotron') && (
-                      <div className="text-[10px] text-gray-500 bg-white/[0.02] p-3 rounded-xl border border-white/5 leading-relaxed text-left">
-                        ⚠️ <strong>Note:</strong> Initializing files using <strong>Nemotron 550B</strong> runs 19+ individual API calls and takes <strong>8 to 10 minutes</strong>. 
-                        We highly recommend switching to <strong>Gemini 3.5 Flash</strong> (via the sidebar model selector) for a fast 30-second initialization.
-                      </div>
-                    )}
-                    <button
-                      onClick={() => codegen.generateCode(id, agentModel)}
-                      className="w-full py-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2"
-                    >
-                      <Wand2 size={14} />
-                      <span>Initialize Workspace Files</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {visibleFiles.map(file => (
-                  <button
-                    key={file.path}
-                    onClick={() => {
-                      setSelectedFile(file);
-                      setActiveTab('editor');
-                    }}
-                    className={`flex items-center text-left p-3.5 border rounded-xl transition-all group ${
-                      selectedFile?.path === file.path
-                        ? 'bg-emerald-500/10 border-emerald-500/25'
-                        : 'bg-white/[0.02] hover:bg-white/[0.04] border-white/5 hover:border-emerald-500/10'
-                    }`}
-                  >
-                    <FileText
-                      className={`shrink-0 mr-3 transition-colors ${
-                        selectedFile?.path === file.path ? 'text-emerald-400' : 'text-emerald-400/40 group-hover:text-emerald-400'
-                      }`}
-                      size={16}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <span className="font-mono-custom text-xs text-white truncate block">
-                        {file.path.split('/').pop()}
-                      </span>
-                      <span className="font-mono-custom text-[10px] text-gray-500 truncate block mt-0.5">
-                        {file.path}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Code Editor */}
           <div className={`absolute inset-0 flex flex-col overflow-hidden ${activeTab === 'editor' ? '' : 'hidden'}`}>
@@ -669,24 +452,13 @@ export function AgentPage() {
                 <span>Initialize the VFS workspace files first to edit or view code.</span>
               </div>
             ) : selectedFile ? (
-              <>
-                <div className="px-4 py-2 border-b border-white/5 bg-white/[0.02] flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileCode size={12} className="text-emerald-400 shrink-0" />
-                    <span className="font-mono-custom text-xs text-gray-300 truncate">{selectedFile.path}</span>
-                  </div>
-                  <span className="font-mono-custom text-[10px] uppercase text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded shrink-0 ml-2">
-                    {selectedFile.language}
-                  </span>
-                </div>
-                <pre className="flex-1 overflow-auto p-4 text-xs font-mono-custom text-gray-300 bg-[#0a0a0c] leading-relaxed whitespace-pre select-text selection:bg-emerald-500/20">
-                  {selectedFile.content}
-                </pre>
-              </>
+              <pre className="flex-1 overflow-auto p-4 text-xs font-mono-custom text-gray-300 bg-[#08080a] leading-relaxed whitespace-pre select-text selection:bg-purple-500/20">
+                {selectedFile.content}
+              </pre>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-xs gap-2">
                 <FileCode size={24} className="opacity-30" />
-                <span>Select a file from the Workspace Files tab.</span>
+                <span>Select a file from the left sidebar or Overview.</span>
               </div>
             )}
           </div>
@@ -696,7 +468,193 @@ export function AgentPage() {
             <PreviewPanel blueprintId={id} appName={appName} key={previewKey} />
           </div>
         </div>
-      </div>
+      </main>
+
+      {/* ── 3. Right Sidebar (360px): RefinementChat & Telemetry ──────────── */}
+      <aside className="w-full md:w-[360px] studio-card flex flex-col h-[580px] md:h-[calc(100vh-5.5rem)] shrink-0 border border-white/10 overflow-hidden">
+
+        {/* Panel Header */}
+        <div className="p-3 border-b border-white/5 flex flex-col gap-2 shrink-0 bg-white/[0.02]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/agent')}
+                className="p-1 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
+                title="Back to Workspaces"
+              >
+                <ArrowLeft size={14} />
+              </button>
+              <Cpu size={14} className="text-indigo-400 shrink-0" />
+              <span className="text-xs font-bold text-white">Cortex Agent</span>
+            </div>
+
+            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono-custom shrink-0 transition-all ${isThinking ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
+              {isThinking && <Loader2 className="animate-spin text-emerald-400" size={10} />}
+              <span>{isThinking ? 'Thinking…' : 'Idle'}</span>
+            </div>
+          </div>
+
+          {/* Multi-Model Telemetry Badges */}
+          <div className="flex flex-col gap-1 p-2 rounded-lg bg-indigo-950/30 border border-indigo-500/20 text-[10px] font-mono-custom text-indigo-300">
+            <div className="flex items-center justify-between font-semibold">
+              <span>Pipeline Stage Telemetry</span>
+              <span className="flex items-center gap-1 text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                Active
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] text-gray-400 pt-1 border-t border-indigo-500/10">
+              <div className="flex items-center gap-1">
+                <Brain size={9} className="text-purple-400 shrink-0" />
+                <span>PLAN: <span className="text-purple-300">Nemotron</span></span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Zap size={9} className="text-sky-400 shrink-0" />
+                <span>INGEST: <span className="text-sky-300">Gemini 3.5</span></span>
+              </div>
+              <div className="flex items-center gap-1">
+                <GitCompare size={9} className="text-emerald-400 shrink-0" />
+                <span>DIFF: <span className="text-emerald-300">GLM-5.2</span></span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Wrench size={9} className="text-amber-400 shrink-0" />
+                <span>FIX: <span className="text-amber-300 font-bold">Kimi K2.6</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Task Checklist Stream */}
+        <AnimatePresence initial={false}>
+          {plan && (
+            <motion.div
+              key="plan-checklist"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="overflow-hidden border-b border-white/5 bg-emerald-500/[0.02] shrink-0"
+            >
+              <div className="p-2.5">
+                <div className="flex items-center gap-1.5 text-[10px] font-mono-custom text-emerald-400 uppercase tracking-widest font-semibold mb-1">
+                  <CheckSquare size={11} />
+                  <span>Task Checklist</span>
+                </div>
+                <pre className="text-[11px] text-gray-400 font-mono-custom whitespace-pre-wrap max-h-20 overflow-y-auto leading-relaxed">
+                  {plan}
+                </pre>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Conversation Stream */}
+        <div
+          ref={chatScrollRef}
+          className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 font-mono-custom text-xs chat-scroll-area scroll-smooth"
+        >
+          {messages.length === 0 && !isThinking && (
+            <div className="text-center py-10 px-3">
+              <Sparkles className="mx-auto text-indigo-400/40 mb-2 animate-pulse" size={20} />
+              <p className="text-[11px] text-gray-400 leading-relaxed">
+                Describe code edits or features to build. The multi-model pipeline plans, generates diff patches, and applies fixes live.
+              </p>
+            </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+              className={`flex flex-col max-w-[92%] rounded-xl text-[11px] leading-relaxed overflow-hidden ${
+                msg.role === 'user'
+                  ? 'bg-purple-500/15 border border-purple-500/30 text-purple-200 self-end ml-auto p-2.5'
+                  : 'bg-white/[0.04] border border-white/5 text-gray-300 self-start'
+              }`}
+            >
+              {msg.role === 'assistant' ? (
+                <>
+                  {/* Thinking steps accordion */}
+                  {msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
+                    <div className="border-b border-white/5 p-2 bg-black/20">
+                      <button
+                        onClick={() =>
+                          setExpandedThinking(prev => ({ ...prev, [i]: !prev[i] }))
+                        }
+                        className="flex items-center gap-1.5 text-[10px] font-mono-custom text-gray-500 hover:text-emerald-400 transition-colors w-full text-left"
+                      >
+                        <Brain size={10} className="text-emerald-500/60 shrink-0" />
+                        <span className="uppercase tracking-widest font-semibold">
+                          Pipeline thought for {msg.thinkingSteps.length} step{msg.thinkingSteps.length !== 1 ? 's' : ''}
+                        </span>
+                        {expandedThinking[i] ? <ChevronDown size={10} className="ml-auto" /> : <ChevronRight size={10} className="ml-auto" />}
+                      </button>
+                      {expandedThinking[i] && (
+                        <div className="mt-2 space-y-1 max-h-40 overflow-y-auto pr-1 font-mono-custom">
+                          {msg.thinkingSteps.map((step, si) => (
+                            <div key={si} className="text-[10px] text-gray-400 leading-relaxed border-l-2 border-emerald-500/20 pl-2 py-0.5">
+                              {step}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="p-2.5">
+                    <span className="text-[9px] font-mono-custom uppercase tracking-wider text-emerald-400/70 mb-1 block">
+                      {msg.model ? `Pipeline · ${msg.model}` : 'Pipeline · Cortex'}
+                    </span>
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  </div>
+                </>
+              ) : (
+                <div className="whitespace-pre-wrap">{msg.content}</div>
+              )}
+            </motion.div>
+          ))}
+
+          {isThinking && (
+            <div className="self-start flex flex-col max-w-[92%] bg-white/[0.03] border border-white/5 rounded-xl p-2.5 text-[11px]">
+              <div className="flex items-center gap-1.5 mb-1.5 text-emerald-400 font-semibold">
+                <Loader2 className="animate-spin" size={12} />
+                <span>Executing Pipeline…</span>
+              </div>
+              <div className="space-y-1">
+                {liveThinkingSteps.map((step, idx) => (
+                  <div key={idx} className="text-[10px] text-gray-400 border-l-2 border-emerald-500/30 pl-2 py-0.5">
+                    {step}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Pinned Bottom Chat Input */}
+        <form onSubmit={handleSend} className="p-2.5 border-t border-white/5 bg-white/[0.02] flex items-center gap-2 shrink-0">
+          <input
+            type="text"
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            placeholder={isThinking ? 'Pipeline running…' : 'Ask Agent to refine code…'}
+            disabled={isThinking}
+            className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-indigo-500/50 font-mono-custom"
+          />
+          <button
+            type="submit"
+            disabled={!prompt.trim() || isThinking}
+            className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-30 transition-all shrink-0"
+          >
+            <Send size={14} />
+          </button>
+        </form>
+      </aside>
+
     </div>
   );
 }
