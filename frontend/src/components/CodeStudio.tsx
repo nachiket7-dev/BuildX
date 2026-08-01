@@ -16,12 +16,15 @@ import {
   Check,
   X,
   Play,
-  Cpu
+  Cpu,
+  GitCompare,
+  CheckCircle2,
+  XCircle,
+  Wrench
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../hooks/useToast';
 import { getAuthHeaders } from '../lib/api';
-import { useCodeGeneration } from '../hooks/useCodeGeneration';
-import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
 import { useAuth } from '../hooks/useAuth';
 
 function getFileIcon(name: string, size = 14) {
@@ -104,101 +107,67 @@ function buildFileTree(paths: string[]): TreeNode[] {
   return root;
 }
 
-function highlightCode(content: string, language: string): string {
-  let html = escapeHtml(content);
+function highlightCode(code: string, language: string): string {
+  if (!code) return '';
+  let esc = escapeHtml(code);
 
-  if (language === 'ts' || language === 'tsx' || language === 'js' || language === 'javascript') {
-    const placeholders: string[] = [];
-    
-    html = html.replace(/\/\*[\s\S]*?\*\//g, (match) => {
-      placeholders.push(`<span class="text-emerald-500/80 italic">${match}</span>`);
-      return `___PLACEHOLDER_${placeholders.length - 1}___`;
-    });
-    
-    html = html.replace(/\/\/.*$/gm, (match) => {
-      placeholders.push(`<span class="text-emerald-500/80 italic">${match}</span>`);
-      return `___PLACEHOLDER_${placeholders.length - 1}___`;
-    });
-    
-    html = html.replace(/(["'`])(?:\\.|[^\\])*?\1/g, (match) => {
-      placeholders.push(`<span class="text-amber-300/90">${match}</span>`);
-      return `___PLACEHOLDER_${placeholders.length - 1}___`;
-    });
-    
-    const keywords = [
-      'const', 'let', 'var', 'function', 'class', 'extends', 'implements', 
-      'import', 'export', 'from', 'default', 'as', 'return', 'if', 'else', 
-      'for', 'while', 'switch', 'case', 'break', 'continue', 'new', 'this', 
-      'true', 'false', 'null', 'undefined', 'async', 'await', 'try', 'catch', 
-      'finally', 'throw', 'interface', 'type', 'readonly', 'public', 'private', 
-      'protected', 'static', 'get', 'set', 'of', 'in'
-    ];
-    const keywordRegex = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
-    html = html.replace(keywordRegex, '<span class="text-purple-400 font-bold">$1</span>');
-    
-    const types = ['string', 'number', 'boolean', 'any', 'void', 'unknown', 'never', 'object', 'Record', 'Promise', 'ReactNode', 'React'];
-    const typesRegex = new RegExp(`\\b(${types.join('|')})\\b`, 'g');
-    html = html.replace(typesRegex, '<span class="text-blue-400 font-semibold">$1</span>');
-    
-    for (let i = placeholders.length - 1; i >= 0; i--) {
-      html = html.replace(`___PLACEHOLDER_${i}___`, placeholders[i]);
-    }
-  } else if (language === 'sql') {
-    const placeholders: string[] = [];
-    
-    html = html.replace(/--.*$/gm, (match) => {
-      placeholders.push(`<span class="text-emerald-500/80 italic">${match}</span>`);
-      return `___PLACEHOLDER_${placeholders.length - 1}___`;
-    });
-    
-    html = html.replace(/'(?:\\.|[^'])*?'/g, (match) => {
-      placeholders.push(`<span class="text-amber-300/90">${match}</span>`);
-      return `___PLACEHOLDER_${placeholders.length - 1}___`;
-    });
-    
-    const sqlKeywords = [
-      'SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'TABLE', 
-      'ALTER', 'DROP', 'INDEX', 'FOREIGN', 'KEY', 'PRIMARY', 'REFERENCES', 
-      'UNIQUE', 'NOT', 'NULL', 'DEFAULT', 'INT', 'VARCHAR', 'TEXT', 'TIMESTAMP', 
-      'BOOLEAN', 'DATE', 'UUID', 'DATABASE', 'SCHEMA', 'INTO', 'VALUES', 'SET', 
-      'ON', 'DELETE', 'CASCADE', 'CONSTRAINT', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 
-      'OUTER', 'ORDER', 'BY', 'GROUP', 'HAVING', 'LIMIT', 'OFFSET', 'AS', 'AND', 
-      'OR', 'IN', 'EXISTS', 'ANY', 'ALL'
-    ];
-    const sqlKeywordsRegex = new RegExp(`\\b(${sqlKeywords.join('|')})\\b`, 'gi');
-    html = html.replace(sqlKeywordsRegex, '<span class="text-purple-400 font-bold">$1</span>');
-    
-    for (let i = placeholders.length - 1; i >= 0; i--) {
-      html = html.replace(`___PLACEHOLDER_${i}___`, placeholders[i]);
-    }
-  } else if (language === 'json') {
-    const placeholders: string[] = [];
-    
-    html = html.replace(/"(?:\\.|[^"])*?"/g, (match) => {
-      placeholders.push(`<span class="text-amber-300/90">${match}</span>`);
-      return `___PLACEHOLDER_${placeholders.length - 1}___`;
-    });
-    
-    html = html.replace(/\b(true|false|null|\d+)\b/g, '<span class="text-blue-400">$1</span>');
-    
-    for (let i = placeholders.length - 1; i >= 0; i--) {
-      html = html.replace(`___PLACEHOLDER_${i}___`, placeholders[i]);
-    }
+  if (language === 'sql') {
+    esc = esc.replace(
+      /\b(CREATE TABLE|PRIMARY KEY|DEFAULT|NOT NULL|UNIQUE|FOREIGN KEY|REFERENCES|UUID|VARCHAR|INTEGER|BOOLEAN|TIMESTAMP|WITH TIME ZONE|CHECK|INDEX|IF NOT EXISTS|ALTER TABLE|ADD CONSTRAINT)\b/gi,
+      '<span class="text-purple-400 font-semibold">$1</span>'
+    );
+    esc = esc.replace(
+      /\b(gen_random_uuid|now|CURRENT_TIMESTAMP)\b/gi,
+      '<span class="text-amber-300 font-mono">$1</span>'
+    );
+  } else if (language === 'tsx' || language === 'ts' || language === 'js' || language === 'javascript') {
+    esc = esc.replace(
+      /\b(import|export|from|default|const|let|var|function|return|if|else|switch|case|async|await|try|catch|type|interface|extends|implements|typeof)\b/g,
+      '<span class="text-purple-400 font-semibold">$1</span>'
+    );
+    esc = esc.replace(
+      /\b(useState|useEffect|useCallback|useMemo|useRef|useQuery|useMutation|Router|Request|Response)\b/g,
+      '<span class="text-blue-400 font-semibold">$1</span>'
+    );
+    esc = esc.replace(
+      /(&lt;\/?[a-zA-Z0-9]+(?:\s+[^&]*)?\/?&gt;)/g,
+      '<span class="text-indigo-300">$1</span>'
+    );
   }
-  
-  return html;
+
+  esc = esc.replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g, '<span class="text-emerald-300">$1</span>');
+  esc = esc.replace(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)/g, '<span class="text-gray-500 italic">$1</span>');
+
+  return esc;
 }
 
-export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefineMessage, isRefining = false, codegen }: CodeStudioProps) {
+export function CodeStudio({
+  blueprint,
+  blueprintId,
+  blueprintContentKey,
+  onRefineMessage,
+  isRefining,
+  codegen
+}: CodeStudioProps) {
+  const { toast } = useToast();
   const [openFiles, setOpenFiles] = useState<string[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string>('');
-  const [refineInput, setRefineInput] = useState('');
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [refineInput, setRefineInput] = useState('');
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
-  const { toast } = useToast();
   
-  // Destructure hook state passed from parent
+  // Side-by-Side Diff Editor Mode State
+  const [isDiffMode, setIsDiffMode] = useState(false);
+  const [modifiedDrafts, setModifiedDrafts] = useState<Record<string, string>>({});
+  // Glow flash on patch apply
+  const [patchFlash, setPatchFlash] = useState(false);
+
+  const triggerPatchFlash = () => {
+    setPatchFlash(true);
+    setTimeout(() => setPatchFlash(false), 600);
+  };
+
   const {
     isGenerating,
     progress: codegenProgress,
@@ -207,69 +176,16 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
     loadGeneratedFiles,
     saveFileContent
   } = codegen;
-  const { selectedModel, setSelectedModel } = useModel();
+
   const { user } = useAuth();
 
-  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const PipelineStatusIndicator = () => (
+    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 font-mono-custom select-none">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+      <span>Autonomous Multi-Model Pipeline</span>
+    </div>
+  );
 
-  const ModelSelector = () => {
-    const activeModelInfo = AVAILABLE_MODELS.find(m => m.id === selectedModel);
-    
-    return (
-      <div className="relative inline-block text-left shrink-0">
-        <button
-          type="button"
-          onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold text-purple-300 bg-purple-500/10 hover:bg-purple-500/15 border border-purple-500/20 hover:border-purple-500/30 transition-all select-none font-mono-custom cursor-pointer active:scale-95"
-        >
-          <Cpu size={11} className="text-purple-400" />
-          <span>{activeModelInfo ? activeModelInfo.label : selectedModel}</span>
-          <ChevronDown size={10} className={`text-purple-400/70 transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
-        </button>
-
-        {isModelDropdownOpen && (
-          <>
-            <div 
-              className="fixed inset-0 z-30" 
-              onClick={() => setIsModelDropdownOpen(false)} 
-            />
-            
-            <div className="absolute right-0 mt-1.5 w-56 rounded-xl border border-white/10 bg-bg-surface2/95 backdrop-blur-md shadow-2xl p-1.5 z-40 space-y-0.5 animate-fade-in font-mono-custom text-[11px] origin-top-right">
-              {AVAILABLE_MODELS.map((model) => {
-                const isSelected = model.id === selectedModel;
-                return (
-                  <button
-                    key={model.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedModel(model.id as any);
-                      setIsModelDropdownOpen(false);
-                    }}
-                    className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between ${
-                      isSelected
-                        ? 'bg-purple-500/15 text-purple-300 font-bold'
-                        : 'text-muted-foreground hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
-                    <span>{model.label}</span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
-                      isSelected 
-                        ? 'bg-purple-500/20 border-purple-500/30 text-purple-300' 
-                        : 'bg-white/5 border-white/10 text-muted-foreground'
-                    }`}>
-                      {model.provider.toUpperCase()}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
-
-  // Load generated files when blueprint id or content changes (e.g. after refine)
   useEffect(() => {
     if (blueprintId && !isGenerating) {
       loadGeneratedFiles(blueprintId);
@@ -346,155 +262,77 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
     return raw || '-- No SQL generated';
   };
 
-  // DB/codegen files take priority; fall back to blueprint starter snippets for legacy view
   const hasDbGeneratedCode = Object.keys(generatedFilesMap).length > 0;
-  const activeFilesMap = hasDbGeneratedCode
-    ? generatedFilesMap
-    : (blueprint.code?.files || {});
 
-  const files: VirtualFile[] = [];
-
-  if (Object.keys(activeFilesMap).length > 0) {
-    Object.entries(activeFilesMap).forEach(([filePath, content]) => {
-      const parts = filePath.split('/');
-      const name = parts[parts.length - 1];
-      const folder = parts.slice(0, -1).join('/') || '.';
-      
-      let language: VirtualFile['language'] = 'ts';
-      const ext = name.split('.').pop()?.toLowerCase();
-      if (ext === 'tsx') language = 'tsx';
-      else if (ext === 'ts') language = 'ts';
-      else if (ext === 'sql') language = 'sql';
-      else if (ext === 'json') language = 'json';
-      else if (ext === 'md') language = 'md';
-      else if (ext === 'js') language = 'js';
-      
-      files.push({
-        path: filePath,
-        name,
-        folder,
-        language,
-        content: unescapeString(content as string),
-        icon: ''
+  const files: VirtualFile[] = React.useMemo(() => {
+    if (hasDbGeneratedCode) {
+      return Object.entries(generatedFilesMap).map(([path, content]) => {
+        const name = path.split('/').pop() || path;
+        const ext = path.split('.').pop() || 'txt';
+        const langMap: Record<string, VirtualFile['language']> = {
+          ts: 'ts',
+          tsx: 'tsx',
+          sql: 'sql',
+          json: 'json',
+          md: 'md',
+          js: 'js'
+        };
+        return {
+          path,
+          name,
+          folder: path.split('/')[0] || 'root',
+          language: langMap[ext] || 'ts',
+          content: String(content ?? ''),
+          icon: ext
+        };
       });
-    });
-  } else {
-    // Fallback template configurations
-    files.push(
+    }
+
+    const legacy: VirtualFile[] = [
+      {
+        path: isMongo ? 'backend/schema.js' : 'backend/schema.sql',
+        name: isMongo ? 'schema.js' : 'schema.sql',
+        folder: 'backend',
+        language: isMongo ? 'js' : 'sql',
+        content: getSchemaCode(),
+        icon: isMongo ? 'js' : 'sql',
+      },
       {
         path: 'frontend/src/App.tsx',
         name: 'App.tsx',
-        folder: 'frontend/src',
-        language: 'tsx',
-        content: unescapeString(blueprint.code?.frontend || ''),
-        icon: '⚛️',
-      },
-      {
-        path: 'frontend/package.json',
-        name: 'package.json',
         folder: 'frontend',
-        language: 'json',
-        content: JSON.stringify(
-          {
-            name: `${(blueprint.appName || 'app').toLowerCase().replace(/\s+/g, '-')}-frontend`,
-            version: '1.0.0',
-            dependencies: {
-              react: '^18.2.0',
-              'react-dom': '^18.2.0',
-              tailwindcss: '^3.3.0',
-              'lucide-react': '^0.294.0',
-              '@tanstack/react-query': '^5.14.0',
-            },
-          },
-          null,
-          2
-        ),
-        icon: '📦',
+        language: 'tsx',
+        content: unescapeString(blueprint.code?.frontend || '// No frontend code available'),
+        icon: 'tsx',
       },
       {
-        path: 'backend/src/routes.ts',
-        name: 'routes.ts',
-        folder: 'backend/src',
-        language: 'ts',
-        content: unescapeString(blueprint.code?.backend || ''),
-        icon: '🔌',
-      },
-      {
-        path: 'backend/package.json',
-        name: 'package.json',
+        path: 'backend/src/app.ts',
+        name: 'app.ts',
         folder: 'backend',
-        language: 'json',
-        content: JSON.stringify(
-          {
-            name: `${(blueprint.appName || 'app').toLowerCase().replace(/\s+/g, '-')}-backend`,
-            version: '1.0.0',
-            dependencies: {
-              express: '^4.18.2',
-              jsonwebtoken: '^9.0.2',
-              bcryptjs: '^2.4.3',
-              ...(isMongo
-                ? { mongoose: '^7.6.0' }
-                : { pg: '^8.11.3' }),
-              zod: '^3.22.4',
-            },
-          },
-          null,
-          2
-        ),
-        icon: '📦',
+        language: 'ts',
+        content: unescapeString(blueprint.code?.backend || '// No backend code available'),
+        icon: 'ts',
       },
-      {
-        path: `database/${isMongo ? 'schema.js' : 'schema.sql'}`,
-        name: isMongo ? 'schema.js' : 'schema.sql',
-        folder: 'database',
-        language: isMongo ? 'javascript' : 'sql',
-        content: getSchemaCode(),
-        icon: '🗄️',
-      },
-      {
-        path: 'README.md',
-        name: 'README.md',
-        folder: '.',
-        language: 'md',
-        content: unescapeString(`# ⚡ ${blueprint.appName || 'App'}\n\n${blueprint.description || ''}\n\n## Target Users\n${blueprint.targetUsers || ''}\n\n## Tech Stack\n- Frontend: ${blueprint.architecture?.frontend || 'React'}\n- Backend: ${blueprint.architecture?.backend || 'Node'}\n- Database: ${blueprint.architecture?.database || 'PostgreSQL'}\n- Auth: ${blueprint.architecture?.auth || 'JWT'}\n- Hosting: ${blueprint.architecture?.hosting || 'Vercel'}\n\n## Setup Instructions\n1. Import the schema inside database/${isMongo ? 'schema.js' : 'schema.sql'}\n2. Run npm install in frontend and backend\n3. Run npm run dev to start`),
-        icon: '📝',
-      }
-    );
-  }
+    ];
+    return legacy;
+  }, [hasDbGeneratedCode, generatedFilesMap, blueprint, isMongo]);
 
-  // Set default active file on load
   useEffect(() => {
-    if (files.length > 0) {
-      const validOpenFiles = openFiles.filter(path => files.some(f => f.path === path));
-      let nextActivePath = activeFilePath;
-      if (!activeFilePath || !files.some(f => f.path === activeFilePath)) {
-        nextActivePath = files[0].path;
+    if (files.length > 0 && (!activeFilePath || !files.some((f) => f.path === activeFilePath))) {
+      setActiveFilePath(files[0].path);
+      if (!openFiles.includes(files[0].path)) {
+        setOpenFiles((prev) => [...prev, files[0].path]);
       }
-      setActiveFilePath(nextActivePath);
-      if (validOpenFiles.length === 0 && nextActivePath) {
-        setOpenFiles([nextActivePath]);
-      } else if (!validOpenFiles.includes(nextActivePath) && nextActivePath) {
-        setOpenFiles([...validOpenFiles, nextActivePath]);
-      } else {
-        setOpenFiles(validOpenFiles);
-      }
-    } else {
-      setActiveFilePath('');
-      setOpenFiles([]);
     }
-  }, [blueprint, generatedFilesMap]);
+  }, [files, activeFilePath, openFiles]);
 
-  const activeFile = openFiles.includes(activeFilePath)
-    ? files.find((f) => f.path === activeFilePath)
-    : undefined;
-
-
+  const activeFile = files.find((f) => f.path === activeFilePath) || files[0];
 
   const handleOpenFile = (path: string) => {
-    setActiveFilePath(path);
     if (!openFiles.includes(path)) {
-      setOpenFiles([...openFiles, path]);
+      setOpenFiles((prev) => [...prev, path]);
     }
+    setActiveFilePath(path);
   };
 
   const handleCloseFile = (path: string, e: React.MouseEvent) => {
@@ -517,8 +355,6 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
     toast('Code copied to clipboard', 'success');
     setTimeout(() => setCopied(false), 2000);
   };
-
-
 
   const handleDownloadAll = async () => {
     setDownloading(true);
@@ -624,7 +460,6 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
     setRefineInput('');
   };
 
-  // Determine if full code files are generated yet (DB/codegen only — not starter snippets)
   const hasGeneratedCode = hasDbGeneratedCode;
 
   if (codegenProgress.status === 'loading' && !hasGeneratedCode && !isGenerating) {
@@ -636,7 +471,6 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
     );
   }
 
-  // ─── Render Code Generator Error State ────────────────────
   if (codegenProgress.status === 'error' && !hasGeneratedCode && !isGenerating) {
     return (
       <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-red-500/20 bg-bg-surface text-center py-20 min-h-[480px]">
@@ -649,7 +483,7 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
         </p>
         {blueprintId && user && (
           <button
-            onClick={() => generateCode(blueprintId, selectedModel)}
+            onClick={() => generateCode(blueprintId)}
             className="px-6 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-xl text-sm font-semibold border border-purple-500/30 transition-colors"
           >
             Try Again
@@ -659,7 +493,6 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
     );
   }
 
-  // ─── Render Code Generator Splash Panel ───────────────────
   if (!hasGeneratedCode && !isGenerating && files.length === 0) {
     return (
       <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-bg-surface text-center py-20 min-h-[480px]">
@@ -677,14 +510,14 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
           user ? (
             <div className="flex flex-col items-center gap-4">
               <button
-                onClick={() => generateCode(blueprintId, selectedModel)}
+                onClick={() => generateCode(blueprintId)}
                 className="px-8 py-3.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-xl font-display font-semibold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-purple-500/20"
               >
                 <Play size={16} fill="currentColor" />
                 Start Code Generation
               </button>
               <div className="mt-4 flex items-center justify-center gap-2">
-                <ModelSelector />
+                <PipelineStatusIndicator />
               </div>
             </div>
           ) : (
@@ -701,7 +534,6 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
     );
   }
 
-  // ─── Render Generation Progress Overlay ───────────────────
   if (isGenerating) {
     const percent = codegenProgress.totalFiles > 0
       ? Math.round((codegenProgress.currentFileIndex / codegenProgress.totalFiles) * 100)
@@ -713,7 +545,7 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
           Generating Application Files...
         </h3>
         <p className="text-xs text-purple-400 font-mono-custom mb-6">
-          {codegenProgress.currentFilePath || 'Connecting to model...'}
+          {codegenProgress.currentFilePath || 'Connecting to Multi-Model Pipeline...'}
         </p>
 
         <div className="w-full max-w-xs bg-white/5 rounded-full h-1.5 overflow-hidden mb-3">
@@ -791,11 +623,20 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
           </div>
           
           <div className="flex items-center gap-2 pr-2">
-            <ModelSelector />
+            <PipelineStatusIndicator />
             <div className="w-px h-4 bg-white/10 shrink-0" />
             <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setIsDiffMode(!isDiffMode)}
+                className={`p-1.5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0 font-mono ${
+                  isDiffMode ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Toggle Side-by-Side Diff View"
+              >
+                <GitCompare size={14} />
+                <span>{isDiffMode ? 'Editor View' : 'Diff View'}</span>
+              </button>
               {activeFile && (
-              <>
                 <button
                   onClick={handleCopyCode}
                   className="p-1.5 text-muted-foreground hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0"
@@ -804,25 +645,94 @@ export function CodeStudio({ blueprint, blueprintId, blueprintContentKey, onRefi
                   {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                   <span>{copied ? 'Copied' : 'Copy'}</span>
                 </button>
-              </>
-            )}
+              )}
+            </div>
           </div>
         </div>
-        </div>
 
-        {/* Editor content */}
+        {/* Editor content / Side-by-Side Diff Editor */}
         <div className="flex-1 p-4 overflow-auto font-mono-custom text-xs text-white leading-relaxed relative min-h-0">
-          {activeFile ? (
-            <pre className="whitespace-pre tab-size-2 scrollbar-thin">
-              <code
-                dangerouslySetInnerHTML={{
-                  __html: highlightCode(activeFile.content, activeFile.language)
-                    .split('\n')
-                    .map((line, i) => `<span class="text-muted-foreground select-none inline-block w-6 pr-2 mr-2 border-r border-white/5 text-right">${i + 1}</span>${line}`)
-                    .join('\n'),
-                }}
+          {/* Patch-apply glow flash overlay */}
+          <AnimatePresence>
+            {patchFlash && (
+              <motion.div
+                key="patch-flash"
+                initial={{ opacity: 0.6 }}
+                animate={{ opacity: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.55, ease: 'easeOut' }}
+                className="absolute inset-0 z-20 pointer-events-none rounded-xl"
+                style={{ background: 'radial-gradient(ellipse at center, rgba(16,185,129,0.25) 0%, transparent 70%)' }}
               />
-            </pre>
+            )}
+          </AnimatePresence>
+          {activeFile ? (
+            isDiffMode ? (
+              /* Side-by-Side Diff View */
+              <div className="h-full flex flex-col gap-3">
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 text-xs">
+                  <div className="flex items-center gap-2">
+                    <GitCompare size={14} className="text-indigo-400" />
+                    <span>Search/Replace Patch Comparison — <strong>{activeFile.name}</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        toast('Diff patch accepted', 'success');
+                        triggerPatchFlash();
+                        setIsDiffMode(false);
+                      }}
+                      className="px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 text-[11px] font-bold"
+                    >
+                      <CheckCircle2 size={12} /> Accept Patch
+                    </button>
+                    <button
+                      onClick={() => {
+                        toast('Diff patch rejected', 'info');
+                        setIsDiffMode(false);
+                      }}
+                      className="px-2.5 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 flex items-center gap-1 text-[11px] font-bold"
+                    >
+                      <XCircle size={12} /> Reject
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 flex-1 min-h-0 overflow-auto">
+                  {/* Left Column: Original File */}
+                  <div className="rounded-xl border border-white/10 bg-black/60 p-3 overflow-auto">
+                    <div className="text-[10px] font-mono text-red-400 mb-2 font-bold uppercase tracking-wider">
+                      Original File
+                    </div>
+                    <pre className="whitespace-pre tab-size-2 scrollbar-thin text-neutral-400">
+                      <code>{activeFile.content}</code>
+                    </pre>
+                  </div>
+
+                  {/* Right Column: Modified / Patch Preview */}
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/10 p-3 overflow-auto">
+                    <div className="text-[10px] font-mono text-emerald-400 mb-2 font-bold uppercase tracking-wider">
+                      Patched Output (GLM-5.2)
+                    </div>
+                    <pre className="whitespace-pre tab-size-2 scrollbar-thin text-emerald-200">
+                      <code>{modifiedDrafts[activeFile.path] || activeFile.content}</code>
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Normal Editor View */
+              <pre className="whitespace-pre tab-size-2 scrollbar-thin">
+                <code
+                  dangerouslySetInnerHTML={{
+                    __html: highlightCode(activeFile.content, activeFile.language)
+                      .split('\n')
+                      .map((line, i) => `<span class="text-muted-foreground select-none inline-block w-6 pr-2 mr-2 border-r border-white/5 text-right">${i + 1}</span>${line}`)
+                      .join('\n'),
+                  }}
+                />
+              </pre>
+            )
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
               No files open. Select a file from the explorer.
