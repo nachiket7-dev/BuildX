@@ -11,7 +11,7 @@ import {
   FileCode2,
   Pencil,
   Trash2,
-  Wand2,
+  Cpu,
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -167,7 +167,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
           <button
             onClick={() => {
-              navigate('/create');
+              navigate('/create?new=1');
               if (window.innerWidth < 768) onToggle();
             }}
             className="sidebar-new-btn btn-shiny w-full"
@@ -181,10 +181,10 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
               navigate('/agent');
               if (window.innerWidth < 768) onToggle();
             }}
-            className="sidebar-new-btn w-full mt-2 border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400"
+            className="sidebar-new-btn w-full mt-2 border border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-400"
           >
-            <Wand2 size={14} className="animate-pulse" />
-            <span className="font-mono-custom text-xs font-medium">Nemotron Agent</span>
+            <Cpu size={14} />
+            <span className="font-mono-custom text-xs font-medium">Cortex Agent</span>
           </button>
         </div>
 
