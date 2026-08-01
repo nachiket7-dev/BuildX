@@ -1,10 +1,12 @@
-import { getLLMProvider, getRefineMaxTokensForModel } from './llm/router';
+import { getLLMProvider, getRefineMaxTokensForModel, completeWithPipelineFallback, getPipelineMaxTokens } from './llm/router';
 import { extractJSON } from './jsonExtract';
 import { tryParsePartial } from './stream';
 import type { Blueprint } from './types';
 import { BlueprintSchema } from './types';
 import { formatSQL } from './normalizeBlueprint';
 import { generateMonorepoFiles } from './scaffold';
+import { applySearchReplace } from './codegen/diffParser';
+import { DIFF_PATCH_SYSTEM_PROMPT, buildAutoFixPrompt } from './codegen/prompts';
 
 const VALID_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 type ValidMethod = (typeof VALID_METHODS)[number];
@@ -417,4 +419,53 @@ async function runWithoutJsonMode(
   }
 
   throw new Error('AI returned malformed JSON during refinement. Please try again.');
+}
+
+// ─── PHASE 4: Automated Sandbox Self-Correction Loop ───────────────────────
+
+export interface AutoFixResult {
+  code: string;
+  appliedCount: number;
+  failedCount: number;
+  usedFallback: boolean;
+  model: string;
+  noChange: boolean;
+}
+
+/**
+ * Phase 4: Automated Sandbox Self-Correction Loop
+ * Automatically pipes sandbox stderr and failing stack traces to the Router in AUTO_FIX mode
+ * (Nemotron 3 Ultra primary with GLM-5.2 fallback) to apply surgical patches.
+ */
+export async function autoFixCodeFile(
+  filePath: string,
+  originalCode: string,
+  stderr: string,
+  stdout?: string
+): Promise<AutoFixResult> {
+  const prompt = buildAutoFixPrompt(filePath, originalCode, stderr, stdout);
+
+  console.log(`[AutoFix] Dispatching AUTO_FIX pipeline stage for file: ${filePath}`);
+
+  const response = await completeWithPipelineFallback(
+    'AUTO_FIX',
+    [
+      { role: 'system', content: DIFF_PATCH_SYSTEM_PROMPT },
+      { role: 'user', content: prompt },
+    ],
+    { temperature: 0.1, maxTokens: getPipelineMaxTokens('AUTO_FIX') }
+  );
+
+  console.log(`[AutoFix] Model ${response.model} responded (${response.text.length} chars, fallback=${response.usedFallback})`);
+
+  const patchResult = applySearchReplace(originalCode, response.text);
+
+  return {
+    code: patchResult.code,
+    appliedCount: patchResult.applied,
+    failedCount: patchResult.failed.length,
+    usedFallback: response.usedFallback,
+    model: response.model,
+    noChange: patchResult.noChange,
+  };
 }
