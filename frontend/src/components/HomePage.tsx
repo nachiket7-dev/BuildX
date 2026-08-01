@@ -10,85 +10,53 @@ import {
   PenLine,
   Sparkles,
   Download,
+  Terminal,
+  Code2,
+  Database,
+  Layers,
+  ShieldCheck,
 } from 'lucide-react';
 import { AmbientBackground } from './AmbientBackground';
 import { MarketingHeader } from './MarketingHeader';
 import { PageHead } from './PageHead';
-import { BlurText } from './BlurText';
 import { BentoGrid } from './BentoGrid';
 import { SpotlightCard } from './SpotlightCard';
+import { GridBeams } from './GridBeams';
 import { useAuth } from '../hooks/useAuth';
-
-const FEATURES = [
-  {
-    icon: Zap,
-    title: 'Real-Time Streaming',
-    description: 'Watch agents build your blueprint live — schema, APIs, and UI stream in as they work.',
-    gradient: 'linear-gradient(135deg, rgba(82,39,255,0.35), rgba(124,255,103,0.12))',
-  },
-  {
-    icon: GitMerge,
-    title: 'Visual Diagrams',
-    description: 'ER diagrams, architecture flowcharts, and API sequence views generated automatically.',
-    gradient: 'linear-gradient(135deg, rgba(124,255,103,0.28), rgba(82,39,255,0.1))',
-  },
-  {
-    icon: FolderArchive,
-    title: 'Export Full Project',
-    description: 'Download a monorepo with Prisma schema, Express routes, React pages, and Docker config.',
-    gradient: 'linear-gradient(135deg, rgba(82,39,255,0.28), rgba(124,255,103,0.08))',
-  },
-  {
-    icon: MessageSquare,
-    title: 'AI Refinement',
-    description: 'Iterate in chat — “add Stripe”, “use Next.js”, “add admin dashboard” — and persist changes.',
-    gradient: 'linear-gradient(135deg, rgba(124,255,103,0.22), rgba(82,39,255,0.08))',
-  },
-  {
-    icon: Share2,
-    title: 'Blueprint Library',
-    description: 'Every generation is saved to your workspace — rename, reopen, and continue anytime.',
-    gradient: 'linear-gradient(135deg, rgba(82,39,255,0.22), rgba(124,255,103,0.06))',
-  },
-  {
-    icon: Cpu,
-    title: 'Multi-Agent Pipeline',
-    description: 'PM, architect, API, UI, coder, and QA agents collaborate in one structured run.',
-    gradient: 'linear-gradient(135deg, rgba(124,255,103,0.2), rgba(82,39,255,0.06))',
-  },
-];
-
-const STATS = [
-  { value: '7', suffix: '+', label: 'Blueprint sections' },
-  { value: '20', suffix: '+', label: 'Files per export' },
-  { value: '6', suffix: '', label: 'AI agents' },
-  { value: '~30', suffix: 's', label: 'Typical generation' },
-];
+import { useState } from 'react';
 
 const STEPS = [
   {
     num: '01',
     icon: PenLine,
-    title: 'Describe your idea',
-    description: 'Type what you want to build in plain English — audience, features, or a one-liner.',
+    title: 'Describe your app idea',
+    description: 'Type your concept in plain English — audience, features, database preferences, or a simple one-liner.',
   },
   {
     num: '02',
     icon: Sparkles,
-    title: 'Watch it architect',
-    description: 'Agents design schema, endpoints, screens, diagrams, and starter code in real time.',
+    title: 'Multi-Agent Pipeline Architects',
+    description: 'AI PM, DB Architect, API Engineer, and UI Designer generate full-stack specifications in real time.',
   },
   {
     num: '03',
     icon: Download,
-    title: 'Ship the scaffold',
-    description: 'Refine in chat, export a ZIP, and hand a production-shaped codebase to your team.',
+    title: 'Export Production Monorepo',
+    description: 'Refine in chat, export a self-contained ZIP or push directly to your GitHub repository.',
   },
+];
+
+const STATS = [
+  { value: '7+', label: 'Blueprint Sections' },
+  { value: '20+', label: 'Scaffold Files' },
+  { value: '6', label: 'Collaborative Agents' },
+  { value: '< 30s', label: 'Average Generation' },
 ];
 
 export function HomePage() {
   const { user, authReady } = useAuth();
   const navigate = useNavigate();
+  const [heroTab, setHeroTab] = useState<'schema' | 'api' | 'ui'>('schema');
 
   function startBuilding() {
     if (user) {
@@ -99,145 +67,195 @@ export function HomePage() {
   }
 
   return (
-    <div className="landing-page min-h-screen flex flex-col relative overflow-x-hidden">
+    <div className="min-h-screen flex flex-col relative bg-[#000000] text-white overflow-x-hidden">
       <PageHead
-        title="BuildX"
+        title="BuildX — AI Full-Stack App Architect"
         description="Turn app ideas into full-stack blueprints with AI — schema, APIs, UI, diagrams, and exportable code."
       />
+      <GridBeams />
       <AmbientBackground />
+
       <div className="relative z-10 flex flex-col min-h-screen">
-        <div className="landing-top">
-          <MarketingHeader />
+        <MarketingHeader />
 
-          <div className="landing-hero-stage">
-            <div className="landing-hero-stage__inner">
-              <section className="landing-hero" aria-labelledby="landing-headline">
-                <div className="hero-aurora-glow pointer-events-none" aria-hidden />
-
-                <div className="landing-eyebrow animate-fade-slide-up">
-              <span className="landing-eyebrow__dot" aria-hidden />
-              <span className="landing-eyebrow__text">
-                Idea → Full-Stack Blueprint in seconds
-              </span>
-            </div>
-
-            <h1 id="landing-headline" className="hero-headline font-display font-extrabold mb-5">
-              <span className="hero-headline__line">
-                <BlurText text="Architect your next" delay={50} stagger={25} />
-              </span>
-              <span className="hero-headline__line hero-headline__line--accent">
-                <BlurText
-                  text="big idea"
-                  delay={400}
-                  stagger={25}
-                  gradientColors={['#7cff67', '#c4b5fd', '#5227FF', '#7cff67']}
-                />
-              </span>
-              <span className="hero-headline__line">
-                <BlurText text="with AI." delay={650} stagger={25} />
-              </span>
-            </h1>
-
-            <p className="landing-subhead animate-fade-slide-up">
-              Describe your product in plain English. BuildX generates database schemas, API
-              routes, UI screens, Mermaid diagrams, and a downloadable monorepo — ready for your
-              team to implement.
-            </p>
-
-                <div className="landing-actions animate-fade-slide-up">
-                  <button
-                    type="button"
-                    onClick={startBuilding}
-                    className="landing-btn landing-btn--primary"
-                  >
-                    Start building free
-                    <ArrowRight size={18} className="landing-btn__icon" aria-hidden />
-                  </button>
-                  {!user && authReady && (
-                    <Link
-                      to="/login"
-                      state={{ from: '/create' }}
-                      className="landing-btn landing-btn--secondary"
-                    >
-                      Sign in
-                    </Link>
-                  )}
-                  {user && authReady && (
-                    <button
-                      type="button"
-                      onClick={() => navigate('/create')}
-                      className="landing-btn landing-btn--secondary"
-                    >
-                      Open workspace
-                    </button>
-                  )}
-                </div>
-
-                <p className="landing-trust">Free to start · Powered by Groq · Export-ready code</p>
-              </section>
-
-              <div className="landing-stats" aria-label="Product highlights">
-                {STATS.map((stat) => (
-                  <div key={stat.label} className="landing-stat">
-                    <span className="landing-stat__value">
-                      {stat.value}
-                      <span>{stat.suffix}</span>
-                    </span>
-                    <span className="landing-stat__label">{stat.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* ─── Hero Section ───────────────────────────────────── */}
+        <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-16 text-center">
+          {/* Eyebrow Pill */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-xs font-mono text-neutral-300 mb-8 animate-fade-slide-up">
+            <Sparkles size={13} className="text-indigo-400" />
+            <span>Idea to Production-Ready Blueprint in Seconds</span>
           </div>
-        </div>
 
-        <main id="main-content" className="flex-1" tabIndex={-1}>
-          <section id="features" className="landing-section" aria-labelledby="features-title">
-            <BentoGrid />
-          </section>
+          {/* Main Headline */}
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight font-display max-w-4xl mx-auto leading-[1.1] mb-6">
+            Architect full-stack apps <br />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-300 to-emerald-400">
+              with multi-agent AI.
+            </span>
+          </h1>
 
-          <section className="landing-section" aria-labelledby="how-title">
-            <div className="landing-section__head">
-              <p className="landing-section__eyebrow">How it works</p>
-              <h2 id="how-title" className="landing-section__title">
-                Three steps to a buildable plan
-              </h2>
-            </div>
-            <div className="landing-steps">
-              {STEPS.map((step) => (
-                <div key={step.num} className="landing-step">
-                  <span className="landing-step__num">{step.num}</span>
-                  <step.icon
-                    size={20}
-                    className="mx-auto mb-3"
-                    style={{ color: 'var(--accent3)' }}
-                    aria-hidden
-                  />
-                  <h3 className="landing-step__title">{step.title}</h3>
-                  <p className="landing-step__desc">{step.description}</p>
+          {/* Subtitle */}
+          <p className="text-sm sm:text-base text-neutral-400 max-w-2xl mx-auto leading-relaxed mb-10">
+            Describe your product vision. BuildX automatically generates PostgreSQL DDL schemas, Express/Next.js REST endpoints, React UI specs, Mermaid ER diagrams, and a downloadable monorepo.
+          </p>
+
+          {/* CTA Buttons */}
+          <div className="flex items-center justify-center gap-4 flex-wrap mb-16">
+            <button
+              onClick={startBuilding}
+              className="landing-btn landing-btn--primary"
+            >
+              <span>Start Building — It's Free</span>
+              <ArrowRight size={16} className="landing-btn__icon" />
+            </button>
+            {!user && authReady && (
+              <Link
+                to="/login"
+                state={{ from: '/create' }}
+                className="landing-btn landing-btn--secondary"
+              >
+                Sign In
+              </Link>
+            )}
+          </div>
+
+          {/* Live Studio Mockup Window inside Hero */}
+          <div className="max-w-4xl mx-auto text-left">
+            <SpotlightCard className="p-5 rounded-2xl border border-white/10" spotlightColor="rgba(99, 102, 241, 0.2)">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Terminal size={16} className="text-indigo-400" />
+                  <span className="text-xs font-mono font-semibold text-white">Live Blueprint Output Preview</span>
                 </div>
-              ))}
-            </div>
-          </section>
+                <div className="flex items-center gap-1 bg-black/60 p-1 rounded-lg border border-white/10 text-xs">
+                  {(['schema', 'api', 'ui'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setHeroTab(tab)}
+                      className={`px-3 py-1 rounded font-mono text-[11px] transition-colors ${
+                        heroTab === tab ? 'bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30' : 'text-neutral-500 hover:text-neutral-300'
+                      }`}
+                    >
+                      {tab === 'schema' ? 'PostgreSQL DDL' : tab === 'api' ? 'REST Endpoints' : 'React Wireframes'}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <section className="landing-section">
-            <div className="landing-cta-band">
-              <h2 className="landing-cta-band__title">Ready to architect your next app?</h2>
-              <p className="landing-cta-band__desc">
-                Create an account, describe your idea, and get a full-stack blueprint in under a
-                minute.
-              </p>
-              <button type="button" onClick={startBuilding} className="landing-btn landing-btn--primary">
-                Get started
-                <ArrowRight size={18} className="landing-btn__icon" aria-hidden />
-              </button>
-            </div>
-          </section>
-        </main>
+              <div className="bg-[#090810] rounded-xl p-4 border border-white/10 font-mono text-xs text-neutral-300 space-y-3 min-h-[220px]">
+                {heroTab === 'schema' && (
+                  <div className="space-y-2">
+                    <div className="text-emerald-400">// Database Schema — Generated DDL</div>
+                    <code>
+                      CREATE TABLE users (<br />
+                      &nbsp;&nbsp;id UUID PRIMARY KEY DEFAULT gen_random_uuid(),<br />
+                      &nbsp;&nbsp;email TEXT UNIQUE NOT NULL,<br />
+                      &nbsp;&nbsp;created_at TIMESTAMPTZ DEFAULT NOW()<br />
+                      );<br /><br />
+                      CREATE TABLE workspace_blueprints (<br />
+                      &nbsp;&nbsp;id UUID PRIMARY KEY DEFAULT gen_random_uuid(),<br />
+                      &nbsp;&nbsp;user_id UUID REFERENCES users(id),<br />
+                      &nbsp;&nbsp;app_name TEXT NOT NULL,<br />
+                      &nbsp;&nbsp;schema_json JSONB NOT NULL<br />
+                      );
+                    </code>
+                  </div>
+                )}
 
-        <footer className="app-footer">
-          <p>BuildX — Idea to deployable blueprint in one flow</p>
-          <p className="app-footer__sub">Powered by Groq · PostgreSQL · React</p>
+                {heroTab === 'api' && (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px]">
+                      <span className="px-1.5 py-0.5 bg-emerald-500 text-black font-bold rounded">GET</span>
+                      <span className="text-emerald-300 font-mono">/api/v1/blueprints</span>
+                      <span className="text-neutral-400">200 OK</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[11px]">
+                      <span className="px-1.5 py-0.5 bg-indigo-500 text-white font-bold rounded">POST</span>
+                      <span className="text-indigo-300 font-mono">/api/v1/blueprint/generate</span>
+                      <span className="text-neutral-400">201 Created</span>
+                    </div>
+                    <div className="p-3 bg-black/80 rounded-lg border border-white/5 text-neutral-400 text-[11px]">
+                      <code>&#123; "status": "success", "monorepoFiles": 24 &#125;</code>
+                    </div>
+                  </div>
+                )}
+
+                {heroTab === 'ui' && (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-white/[0.04] rounded-lg border border-white/10 flex items-center justify-between text-neutral-300">
+                      <span>Screen Spec: Dashboard View</span>
+                      <span className="text-emerald-400 text-[10px]">Desktop & Mobile</span>
+                    </div>
+                    <p className="text-neutral-400 text-xs leading-relaxed">
+                      Generated components: HeaderNav, AnalyticsCard, BlueprintListGrid, ProjectExporterModal.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </SpotlightCard>
+          </div>
+
+          {/* Stats Bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mt-16 pt-8 border-t border-white/10">
+            {STATS.map((stat) => (
+              <div key={stat.label} className="text-center p-3">
+                <div className="text-2xl sm:text-3xl font-bold font-display text-white">{stat.value}</div>
+                <div className="text-xs text-neutral-400 font-mono mt-1">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ─── Bento Grid Showcase Section ──────────────────── */}
+        <section id="features" className="w-full">
+          <BentoGrid />
+        </section>
+
+        {/* ─── How It Works Section ─────────────────────────── */}
+        <section className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-20 text-center">
+          <div className="max-w-2xl mx-auto mb-14 space-y-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/10 text-xs font-mono text-neutral-300">
+              <span>Simple Workflow</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white font-display">
+              Three steps from prompt to codebase
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {STEPS.map((step) => (
+              <SpotlightCard key={step.num} className="p-6 text-left" spotlightColor="rgba(99, 102, 241, 0.15)">
+                <div className="text-xs font-mono text-indigo-400 mb-3">{step.num}</div>
+                <step.icon size={22} className="text-white mb-4" />
+                <h3 className="text-base font-bold text-white mb-2 font-display">{step.title}</h3>
+                <p className="text-xs text-neutral-400 leading-relaxed">{step.description}</p>
+              </SpotlightCard>
+            ))}
+          </div>
+        </section>
+
+        {/* ─── CTA Section ──────────────────────────────────── */}
+        <section className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-16 text-center">
+          <div className="rounded-3xl border border-white/10 bg-neutral-950/80 p-8 sm:p-14 backdrop-blur-2xl">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white font-display mb-3">
+              Ready to build your next product?
+            </h2>
+            <p className="text-sm text-neutral-400 max-w-md mx-auto mb-8 leading-relaxed">
+              Stop planning in spreadsheets. Let BuildX architect your database, endpoints, and frontend in seconds.
+            </p>
+            <button
+              onClick={startBuilding}
+              className="landing-btn landing-btn--primary"
+            >
+              <span>Start Building — It's Free</span>
+              <ArrowRight size={16} className="landing-btn__icon" />
+            </button>
+          </div>
+        </section>
+
+        {/* ─── Footer ───────────────────────────────────────── */}
+        <footer className="w-full border-t border-white/10 py-8 px-4 text-center text-xs text-neutral-500 font-mono">
+          <p>BuildX — Idea to production-ready monorepo</p>
         </footer>
       </div>
     </div>

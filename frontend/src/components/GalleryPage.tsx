@@ -5,6 +5,7 @@ import { SpotlightCard } from './SpotlightCard';
 import { BlueprintCardSkeleton } from './BlueprintCardSkeleton';
 import { PageHead } from './PageHead';
 import { useAuth } from '../hooks/useAuth';
+import { motion } from 'framer-motion';
 
 function timeAgo(dateStr: string): string {
   const date = new Date(dateStr);
@@ -149,14 +150,27 @@ export function GalleryPage() {
       )}
 
       {!isLoading && items.length > 0 && (
-        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 list-none p-0 m-0">
+        <motion.ul
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 list-none p-0 m-0"
+          initial="hidden"
+          animate="show"
+          variants={{
+            hidden: {},
+            show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+          }}
+        >
           {items.map((item, i) => (
-            <li key={item.id}>
+            <motion.li
+              key={item.id}
+              variants={{
+                hidden: { opacity: 0, y: 24, scale: 0.97 },
+                show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
+              }}
+            >
               <SpotlightCard
                 onClick={() => navigate(`/blueprint/${item.id}`)}
                 className="p-5 interactive-lift group block cursor-pointer w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                 spotlightColor="rgba(20, 184, 166, 0.12)"
-                style={{ animationDelay: `${i * 50}ms` }}
               >
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <h3
@@ -179,9 +193,9 @@ export function GalleryPage() {
                   <span style={{ color: 'var(--accent2)' }}>{item.views} views · Open →</span>
                 </div>
               </SpotlightCard>
-            </li>
+            </motion.li>
           ))}
-        </ul>
+        </motion.ul>
       )}
     </section>
   );
