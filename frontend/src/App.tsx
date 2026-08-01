@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Routes, Route, useParams, useNavigate, Navigate, Outlet, useOutletContext, useLocation } from 'react-router-dom';
+import { Routes, Route, useParams, useNavigate, Navigate, Outlet, useOutletContext, useLocation, useSearchParams } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
@@ -200,6 +201,22 @@ function BlueprintPage() {
     navigate('/create');
   };
 
+  // Detect ?new=1 param from Sidebar "New Blueprint" button
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      cancel();
+      reset();
+      setRefinedBlueprint(null);
+      setModelUsed(null);
+      clearHistory();
+      setLoadedId(null);
+      celebratedRef.current = false;
+      // Clean the param from URL without pushing new history entry
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const isLoadingFromUrl = Boolean(routeId && isStreaming && !activeBlueprint && !error);
   const showHero = !isStreaming && !activeBlueprint && !routeId && !isLoadingFromUrl;
   const showStreaming = isStreaming && !isLoadingFromUrl;
@@ -293,17 +310,22 @@ function AppShell() {
 
   return (
     <BlueprintSessionProvider>
-      <div className={`flex flex-col relative overflow-x-hidden ${isAgentPage ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+      <div className="flex flex-col relative overflow-x-hidden min-h-screen">
         <SkipLink />
         <AmbientBackground />
 
         <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
         <div
-          className={`app-shell-content relative z-10 flex flex-col transition-all duration-300 overflow-x-hidden ${isAgentPage ? 'h-screen overflow-hidden' : 'min-h-screen'} ${
-            sidebarOpen ? 'app-shell-content--sidebar md:ml-[280px]' : ''
-          }`}
+          className="app-shell-content relative z-10 flex flex-col min-h-screen"
+          style={{ marginLeft: sidebarOpen ? undefined : 0 }}
         >
+          <motion.div
+            animate={{ marginLeft: sidebarOpen ? '280px' : 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.8 }}
+            className="flex flex-col flex-1 min-w-0"
+            style={{ willChange: 'margin' }}
+          >
           <Header
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             showSidebarToggle
@@ -319,6 +341,7 @@ function AppShell() {
               <p className="app-footer__sub">Powered by Groq · PostgreSQL · React</p>
             </footer>
           )}
+          </motion.div>
         </div>
       </div>
     </BlueprintSessionProvider>
