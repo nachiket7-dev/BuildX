@@ -1,11 +1,10 @@
 import { Response } from 'express';
-import { getLLMProvider, getAgentMaxTokensForModel } from './llm/router';
+import { completeWithPipelineFallback, getPipelineMaxTokens } from './llm/router';
 import { Blueprint } from './types';
 import { initSSE, sendSSE } from './stream';
 import { parseAgentJSON } from './jsonExtract';
 import { coerceBlueprintInput } from './normalizeBlueprint';
-import type { LLMProvider } from './llm/types';
-import type { CompletionOptions, LLMMessage } from './llm/types';
+import type { PipelineStage, CompletionOptions, LLMMessage } from './llm/types';
 
 type AgentName = 'pm' | 'architect' | 'api_dev' | 'designer' | 'coder' | 'qa';
 
@@ -14,6 +13,7 @@ interface AgentEvent {
   status: 'idle' | 'thinking' | 'writing' | 'correcting' | 'completed';
   message?: string;
   log?: string;
+  stage?: PipelineStage;
 }
 
 export interface AgenticEventSink {
@@ -22,6 +22,7 @@ export interface AgenticEventSink {
   agentEvent?: (event: AgentEvent) => void;
   section?: (key: string, value: unknown) => void;
   complete?: (blueprint: Blueprint) => void;
+  pipelineStage?: (stage: PipelineStage, state: 'start' | 'completed' | 'fallback', detail?: string) => void;
 }
 
 /** Wire orchestrator events to an SSE response (generate-stream / regenerate-stream). */
@@ -33,6 +34,7 @@ export function createSSEAgenticSink(res: Response): AgenticEventSink {
     agentEvent: (event) => sendSSE(res, 'agent_event', event),
     section: (key, value) => sendSSE(res, 'section', { key, value }),
     complete: (blueprint) => sendSSE(res, 'complete', blueprint),
+    pipelineStage: (stage, state, detail) => sendSSE(res, 'pipeline_stage', { stage, state, detail }),
   };
 }
 
@@ -41,49 +43,32 @@ function createLogAgenticSink(): AgenticEventSink {
     status: (message) => console.log(`[Orchestrator] ${message}`),
     progress: (percent) => console.log(`[Orchestrator] Progress: ${percent}%`),
     agentEvent: (event) => console.log(`[Agent: ${event.agent}] [${event.status}] ${event.log}`),
+    pipelineStage: (stage, state, detail) => console.log(`[Pipeline:${stage}] [${state}] ${detail || ''}`),
   };
 }
 
-function isRetriableLLMError(err: unknown): boolean {
-  const message = (err as Error)?.message?.toLowerCase() || '';
-  const status = (err as { status?: number; statusCode?: number })?.status
-    ?? (err as { status?: number; statusCode?: number })?.statusCode
-    ?? 0;
-  return (
-    status === 429 ||
-    status === 503 ||
-    message.includes('rate limit') ||
-    message.includes('resourceexhausted') ||
-    message.includes('timed out') ||
-    message.includes('timeout') ||
-    message.includes('econnreset')
-  );
-}
-
-async function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function completeWithRetry(
-  provider: LLMProvider,
+/** Execute a pipeline stage using the failover engine (Primary -> GLM-5.2 / Gemini Fallback) */
+async function executeStage(
+  stage: PipelineStage,
   messages: LLMMessage[],
-  options: CompletionOptions,
-  maxRetries = 2
+  sink: AgenticEventSink,
+  temperature = 0.2
 ): Promise<string> {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await provider.complete(messages, options);
-    } catch (err) {
-      if (isRetriableLLMError(err) && attempt < maxRetries) {
-        const waitMs = Math.pow(2, attempt) * 2000;
-        console.warn(`[Orchestrator] Retrying LLM call (${attempt}/${maxRetries}) in ${waitMs}ms...`);
-        await sleep(waitMs);
-        continue;
-      }
-      throw err;
-    }
+  const maxTokens = getPipelineMaxTokens(stage);
+  sink.pipelineStage?.(stage, 'start', `Executing stage with max ${maxTokens} tokens`);
+
+  const result = await completeWithPipelineFallback(stage, messages, {
+    temperature,
+    maxTokens,
+  });
+
+  if (result.usedFallback) {
+    sink.pipelineStage?.(stage, 'fallback', `Primary failed. Dispatched fallback model: ${result.model}`);
+  } else {
+    sink.pipelineStage?.(stage, 'completed', `Stage succeeded with primary model: ${result.model}`);
   }
-  throw new Error('Max LLM retries exceeded');
+
+  return result.text;
 }
 
 /** Normalize Mongo-style architect output to relational schema shape. */
@@ -108,23 +93,21 @@ function normalizeSchema(rawSchema: unknown[]): Blueprint['schema'] {
   });
 }
 
-/** Core 6-agent pipeline — used by generate-stream and regenerate-stream. */
+/** Core 6-agent pipeline — routed through Dedicated Multi-Model Pipeline */
 export async function runAgenticBlueprintPipeline(
   idea: string,
   requestedModel?: string,
   sink?: AgenticEventSink
 ): Promise<Blueprint> {
   const events = sink ?? createLogAgenticSink();
-  const provider = getLLMProvider(requestedModel);
-  const maxTokens = getAgentMaxTokensForModel(requestedModel);
 
-  console.log(`[Orchestrator] Starting Agentic generation using LLM Router.`);
+  console.log(`[Orchestrator] Starting Multi-Model Pipeline generation.`);
 
-  const notifyAgent = (agent: AgentName, status: AgentEvent['status'], log: string, message?: string) => {
-    events.agentEvent?.({ agent, status, log, message });
+  const notifyAgent = (agent: AgentName, status: AgentEvent['status'], log: string, stage?: PipelineStage, message?: string) => {
+    events.agentEvent?.({ agent, status, log, message, stage });
   };
 
-  events.status?.('Booting Agent Workspace...');
+  events.status?.('Booting Multi-Model Pipeline Workspace...');
   events.progress?.(5);
 
   let appName = 'Untitled App';
@@ -152,14 +135,15 @@ export async function runAgenticBlueprintPipeline(
   let effort = { time: '', complexity: '', cost: '', team: '' };
   let diagrams: NonNullable<Blueprint['diagrams']> = {};
 
-  // ─── STAGE 1: PRODUCT MANAGER AGENT ───────────────────────────────────────
-  notifyAgent('pm', 'thinking', 'Analyzing application idea and identifying user personas...');
+  // ─── STAGE 1: PRODUCT MANAGER AGENT (PLANNING Stage) ───────────────────────
+  notifyAgent('pm', 'thinking', 'Analyzing application idea and identifying user personas...', 'PLANNING');
   events.progress?.(15);
 
-  const pmRaw = await completeWithRetry(
-    provider,
+  const pmRaw = await executeStage(
+    'PLANNING',
     [{ role: 'user', content: pmPrompt(idea) }],
-    { temperature: 0.3, maxTokens }
+    events,
+    0.3
   );
 
   const pmData = parseAgentJSON<{
@@ -201,7 +185,8 @@ export async function runAgenticBlueprintPipeline(
   notifyAgent(
     'pm',
     'completed',
-    `Drafted specifications for ${appName}. Identified ${features.core?.length ?? 0} core features.`
+    `Drafted specifications for ${appName}. Identified ${features.core?.length ?? 0} core features.`,
+    'PLANNING'
   );
   events.section?.('appName', appName);
   events.section?.('description', description);
@@ -213,14 +198,15 @@ export async function runAgenticBlueprintPipeline(
     events.section?.('diagrams', diagrams);
   }
 
-  // ─── STAGE 2: DATABASE ARCHITECT AGENT ─────────────────────────────────────
-  notifyAgent('architect', 'thinking', `Designing database schema for ${architecture.database || 'PostgreSQL'}...`);
+  // ─── STAGE 2: DATABASE ARCHITECT AGENT (PLANNING Stage) ────────────────────
+  notifyAgent('architect', 'thinking', `Designing database schema for ${architecture.database || 'PostgreSQL'}...`, 'PLANNING');
   events.progress?.(30);
 
-  const dbRaw = await completeWithRetry(
-    provider,
+  const dbRaw = await executeStage(
+    'PLANNING',
     [{ role: 'user', content: dbPrompt(features, architecture.database) }],
-    { temperature: 0.2, maxTokens }
+    events,
+    0.2
   );
 
   const dbData = parseAgentJSON<{ schema?: unknown[]; sql?: string; erDiagram?: string }>(dbRaw);
@@ -234,21 +220,23 @@ export async function runAgenticBlueprintPipeline(
   notifyAgent(
     'architect',
     'completed',
-    `Designed database schema with ${schema.length} tables/collections and relationships.`
+    `Designed database schema with ${schema.length} tables/collections and relationships.`,
+    'PLANNING'
   );
   events.section?.('schema', schema);
   if (diagrams.er) {
     events.section?.('diagrams', diagrams);
   }
 
-  // ─── STAGE 3: API DEVELOPER AGENT ─────────────────────────────────────────
-  notifyAgent('api_dev', 'thinking', 'Mapping Express API endpoints and parameter schemas...');
+  // ─── STAGE 3: API DEVELOPER AGENT (INGESTION Stage) ───────────────────────
+  notifyAgent('api_dev', 'thinking', 'Mapping Express API endpoints and parameter schemas...', 'INGESTION');
   events.progress?.(45);
 
-  const apiRaw = await completeWithRetry(
-    provider,
+  const apiRaw = await executeStage(
+    'INGESTION',
     [{ role: 'user', content: apiPrompt(appName, features, schema) }],
-    { temperature: 0.2, maxTokens }
+    events,
+    0.2
   );
 
   const apiData = parseAgentJSON<{ endpoints?: Blueprint['endpoints'] }>(apiRaw);
@@ -258,18 +246,20 @@ export async function runAgenticBlueprintPipeline(
   notifyAgent(
     'api_dev',
     'completed',
-    `Mapped ${endpoints.length} API endpoints with proper routing and authentication guards.`
+    `Mapped ${endpoints.length} API endpoints with proper routing and authentication guards.`,
+    'INGESTION'
   );
   events.section?.('endpoints', endpoints);
 
-  // ─── STAGE 4: UI/UX DESIGNER AGENT ─────────────────────────────────────────
-  notifyAgent('designer', 'thinking', 'Creating UI layout definitions and frontend routing paths...');
+  // ─── STAGE 4: UI/UX DESIGNER AGENT (INGESTION Stage) ──────────────────────
+  notifyAgent('designer', 'thinking', 'Creating UI layout definitions and frontend routing paths...', 'INGESTION');
   events.progress?.(60);
 
-  const uiRaw = await completeWithRetry(
-    provider,
+  const uiRaw = await executeStage(
+    'INGESTION',
     [{ role: 'user', content: uiPrompt(appName, features, endpoints) }],
-    { temperature: 0.3, maxTokens }
+    events,
+    0.3
   );
 
   const uiData = parseAgentJSON<{ screens?: Blueprint['screens']; apiFlowDiagram?: string }>(uiRaw);
@@ -279,20 +269,21 @@ export async function runAgenticBlueprintPipeline(
     diagrams.apiFlow = uiData.apiFlowDiagram;
   }
 
-  notifyAgent('designer', 'completed', `Designed layouts for ${screens.length} layout templates.`);
+  notifyAgent('designer', 'completed', `Designed layouts for ${screens.length} layout templates.`, 'INGESTION');
   events.section?.('screens', screens);
   if (diagrams.apiFlow) {
     events.section?.('diagrams', diagrams);
   }
 
-  // ─── STAGE 5: FULL-STACK CODER AGENT ───────────────────────────────────────
-  notifyAgent('coder', 'thinking', `Generating React pages and Express controllers boilerplates for ${architecture.database || 'PostgreSQL'}...`);
+  // ─── STAGE 5: FULL-STACK CODER AGENT (DIFF_GENERATION Stage / Full-File) ──
+  notifyAgent('coder', 'thinking', `Generating React pages and Express controllers boilerplates for ${architecture.database || 'PostgreSQL'}...`, 'DIFF_GENERATION');
   events.progress?.(75);
 
-  const codeRaw = await completeWithRetry(
-    provider,
+  const codeRaw = await executeStage(
+    'DIFF_GENERATION',
     [{ role: 'user', content: codePrompt(appName, description, schema, endpoints, architecture.database) }],
-    { temperature: 0.3, maxTokens }
+    events,
+    0.3
   );
 
   const codeData = parseAgentJSON<{ frontend?: string; backend?: string }>(codeRaw);
@@ -319,37 +310,38 @@ export async function runAgenticBlueprintPipeline(
     team: '1 Developer + 1 QA Designer',
   };
 
-  notifyAgent('coder', 'completed', 'Finished compiling complete frontend & backend boilerplate workspaces.');
+  notifyAgent('coder', 'completed', 'Finished compiling complete frontend & backend boilerplate workspaces.', 'DIFF_GENERATION');
   events.section?.('architecture', architecture);
   events.section?.('code', code);
   events.section?.('effort', effort);
 
-  // ─── STAGE 6: QA EVALUATOR AGENT ───────────────────────────────────────────
-  notifyAgent('qa', 'thinking', 'Running QA tests and auditing consistency check suite...');
+  // ─── STAGE 6: QA EVALUATOR AGENT (AUTO_FIX Stage) ─────────────────────────
+  notifyAgent('qa', 'thinking', 'Running QA tests and auditing consistency check suite...', 'AUTO_FIX');
   events.progress?.(90);
 
   notifyAgent(
     'qa',
     'writing',
-    'Reviewing schema consistency and index recommendations...'
+    'Reviewing schema consistency and index recommendations...',
+    'AUTO_FIX'
   );
 
   const hasUsersTable = schema.some((t) => t.table.toLowerCase() === 'users');
   if (hasUsersTable) {
     if (isMongo) {
-      notifyAgent('architect', 'correcting', 'Adding email index on users collection for query performance...');
+      notifyAgent('architect', 'correcting', 'Adding email index on users collection for query performance...', 'AUTO_FIX');
       if (!code.sql.includes('index({ email: 1 })') && !code.sql.includes('createIndex')) {
         code.sql += `\n\n// Indexes\nUserSchema.index({ email: 1 }, { unique: true });`;
       }
     } else {
-      notifyAgent('architect', 'correcting', 'Adding email index on users table for query performance...');
+      notifyAgent('architect', 'correcting', 'Adding email index on users table for query performance...', 'AUTO_FIX');
       if (!code.sql.includes('idx_users_email')) {
         code.sql += `\n\nCREATE INDEX IF NOT EXISTS idx_users_email ON users(email);`;
       }
     }
   }
 
-  notifyAgent('qa', 'completed', 'Audit passed: specifications verified successfully.');
+  notifyAgent('qa', 'completed', 'Audit passed: specifications verified successfully.', 'AUTO_FIX');
   events.section?.('code', code);
 
   events.progress?.(100);
