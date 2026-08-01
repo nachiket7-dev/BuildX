@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { generateCodeStream, fetchBlueprintFilesWithContent, saveBlueprintFile } from '../lib/api';
+import type { PipelineStage, PipelineStageEvent, PatchApplyEvent } from '../lib/types';
 
 export interface CodegenProgress {
   totalFiles: number;
@@ -7,6 +8,7 @@ export interface CodegenProgress {
   currentFilePath: string;
   status: 'idle' | 'generating' | 'loading' | 'completed' | 'error';
   error: string | null;
+  activeStage?: PipelineStage | null;
 }
 
 export function useCodeGeneration() {
@@ -16,9 +18,12 @@ export function useCodeGeneration() {
     currentFileIndex: 0,
     currentFilePath: '',
     status: 'idle',
-    error: null
+    error: null,
+    activeStage: null,
   });
   const [files, setFiles] = useState<Record<string, string>>({});
+  const [pipelineEvents, setPipelineEvents] = useState<PipelineStageEvent[]>([]);
+  const [patchEvents, setPatchEvents] = useState<PatchApplyEvent[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const operationGenRef = useRef(0);
 
@@ -30,7 +35,13 @@ export function useCodeGeneration() {
     setProgress(prev => ({ ...prev, status: 'idle' }));
   }, []);
 
-  const generateCode = useCallback(async (blueprintId: string, model: string) => {
+  const clearFiles = useCallback(() => {
+    setFiles({});
+  }, []);
+
+  const generateCode = useCallback(async (blueprintId: string) => {
+    // Model selection is handled internally by the multi-model pipeline router.
+    const model = 'pipeline'; // sentinel value — backend ignores this and uses stage routing
     cancel();
     const generation = ++operationGenRef.current;
     const controller = new AbortController();
@@ -42,19 +53,33 @@ export function useCodeGeneration() {
       currentFileIndex: 0,
       currentFilePath: 'Initializing generator...',
       status: 'generating',
-      error: null
+      error: null,
+      activeStage: 'INGESTION',
     });
     setFiles({});
+    setPipelineEvents([]);
+    setPatchEvents([]);
 
     let sawDone = false;
 
     try {
-      const stream = generateCodeStream(blueprintId, model, controller.signal);
+      const stream = generateCodeStream(blueprintId, model, controller.signal); // model arg forwarded; backend uses pipeline routing
 
       for await (const event of stream) {
         if (controller.signal.aborted || generation !== operationGenRef.current) break;
 
         switch (event.event) {
+          case 'pipeline_stage': {
+            const data = event.data as PipelineStageEvent;
+            setProgress(prev => ({ ...prev, activeStage: data.stage }));
+            setPipelineEvents(prev => [...prev, data]);
+            break;
+          }
+          case 'patch_apply': {
+            const data = event.data as PatchApplyEvent;
+            setPatchEvents(prev => [...prev, data]);
+            break;
+          }
           case 'codegen_start': {
             const data = event.data as { totalFiles: number };
             setProgress(prev => ({
@@ -86,7 +111,8 @@ export function useCodeGeneration() {
             setProgress(prev => ({
               ...prev,
               currentFilePath: 'Code generation completed!',
-              status: 'completed'
+              status: 'completed',
+              activeStage: null,
             }));
             setIsGenerating(false);
             break;
@@ -101,102 +127,76 @@ export function useCodeGeneration() {
           }
           case 'error': {
             const data = event.data as { message: string };
-            const isRateLimit =
-              data.message?.toLowerCase().includes('rate limit') ||
-              data.message?.toLowerCase().includes('resourceexhausted') ||
-              data.message?.toLowerCase().includes('request limit');
-            throw new Error(
-              isRateLimit
-                ? `Rate limit reached — switch to a different model (e.g. Gemini 2.5 Flash) or wait a minute and retry.`
-                : data.message
-            );
+            throw new Error(data.message);
           }
         }
       }
 
-      if (generation === operationGenRef.current && !controller.signal.aborted && !sawDone) {
-        setIsGenerating(false);
-        setProgress(prev => ({
-          ...prev,
-          status: 'error',
-          error: 'Code generation stream ended unexpectedly. Please try again.',
-        }));
+      if (!sawDone && !controller.signal.aborted && generation === operationGenRef.current) {
+        throw new Error('Code generation stream closed before completing.');
       }
-    } catch (err: unknown) {
-      if (generation !== operationGenRef.current) return;
-      if (err instanceof Error && err.name === 'AbortError') return;
-      console.error('[Codegen Hook] Generation failed:', err);
-      setIsGenerating(false);
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      console.error('[useCodeGeneration] Error:', err);
       setProgress(prev => ({
         ...prev,
         status: 'error',
-        error: err instanceof Error ? err.message : 'Generation failed. Please try again.'
+        error: err.message || 'Failed to generate application code.'
       }));
-    } finally {
-      abortRef.current = null;
+      setIsGenerating(false);
     }
   }, [cancel]);
 
-  const loadGeneratedFiles = useCallback(async (blueprintId: string) => {
+  const loadExistingFiles = useCallback(async (blueprintId: string) => {
+    cancel();
     const generation = ++operationGenRef.current;
-    setIsGenerating(false);
+    setIsGenerating(true);
     setProgress({
       totalFiles: 0,
       currentFileIndex: 0,
-      currentFilePath: 'Loading files...',
+      currentFilePath: 'Loading files from server...',
       status: 'loading',
-      error: null,
+      error: null
     });
 
     try {
-      const loaded = await fetchBlueprintFilesWithContent(blueprintId);
+      const fetched = await fetchBlueprintFilesWithContent(blueprintId);
       if (generation !== operationGenRef.current) return;
 
-      const loadedFiles: Record<string, string> = Object.fromEntries(
-        loaded.map((file) => [file.path, file.content])
-      );
+      const fileMap: Record<string, string> = {};
+      fetched.forEach(f => {
+        fileMap[f.path] = f.content;
+      });
 
-      setFiles(loadedFiles);
+      setFiles(fileMap);
       setProgress({
-        totalFiles: loaded.length,
-        currentFileIndex: loaded.length,
-        currentFilePath: '',
-        status: loaded.length > 0 ? 'completed' : 'idle',
+        totalFiles: fetched.length,
+        currentFileIndex: fetched.length,
+        currentFilePath: 'Loaded successfully',
+        status: 'completed',
         error: null
       });
-    } catch (err: unknown) {
+    } catch (err: any) {
       if (generation !== operationGenRef.current) return;
-      console.error('[Codegen Hook] Loading files failed:', err);
+      console.error('[useCodeGeneration] Load error:', err);
       setProgress(prev => ({
         ...prev,
         status: 'error',
-        error: 'Failed to load generated code files.'
+        error: err.message || 'Failed to load project files.'
       }));
+    } finally {
+      if (generation === operationGenRef.current) {
+        setIsGenerating(false);
+      }
     }
-  }, []);
+  }, [cancel]);
 
-  const clearFiles = useCallback(() => {
-    operationGenRef.current += 1;
-    setFiles({});
-    setProgress({
-      totalFiles: 0,
-      currentFileIndex: 0,
-      currentFilePath: '',
-      status: 'idle',
-      error: null,
-    });
-  }, []);
-
-  const saveFileContent = useCallback(async (blueprintId: string, path: string, content: string, language: string) => {
+  const updateSingleFile = useCallback(async (blueprintId: string, path: string, content: string, language: string) => {
+    setFiles(prev => ({ ...prev, [path]: content }));
     try {
       await saveBlueprintFile(blueprintId, path, content, language);
-      setFiles(prev => ({
-        ...prev,
-        [path]: content
-      }));
     } catch (err) {
-      console.error('[Codegen Hook] Save file failed:', err);
-      throw err;
+      console.error(`[useCodeGeneration] Error saving file ${path}:`, err);
     }
   }, []);
 
@@ -204,10 +204,12 @@ export function useCodeGeneration() {
     isGenerating,
     progress,
     files,
+    pipelineEvents,
+    patchEvents,
     generateCode,
-    loadGeneratedFiles,
+    loadExistingFiles,
+    updateSingleFile,
     clearFiles,
-    saveFileContent,
     cancel
   };
 }

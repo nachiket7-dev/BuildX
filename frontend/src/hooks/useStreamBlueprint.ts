@@ -1,14 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { generateBlueprintStream, fetchBlueprint, SSEEvent } from '../lib/api';
-import type { Blueprint, PartialBlueprint, SavedBlueprint } from '../lib/types';
+import type { Blueprint, PartialBlueprint, SavedBlueprint, AgentEvent, PipelineStage, PipelineStageEvent } from '../lib/types';
 
-export interface AgentEvent {
-  agent: 'pm' | 'architect' | 'api_dev' | 'designer' | 'coder' | 'qa';
-  status: 'idle' | 'thinking' | 'writing' | 'correcting' | 'completed';
-  log?: string;
-  message?: string;
-  timestamp: string;
-}
+export type { AgentEvent };
 
 interface UseStreamBlueprintOptions {
   onSaved?: (id: string) => void;
@@ -24,6 +18,8 @@ interface UseStreamBlueprintResult {
   blueprintId: string | null;
   progress: number;
   agentEvents: AgentEvent[];
+  activeStage: PipelineStage | null;
+  pipelineEvents: PipelineStageEvent[];
   generate: (idea: string, model: string) => void;
   loadSaved: (id: string) => void;
   isStreamSavedRoute: (id: string) => boolean;
@@ -52,10 +48,10 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
   const [blueprintId, setBlueprintId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
+  const [activeStage, setActiveStage] = useState<PipelineStage | null>(null);
+  const [pipelineEvents, setPipelineEvents] = useState<PipelineStageEvent[]>([]);
   const abortRef = useRef<AbortController | null>(null);
-  /** Set synchronously on SSE `saved` so route load can skip before blueprintId state commits */
   const streamSavedForRouteRef = useRef<string | null>(null);
-  /** Set synchronously on SSE `complete` so route load never clobbers streamed content */
   const streamBlueprintRef = useRef<Blueprint | null>(null);
   const loadGenerationRef = useRef(0);
   const blueprintRef = useRef<Blueprint | null>(null);
@@ -80,6 +76,8 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     setBlueprintId(null);
     setProgress(0);
     setAgentEvents([]);
+    setActiveStage('PLANNING');
+    setPipelineEvents([]);
     streamBlueprintRef.current = null;
     streamSavedForRouteRef.current = null;
 
@@ -107,13 +105,22 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
             break;
           }
 
+          case 'pipeline_stage': {
+            const data = sseEvent.data as PipelineStageEvent;
+            setActiveStage(data.stage);
+            setPipelineEvents((prev) => [...prev, data]);
+            break;
+          }
+
           case 'agent_event': {
             const data = sseEvent.data as {
               agent: AgentEvent['agent'];
               status: AgentEvent['status'];
               log?: string;
               message?: string;
+              stage?: PipelineStage;
             };
+            if (data.stage) setActiveStage(data.stage);
             setAgentEvents((prev) => [
               ...prev,
               {
@@ -121,6 +128,7 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
                 status: data.status,
                 log: data.log,
                 message: data.message,
+                stage: data.stage,
                 timestamp: new Date().toLocaleTimeString(),
               },
             ]);
@@ -155,7 +163,6 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
             setBlueprintId(data.id);
             setProgress(100);
             gotSaved = true;
-            // Defer navigation so React commits the `complete` blueprint before the route effect runs
             queueMicrotask(() => onSavedRef.current?.(data.id));
             break;
           }
@@ -203,7 +210,6 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
       existingBlueprint && (blueprintId === id || streamSavedForRouteRef.current === id)
     );
 
-    // Keep in-memory streamed blueprint — only refresh ownership/meta from API
     if (isSessionBlueprint) {
       const generation = ++loadGenerationRef.current;
       setError(null);
@@ -218,7 +224,6 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
       try {
         const saved = await fetchBlueprint(id);
         if (generation !== loadGenerationRef.current) return;
-        // Never replace a freshly streamed blueprint with the API parse path
         if (streamSavedForRouteRef.current === id || streamBlueprintRef.current) {
           streamSavedForRouteRef.current = null;
           setSavedMeta({
@@ -251,13 +256,14 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     setBlueprintId(id);
     setProgress(0);
     setAgentEvents([]);
+    setActiveStage(null);
+    setPipelineEvents([]);
     streamBlueprintRef.current = null;
     streamSavedForRouteRef.current = null;
 
     try {
       const saved = await fetchBlueprint(id);
       if (generation !== loadGenerationRef.current) return;
-      // A stream handoff finished while this fetch was in flight — keep streamed content
       if (streamBlueprintRef.current && streamSavedForRouteRef.current === id) {
         setBlueprint(streamBlueprintRef.current);
         setPartialBlueprint(streamBlueprintRef.current);
@@ -304,6 +310,8 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     setBlueprintId(null);
     setProgress(0);
     setAgentEvents([]);
+    setActiveStage(null);
+    setPipelineEvents([]);
   }, [cancel]);
 
   return {
@@ -316,6 +324,8 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     blueprintId,
     progress,
     agentEvents,
+    activeStage,
+    pipelineEvents,
     generate,
     loadSaved,
     isStreamSavedRoute,
