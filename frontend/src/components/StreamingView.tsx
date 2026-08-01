@@ -1,40 +1,96 @@
-import { useEffect, useRef } from 'react';
-import type { PartialBlueprint } from '../lib/types';
-import { useModel, AVAILABLE_MODELS } from '../hooks/useModel';
+import React, { useEffect, useRef, useState } from 'react';
+import type { PartialBlueprint, PipelineStage, PipelineStageEvent } from '../lib/types';
 import type { AgentEvent } from '../hooks/useStreamBlueprint';
-import { FileText, Database, Webhook, Palette, Code, ShieldCheck } from 'lucide-react';
+import { FileText, Database, Webhook, Palette, Code, ShieldCheck, ChevronDown, ChevronUp, Cpu, Wrench, Brain, Zap, GitCompare } from 'lucide-react';
 import { SpotlightCard } from './SpotlightCard';
 import { StreamingSections } from './StreamingSections';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface StreamingViewProps {
   progress: number;
   partialBlueprint: PartialBlueprint;
   agentEvents?: AgentEvent[];
+  activeStage?: PipelineStage | null;
+  pipelineEvents?: PipelineStageEvent[];
 }
 
 const AGENTS_LIST = [
-  { key: 'pm' as const, label: 'Product Manager', icon: FileText, color: 'text-blue-400', desc: 'Specs & Features' },
-  { key: 'architect' as const, label: 'Database Architect', icon: Database, color: 'text-purple-400', desc: 'SQL Relations' },
-  { key: 'api_dev' as const, label: 'API Developer', icon: Webhook, color: 'text-amber-400', desc: 'REST Endpoints' },
-  { key: 'designer' as const, label: 'UI/UX Designer', icon: Palette, color: 'text-pink-400', desc: 'Screen Layouts' },
-  { key: 'coder' as const, label: 'Developer', icon: Code, color: 'text-emerald-400', desc: 'Workspace Code' },
-  { key: 'qa' as const, label: 'QA Evaluator', icon: ShieldCheck, color: 'text-cyan-400', desc: 'Integrity Check' },
+  { key: 'pm' as const, label: 'Product Manager', icon: FileText, color: 'text-purple-400', desc: 'Specs & Features', stage: 'PLANNING' as PipelineStage },
+  { key: 'architect' as const, label: 'Database Architect', icon: Database, color: 'text-purple-400', desc: 'SQL Relations', stage: 'PLANNING' as PipelineStage },
+  { key: 'api_dev' as const, label: 'API Developer', icon: Webhook, color: 'text-sky-400', desc: 'REST Endpoints', stage: 'INGESTION' as PipelineStage },
+  { key: 'designer' as const, label: 'UI/UX Designer', icon: Palette, color: 'text-sky-400', desc: 'Screen Layouts', stage: 'INGESTION' as PipelineStage },
+  { key: 'coder' as const, label: 'Developer', icon: Code, color: 'text-emerald-400', desc: 'Workspace Code', stage: 'DIFF_GENERATION' as PipelineStage },
+  { key: 'qa' as const, label: 'QA Evaluator', icon: ShieldCheck, color: 'text-amber-400', desc: 'Integrity Check', stage: 'AUTO_FIX' as PipelineStage },
 ] as const;
 
-export function StreamingView({ progress, partialBlueprint, agentEvents = [] }: StreamingViewProps) {
-  const { selectedModel } = useModel();
-  const modelLabel = AVAILABLE_MODELS.find((m) => m.id === selectedModel)?.label || 'AI Model';
+const PIPELINE_STAGE_BADGES: Record<
+  PipelineStage,
+  { label: string; Icon: React.ElementType; models: string; color: string; border: string; bg: string; glow: string }
+> = {
+  PLANNING: {
+    label: 'PLANNING',
+    Icon: Brain,
+    models: 'Nemotron 3 Ultra / GLM-5.2',
+    color: 'text-purple-400',
+    border: 'border-purple-500/40',
+    bg: 'bg-purple-500/10',
+    glow: 'shadow-purple-500/20',
+  },
+  INGESTION: {
+    label: 'INGESTION',
+    Icon: Zap,
+    models: 'Gemini 3.5 Flash / GLM-5.2',
+    color: 'text-sky-400',
+    border: 'border-sky-500/40',
+    bg: 'bg-sky-500/10',
+    glow: 'shadow-sky-500/20',
+  },
+  DIFF_GENERATION: {
+    label: 'DIFF GENERATION',
+    Icon: GitCompare,
+    models: 'Z-AI GLM-5.2 / Gemini 3.5 Flash',
+    color: 'text-emerald-400',
+    border: 'border-emerald-500/40',
+    bg: 'bg-emerald-500/10',
+    glow: 'shadow-emerald-500/20',
+  },
+  AUTO_FIX: {
+    label: 'AUTO-FIX & QA',
+    Icon: Wrench,
+    models: 'Moonshot Kimi K2.6 / GLM-5.2',
+    color: 'text-amber-400',
+    border: 'border-amber-500/40',
+    bg: 'bg-amber-500/10',
+    glow: 'shadow-amber-500/20',
+  },
+};
+
+// Stage ordering for isDone logic
+const STAGE_ORDER: PipelineStage[] = ['PLANNING', 'INGESTION', 'DIFF_GENERATION', 'AUTO_FIX'];
+
+export function StreamingView({
+  progress,
+  partialBlueprint,
+  agentEvents = [],
+  activeStage = 'PLANNING',
+  pipelineEvents = [],
+}: StreamingViewProps) {
   const terminalEndRef = useRef<HTMLDivElement>(null);
+  const [showReasoning, setShowReasoning] = useState(true);
 
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [agentEvents]);
+  }, [agentEvents, pipelineEvents]);
 
   const getAgentStatus = (agentKey: string) => {
     const events = agentEvents.filter((e) => e.agent === agentKey);
     if (events.length === 0) return 'idle';
     return events[events.length - 1].status;
   };
+
+  const isAutoFixActive = activeStage === 'AUTO_FIX' || agentEvents.some(e => e.status === 'correcting');
+
+  const activeStageIndex = STAGE_ORDER.indexOf(activeStage ?? 'PLANNING');
 
   return (
     <section
@@ -43,32 +99,115 @@ export function StreamingView({ progress, partialBlueprint, agentEvents = [] }: 
       aria-busy="true"
       aria-label="Generating blueprint"
     >
-      <div className="text-center mb-8 max-w-xl">
-        <div
-          className="inline-flex items-center gap-2 px-3 py-1 rounded-full border font-mono-custom text-xs mb-3"
+      {/* Header & Main Stage Status Badges */}
+      <motion.div
+        className="text-center mb-6 max-w-2xl w-full"
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border font-mono-custom text-xs mb-4"
           style={{
-            borderColor: 'rgba(20, 184, 166, 0.25)',
-            background: 'var(--accent-glow)',
-            color: 'var(--accent2)',
+            borderColor: 'rgba(99, 102, 241, 0.3)',
+            background: 'rgba(99, 102, 241, 0.1)',
+            color: '#a5b4fc',
           }}
         >
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{ background: 'var(--accent)' }} />
-          Multi-agent compilation
+          <span className="w-2 h-2 rounded-full animate-pulse bg-indigo-400" />
+          Strict Dedicated Multi-Model Pipeline
         </div>
-        <h2 className="font-display font-extrabold text-2xl sm:text-3xl bg-gradient-to-r from-purple-400 via-indigo-200 to-green-400 bg-clip-text text-transparent mb-2">
-          {partialBlueprint.appName
-            ? `Building ${partialBlueprint.appName}`
-            : 'Architecting your workspace…'}
-        </h2>
-        <p className="font-mono-custom text-xs" style={{ color: 'var(--text3)' }}>
-          {AGENTS_LIST.length} agents · {modelLabel}
-        </p>
-      </div>
 
+        <h2 className="font-display font-extrabold text-2xl sm:text-3xl bg-gradient-to-r from-purple-400 via-indigo-200 to-emerald-400 bg-clip-text text-transparent mb-3">
+          {partialBlueprint.appName
+            ? `Architecting ${partialBlueprint.appName}`
+            : 'Compiling Workspace Specifications…'}
+        </h2>
+
+        {/* 4 Pipeline Stages Badges — layoutId morphing transitions */}
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-3 mb-2">
+          {(Object.keys(PIPELINE_STAGE_BADGES) as PipelineStage[]).map((stageKey, stageIdx) => {
+            const badge = PIPELINE_STAGE_BADGES[stageKey];
+            const isActive = activeStage === stageKey;
+            const isDone = progress === 100 || stageIdx < activeStageIndex;
+
+            return (
+              <motion.div
+                key={stageKey}
+                layoutId={`pipeline-badge-${stageKey}`}
+                layout
+                animate={
+                  isActive
+                    ? { scale: 1.08, opacity: 1 }
+                    : isDone
+                    ? { scale: 1, opacity: 0.8 }
+                    : { scale: 1, opacity: 0.45 }
+                }
+                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-mono ${
+                  isActive
+                    ? `${badge.bg} ${badge.border} ${badge.color} ring-1 ring-white/10 shadow-lg ${badge.glow}`
+                    : isDone
+                    ? 'bg-emerald-950/20 border-emerald-500/20 text-emerald-400'
+                    : 'bg-neutral-900/40 border-neutral-800 text-neutral-500'
+                }`}
+              >
+                <badge.Icon size={10} />
+                <span className="font-bold">{badge.label}</span>
+                <span className="text-[9px] opacity-75 hidden sm:inline">({badge.models})</span>
+                <AnimatePresence>
+                  {isActive && (
+                    <motion.span
+                      key="ping"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      className="w-1.5 h-1.5 rounded-full bg-current animate-ping ml-0.5"
+                    />
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
+      </motion.div>
+
+      {/* Automated Testing & Self-Correction Banner — animated entrance */}
+      <AnimatePresence>
+        {isAutoFixActive && (
+          <motion.div
+            key="autofix-banner"
+            initial={{ opacity: 0, y: -10, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -10, height: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+            className="w-full max-w-4xl mb-6 p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 flex items-center justify-between text-amber-300 text-xs font-mono shadow-lg shadow-amber-500/5 overflow-hidden"
+          >
+            <div className="flex items-center gap-2.5">
+              <Wrench className="w-4 h-4 text-amber-400 animate-spin" />
+              <div>
+                <span className="font-bold text-amber-200">Automated Self-Correction Active:</span>
+                <span className="ml-1.5 text-amber-300/90">Moonshot Kimi K2.6 auditing VFS constraints & index optimizations (Fallback: GLM-5.2)</span>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded bg-amber-400/20 text-[10px] uppercase font-bold border border-amber-400/30 shrink-0">
+              AUTO_FIX MODE
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Progress Bar — spring-animated width */}
       <div className="w-full max-w-3xl mb-6">
         <div className="flex justify-between items-end mb-2 font-mono-custom text-xs" style={{ color: 'var(--text3)' }}>
-          <span>Compilation progress</span>
-          <span style={{ color: 'var(--text)' }}>{progress}%</span>
+          <span>Multi-Model Pipeline progress</span>
+          <motion.span
+            key={progress}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ color: 'var(--text)' }}
+          >
+            {progress}%
+          </motion.span>
         </div>
         <div
           className="w-full h-2.5 rounded-full overflow-hidden"
@@ -78,19 +217,25 @@ export function StreamingView({ progress, partialBlueprint, agentEvents = [] }: 
           aria-valuemin={0}
           aria-valuemax={100}
         >
-          <div
-            className="h-full rounded-full transition-all duration-500 ease-out progress-bar-glow"
-            style={{
-              width: `${progress}%`,
-              background: 'linear-gradient(90deg, var(--accent-hex), var(--green))',
-            }}
+          <motion.div
+            className="h-full rounded-full progress-bar-glow"
+            style={{ background: 'linear-gradient(90deg, #6366f1, #10b981)' }}
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ type: 'spring', stiffness: 60, damping: 18 }}
           />
         </div>
       </div>
 
       <StreamingSections partial={partialBlueprint} />
 
-      <div className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-6 gap-3 mb-8">
+      {/* Agents Grid — staggered entrance */}
+      <motion.div
+        className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-6 gap-3 mb-6"
+        initial="hidden"
+        animate="show"
+        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05 } } }}
+      >
         {AGENTS_LIST.map((agent) => {
           const status = getAgentStatus(agent.key);
           const isActive = status === 'thinking' || status === 'writing' || status === 'correcting';
@@ -98,116 +243,167 @@ export function StreamingView({ progress, partialBlueprint, agentEvents = [] }: 
           const Icon = agent.icon;
 
           return (
-            <SpotlightCard
+            <motion.div
               key={agent.key}
-              spotlightColor={
-                isCompleted
-                  ? 'rgba(34, 197, 94, 0.08)'
-                  : isActive
-                    ? 'rgba(20, 184, 166, 0.12)'
-                    : 'rgba(255, 255, 255, 0.03)'
-              }
-              className="p-4 rounded-xl text-center relative overflow-hidden transition-all duration-300"
-              style={{
-                borderColor: isCompleted
-                  ? 'rgba(34, 197, 94, 0.25)'
-                  : isActive
-                    ? 'rgba(20, 184, 166, 0.35)'
-                    : 'var(--border)',
-                background: isCompleted
-                  ? 'var(--green-dim)'
-                  : isActive
-                    ? 'var(--accent-glow)'
-                    : 'var(--surface)',
+              variants={{
+                hidden: { opacity: 0, scale: 0.88, y: 10 },
+                show: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
               }}
+              animate={isActive ? { scale: [1, 1.03, 1] } : {}}
+              transition={isActive ? { repeat: Infinity, duration: 1.5, ease: 'easeInOut' } : {}}
             >
-              {isActive && (
-                <span className="absolute top-2 right-2 flex h-2 w-2" aria-hidden>
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: 'var(--accent)' }} />
-                  <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: 'var(--accent-hex)' }} />
-                </span>
-              )}
-              {isCompleted && (
-                <span className="absolute top-2 right-2 text-[10px]" style={{ color: 'var(--green)' }} aria-hidden>
-                  ✓
-                </span>
-              )}
-
-              <div
-                className={`flex justify-center mb-2 transition-all ${!isActive && !isCompleted ? 'opacity-40 grayscale' : ''}`}
+              <SpotlightCard
+                spotlightColor={
+                  isCompleted
+                    ? 'rgba(34, 197, 94, 0.08)'
+                    : isActive
+                      ? 'rgba(99, 102, 241, 0.12)'
+                      : 'rgba(255, 255, 255, 0.03)'
+                }
+                className="p-4 rounded-xl text-center relative overflow-hidden transition-all duration-300"
+                style={{
+                  borderColor: isCompleted
+                    ? 'rgba(34, 197, 94, 0.25)'
+                    : isActive
+                      ? 'rgba(99, 102, 241, 0.4)'
+                      : 'var(--border)',
+                  background: isCompleted
+                    ? 'var(--green-dim)'
+                    : isActive
+                      ? 'rgba(99, 102, 241, 0.08)'
+                      : 'var(--surface)',
+                }}
               >
-                <Icon size={24} className={agent.color} />
-              </div>
-              <div className="font-display font-semibold text-xs mb-0.5 truncate" style={{ color: 'var(--text)' }}>
-                {agent.label}
-              </div>
-              <div className="font-mono-custom text-[9px] truncate" style={{ color: 'var(--text3)' }}>
-                {status === 'correcting' ? 'Fixing' : status === 'idle' ? 'Waiting' : status}
-              </div>
-            </SpotlightCard>
+                {isActive && (
+                  <span className="absolute top-2 right-2 flex h-2 w-2" aria-hidden>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-indigo-400" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
+                  </span>
+                )}
+                {isCompleted && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                    className="absolute top-2 right-2 text-[10px]"
+                    style={{ color: 'var(--green)' }}
+                    aria-hidden
+                  >
+                    ✓
+                  </motion.span>
+                )}
+
+                <div className={`flex justify-center mb-2 transition-all ${!isActive && !isCompleted ? 'opacity-40 grayscale' : ''}`}>
+                  <Icon size={24} className={agent.color} />
+                </div>
+                <div className="font-display font-semibold text-xs mb-0.5 truncate" style={{ color: 'var(--text)' }}>
+                  {agent.label}
+                </div>
+                <div className="font-mono-custom text-[9px] truncate text-indigo-300/80">
+                  {status === 'correcting' ? 'Fixing' : status === 'idle' ? agent.stage : status}
+                </div>
+              </SpotlightCard>
+            </motion.div>
           );
         })}
-      </div>
+      </motion.div>
 
+      {/* Reasoning Process — Framer Motion height-auto accordion */}
       <div
-        className="w-full max-w-4xl rounded-xl overflow-hidden flex flex-col h-[300px] sm:h-[320px]"
+        className="w-full max-w-4xl rounded-xl overflow-hidden flex flex-col"
         style={{
           border: '1px solid var(--border2)',
           background: 'rgba(0, 0, 0, 0.92)',
           boxShadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
         }}
       >
-        <div
-          className="px-4 py-2.5 flex items-center justify-between"
+        <motion.div
+          onClick={() => setShowReasoning(!showReasoning)}
+          className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-white/[0.03] transition-colors select-none"
           style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}
+          whileHover={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
+          whileTap={{ scale: 0.99 }}
         >
-          <div className="flex items-center gap-1.5" aria-hidden>
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
-            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/70" />
-            <div className="w-2.5 h-2.5 rounded-full bg-green-500/70" />
-          </div>
-          <span className="font-mono-custom text-[10px] uppercase tracking-widest" style={{ color: 'var(--text3)' }}>
-            Agent console
-          </span>
-          <div className="w-10" />
-        </div>
-
-        <div
-          className="flex-1 p-4 overflow-y-auto font-mono-custom text-xs space-y-2.5"
-          style={{ color: 'var(--green)' }}
-        >
-          <div style={{ color: 'var(--text3)' }}>[SYS] Connection established · SSE stream active</div>
-
-          {agentEvents.map((evt, idx) => {
-            const agentLabel = evt.agent.toUpperCase();
-            let color = 'var(--accent2)';
-            if (evt.status === 'completed') color = 'var(--green)';
-            if (evt.status === 'correcting') color = 'var(--amber)';
-
-            return (
-              <div key={idx} className="flex items-start gap-2 animate-fade-in leading-relaxed">
-                <span className="shrink-0 select-none" style={{ color: 'var(--text3)' }}>
-                  [{evt.timestamp}]
-                </span>
-                <span className="font-semibold shrink-0 select-none" style={{ color }}>
-                  [{agentLabel}]
-                </span>
-                <span style={{ color: 'var(--text)' }}>{evt.log || evt.message}</span>
-              </div>
-            );
-          })}
-
-          <div className="flex items-center gap-1">
-            <span style={{ color: 'var(--text3)' }}>[{new Date().toLocaleTimeString()}]</span>
-            <span className="font-semibold" style={{ color: 'var(--green)' }}>
-              [SYSTEM]
+          <div className="flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-indigo-400" />
+            <span className="font-mono-custom text-[11px] font-semibold uppercase tracking-wider text-indigo-300">
+              Reasoning Process & Multi-Model Execution Stream
             </span>
-            <span style={{ color: 'var(--text)' }}>Compiling…</span>
-            <span className="terminal-cursor" aria-hidden />
           </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] text-neutral-400">
+              {agentEvents.length} log events
+            </span>
+            <motion.div
+              animate={{ rotate: showReasoning ? 0 : -90 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            >
+              <ChevronUp size={16} className="text-neutral-400" />
+            </motion.div>
+          </div>
+        </motion.div>
 
-          <div ref={terminalEndRef} />
-        </div>
+        {/* Height-auto animated accordion body */}
+        <AnimatePresence initial={false}>
+          {showReasoning && (
+            <motion.div
+              key="reasoning-body"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+              style={{ overflow: 'hidden' }}
+            >
+              <div
+                className="p-4 overflow-y-auto font-mono-custom text-xs space-y-2.5 max-h-[300px]"
+                style={{ color: 'var(--green)' }}
+              >
+                <div style={{ color: 'var(--text3)' }}>
+                  [SYS] Multi-Model Router connected · Pipeline stages active (PLANNING ➔ INGESTION ➔ DIFF_GENERATION ➔ AUTO_FIX)
+                </div>
+
+                {agentEvents.map((evt, idx) => {
+                  const agentLabel = evt.agent.toUpperCase();
+                  let color = 'var(--accent2)';
+                  if (evt.status === 'completed') color = 'var(--green)';
+                  if (evt.status === 'correcting') color = 'var(--amber)';
+
+                  return (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex items-start gap-2 leading-relaxed"
+                    >
+                      <span className="shrink-0 select-none text-neutral-500">
+                        [{evt.timestamp}]
+                      </span>
+                      {evt.stage && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/5 border border-white/10 shrink-0 text-indigo-300">
+                          {evt.stage}
+                        </span>
+                      )}
+                      <span className="font-semibold shrink-0 select-none" style={{ color }}>
+                        [{agentLabel}]
+                      </span>
+                      <span style={{ color: 'var(--text)' }}>{evt.log || evt.message}</span>
+                    </motion.div>
+                  );
+                })}
+
+                <div className="flex items-center gap-1">
+                  <span style={{ color: 'var(--text3)' }}>[{new Date().toLocaleTimeString()}]</span>
+                  <span className="font-semibold text-emerald-400">[PIPELINE]</span>
+                  <span style={{ color: 'var(--text)' }}>Executing {activeStage || 'stages'}…</span>
+                  <span className="terminal-cursor" aria-hidden />
+                </div>
+
+                <div ref={terminalEndRef} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );
