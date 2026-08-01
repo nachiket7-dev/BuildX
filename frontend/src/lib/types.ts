@@ -77,6 +77,37 @@ export interface Blueprint {
   modelUsed?: string;
 }
 
+// ─── Multi-Model Execution Pipeline Types ─────────────────────
+export type PipelineStage = 'PLANNING' | 'INGESTION' | 'DIFF_GENERATION' | 'AUTO_FIX';
+
+export interface ModelExecutionMetadata {
+  stage: PipelineStage;
+  modelName: string;
+  isFallback: boolean;
+  reasoningText?: string;
+}
+
+export interface PipelineStageEvent {
+  stage: PipelineStage;
+  state: 'start' | 'completed' | 'fallback';
+  detail?: string;
+}
+
+export interface PatchApplyEvent {
+  path: string;
+  applied: number;
+  failedCount: number;
+}
+
+export interface AgentEvent {
+  agent: 'pm' | 'architect' | 'api_dev' | 'designer' | 'coder' | 'qa';
+  status: 'idle' | 'thinking' | 'writing' | 'correcting' | 'completed';
+  log?: string;
+  message?: string;
+  timestamp: string;
+  stage?: PipelineStage;
+}
+
 // ─── Saved blueprint (with persistence metadata) ──────────
 export interface SavedBlueprint extends Blueprint {
   id: string;
