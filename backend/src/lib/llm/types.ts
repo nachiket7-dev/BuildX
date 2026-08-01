@@ -1,3 +1,5 @@
+// ─── Base message / completion types ────────────────────────────────────────
+
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -12,4 +14,35 @@ export interface CompletionOptions {
 export interface LLMProvider {
   complete(messages: LLMMessage[], options?: CompletionOptions): Promise<string>;
   stream(messages: LLMMessage[], options?: CompletionOptions): AsyncIterable<string>;
+}
+
+// ─── Multi-Model Pipeline types ─────────────────────────────────────────────
+
+/**
+ * Named execution stages for the dual-pipeline architecture.
+ *
+ * - PLANNING       → heavy reasoning (Nemotron 550B primary)
+ * - INGESTION      → fast context parsing (Gemini 3.5 Flash primary)
+ * - DIFF_GENERATION→ surgical patch output (GLM-5.2 primary)
+ * - AUTO_FIX       → error-driven self-correction (Nemotron 550B primary)
+ */
+export type PipelineStage = 'PLANNING' | 'INGESTION' | 'DIFF_GENERATION' | 'AUTO_FIX';
+
+/**
+ * A primary+fallback model pair for a pipeline stage.
+ * Both fields are internal model keys as they appear in MODEL_MAP.
+ */
+export interface PipelineRoute {
+  primary: string;   // internal model key (e.g. 'nemotron-3-550b')
+  fallback: string;  // internal model key (e.g. 'glm-5.2')
+}
+
+/**
+ * Extended completion options that carry an optional pipeline stage hint.
+ * When `stage` is provided and callers use `completeWithPipelineFallback`,
+ * the stage-level routing and failover logic kicks in automatically.
+ */
+export interface PipelineCompletionOptions extends CompletionOptions {
+  /** If set, the router uses the stage-specific primary model. */
+  stage?: PipelineStage;
 }
