@@ -1113,4 +1113,98 @@ router.post('/:id/preview/regenerate', requireAuth, async (req: Request, res: Re
   }
 });
 
+// ─── POST /:id/refine ──────────────────────────────────────────────────────
+// Fetch blueprint from DB → mutate via LLM → persist → return updated spec.
+router.post('/:id/refine', requireAuth, blueprintLimiter, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { id } = req.params;
+  const { prompt, model } = req.body as { prompt?: string; model?: string };
+  const userId = req.user!.userId;
+
+  // ── Validate ID ──────────────────────────────────────────────────────────
+  if (!id || !validateBlueprintId(id)) {
+    res.status(400).json({ error: 'Invalid blueprint ID' });
+    return;
+  }
+
+  // ── Validate prompt ──────────────────────────────────────────────────────
+  if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
+    res.status(400).json({
+      error: 'Invalid request',
+      details: [{ field: 'prompt', message: 'Refinement prompt must be at least 3 characters' }],
+    });
+    return;
+  }
+
+  if (prompt.length > 500) {
+    res.status(400).json({
+      error: 'Invalid request',
+      details: [{ field: 'prompt', message: 'Refinement prompt must be under 500 characters' }],
+    });
+    return;
+  }
+
+  // ── Fetch existing blueprint from DB ─────────────────────────────────────
+  const stored = await getBlueprintForUser(id, userId);
+  if (!stored) {
+    res.status(404).json({ error: 'Blueprint not found or not owned by you' });
+    return;
+  }
+
+  const existingBlueprint = stored.parsedBlueprint as Blueprint;
+  if (!existingBlueprint || typeof existingBlueprint !== 'object') {
+    res.status(422).json({ error: 'Stored blueprint spec is malformed' });
+    return;
+  }
+
+  // ── LLM mutation call ────────────────────────────────────────────────────
+  try {
+    await assertPremiumUsageAllowed(userId, model);
+
+    const coerced = coerceBlueprintInput(existingBlueprint, { skipScaffoldRegen: true });
+    const refined = await refineBlueprint(coerced, prompt.trim(), model);
+    const refinedWithModel = attachModelMeta(refined, model || coerced.modelUsed);
+
+    // ── Persist updated spec ───────────────────────────────────────────────
+    const saved = await updateBlueprintJson(id, userId, refinedWithModel);
+    if (!saved) {
+      res.status(404).json({ error: 'Blueprint not found or not owned by you' });
+      return;
+    }
+
+    // Clear any stale generated files so next file-tree load regenerates fresh
+    await clearBlueprintFiles(id);
+
+    await recordPremiumUsageIfNeeded(userId, model);
+
+    console.log(`[Refine/:id] Success id=${id} | app=${refined.appName}`);
+    res.json({ success: true, blueprint: refinedWithModel });
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg.includes('Daily limit')) {
+      res.status(429).json({ error: msg });
+      return;
+    }
+    console.error('[Refine/:id] Error:', msg);
+    if (
+      msg.includes('JSON') ||
+      msg.includes('malformed') ||
+      msg.includes('empty response') ||
+      msg.includes('No valid JSON')
+    ) {
+      res.status(502).json({ error: msg });
+      return;
+    }
+    const friendly = toFriendlyLLMError(msg, model);
+    if (isLLMRateLimit(msg)) {
+      res.status(429).json({ error: friendly });
+      return;
+    }
+    if (msg.includes('API key') || msg.includes('401') || msg.includes('authentication')) {
+      res.status(502).json({ error: friendly });
+      return;
+    }
+    next(err);
+  }
+});
+
 export default router;

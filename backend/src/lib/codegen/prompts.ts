@@ -146,13 +146,15 @@ ${instruction}
 Emit the minimal Search/Replace diff blocks to apply this change. Follow the output format exactly.`;
 }
 
+import { sanitizeTerminalError } from './agent';
+
 /**
  * Build a user prompt for DIFF_PATCH_MODE targeting an AUTO_FIX scenario
  * where a sandbox runner captured stderr/stdout from a failing execution.
  *
  * @param filePath     - The file that produced the error
  * @param originalCode - Current file content
- * @param stderr       - Raw stderr from the sandbox execution
+ * @param stderr       - Raw stderr from the sandbox execution (will be sanitized)
  * @param stdout       - Optional stdout for additional context
  */
 export function buildAutoFixPrompt(
@@ -165,6 +167,9 @@ export function buildAutoFixPrompt(
     ? `\nSTDOUT (context):\n\`\`\`\n${stdout.slice(0, 500)}\n\`\`\`\n`
     : '';
 
+  // Sanitize stderr: keep last 100 lines / max 4000 chars to prevent token bloat
+  const sanitizedStderr = sanitizeTerminalError(stderr);
+
   return `FILE: ${filePath}
 
 ORIGINAL CODE:
@@ -174,7 +179,7 @@ ${originalCode}
 
 STDERR (runtime error to fix):
 \`\`\`
-${stderr.slice(0, 2000)}
+${sanitizedStderr}
 \`\`\`
 ${stdoutSection}
 INSTRUCTION:
