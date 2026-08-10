@@ -55,8 +55,9 @@ BuildX uses specialized, stage-optimal LLMs for each step of blueprint generatio
 | **AST-Safe Diff Patching** | Dynamic incremental patch application in Code Studio with emerald glow visual feedback |
 | **Refinement Chat** | Natural language blueprint modification with stage-by-stage multi-model telemetry |
 | **Live Interactive Preview** | Transpiled HTML/JS sandbox with responsive viewport controls and instant state updates |
+| **Virtual File System (VFS)** | Stateful in-memory/DB workspace initializer (`/api/blueprints/:id/vfs`) for Monaco editor sync |
 | **Framer Motion Animations** | Scale-crossfade route transitions, spring physics sidebar collapsing, and morphing badges |
-| **GitHub & ZIP Export** | One-click export to GitHub repository or downloadable project ZIP scaffold |
+| **GitHub & ZIP Export** | One-click authentic GitHub OAuth repository push or downloadable monorepo ZIP scaffold |
 
 ---
 
@@ -79,21 +80,29 @@ buildx/
 │   │   │   ├── types.ts
 │   │   │   ├── llm/                 # Router (Kimi K2.6, GLM-5.2, Nemotron, Gemini, Groq)
 │   │   │   └── codegen/             # Diff parser + preview transpiler
+│   │   ├── services/
+│   │   │   └── vfsService.ts        # Virtual File System generator & language detector
 │   │   └── routes/
 │   │       ├── agent.ts
 │   │       ├── auth.ts              # Signup, login, GitHub OAuth
-│   │       └── blueprint.ts
+│   │       ├── blueprint.ts         # Spec generation, export-github, preview
+│   │       └── vfs.ts               # VFS init, workspace fetch & file sync
 │   └── .env.example
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── AgentPage.tsx        # 3-Column Studio Workspace
+│   │   │   ├── BlueprintDetailPage.tsx # Architecture Specification & Detail View
 │   │   │   ├── CodeStudio.tsx       # Monaco-style Editor + Diff Patching
+│   │   │   ├── DeployModal.tsx      # GitHub OAuth export & Scaffold ZIP modal
 │   │   │   ├── RefinementChat.tsx   # Live chat + multi-model stage badges
 │   │   │   ├── StreamingView.tsx    # Pipeline stage badges & progress stream
+│   │   │   ├── WorkspaceFileTree.tsx # VFS Tree File Explorer
 │   │   │   ├── MarketingHeader.tsx  # Studio top navigation header
 │   │   │   └── ...
+│   │   ├── context/
+│   │   │   └── VFSContext.tsx       # Virtual File System state provider
 │   │   └── hooks/
 │   │       ├── useStreamBlueprint.ts
 │   │       ├── useCodeGeneration.ts
