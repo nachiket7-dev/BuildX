@@ -62,10 +62,13 @@ export const MODEL_MAP: Record<string, { provider: string; modelId: string }> = 
  *   AUTO_FIX       → Kimi K2.6 (primary)         | GLM-5.2 (fallback)
  */
 export const PIPELINE_ROUTES: Record<PipelineStage, PipelineRoute> = {
-  PLANNING:        { primary: 'nemotron-3-550b',  fallback: 'kimi-k2.6'          },
-  INGESTION:       { primary: 'gemini-3.5-flash', fallback: 'glm-5.2'            },
-  DIFF_GENERATION: { primary: 'glm-5.2',          fallback: 'gemini-3.5-flash'   },
-  AUTO_FIX:        { primary: 'kimi-k2.6',        fallback: 'glm-5.2'            },
+  PLANNING:        { primary: 'nemotron-3-550b',  fallback: 'kimi-k2.6'                                   },
+  INGESTION:       { primary: 'gemini-3.5-flash', fallback: 'glm-5.2'                                     },
+  DIFF_GENERATION: { primary: 'glm-5.2',          fallback: 'gemini-3.5-flash'                            },
+  // AUTO_FIX: Kimi K2.6 → GLM-5.2 → gemini-3.5-flash (emergency low-latency escape hatch)
+  // gemini-3.5-flash added as 3rd-tier to prevent "All models exhausted" hangs when both
+  // NVIDIA NIM models time out under high load.
+  AUTO_FIX:        { primary: 'kimi-k2.6',        fallback: 'glm-5.2', emergency: 'gemini-3.5-flash'     },
 };
 
 // ─── Model Key Resolution ────────────────────────────────────────────────────
@@ -180,8 +183,9 @@ export async function completeWithPipelineFallback(
   options?: CompletionOptions
 ): Promise<{ text: string; usedFallback: boolean; model: string }> {
   const route = PIPELINE_ROUTES[stage];
-  const primaryKey = route.primary;
-  const fallbackKey = route.fallback;
+  const primaryKey   = route.primary;
+  const fallbackKey  = route.fallback;
+  const emergencyKey = route.emergency;
 
   // ── Primary attempt ──────────────────────────────────────────────────────
   try {
@@ -192,9 +196,12 @@ export async function completeWithPipelineFallback(
     return { text, usedFallback: false, model: primaryKey };
   } catch (primaryErr: any) {
     const errLabel = primaryErr?.status ?? primaryErr?.message ?? String(primaryErr);
+    const isTimeout = (primaryErr?.name === 'APIConnectionTimeoutError' ||
+      (primaryErr?.message || '').toLowerCase().includes('timed out') ||
+      (primaryErr?.message || '').toLowerCase().includes('timeout'));
     console.warn(
-      `[Pipeline:${stage}] Primary model (${primaryKey}) failed [${errLabel}]. ` +
-      `Triggering fallback: ${fallbackKey}`
+      `[Pipeline:${stage}] Primary model (${primaryKey}) failed` +
+      ` [${isTimeout ? 'TIMEOUT' : errLabel}]. Triggering fallback: ${fallbackKey}`
     );
   }
 
@@ -207,10 +214,37 @@ export async function completeWithPipelineFallback(
     return { text, usedFallback: true, model: fallbackKey };
   } catch (fallbackErr: any) {
     const errLabel = fallbackErr?.status ?? fallbackErr?.message ?? String(fallbackErr);
-    console.error(
-      `[Pipeline:${stage}] Fallback model (${fallbackKey}) also failed [${errLabel}]. ` +
-      `Both primary and fallback exhausted.`
+    const isTimeout = (fallbackErr?.name === 'APIConnectionTimeoutError' ||
+      (fallbackErr?.message || '').toLowerCase().includes('timed out') ||
+      (fallbackErr?.message || '').toLowerCase().includes('timeout'));
+    console.warn(
+      `[Pipeline:${stage}] Fallback model (${fallbackKey}) failed` +
+      ` [${isTimeout ? 'TIMEOUT' : errLabel}].` +
+      (emergencyKey ? ` Triggering emergency: ${emergencyKey}` : ' Both primary and fallback exhausted.')
     );
+
+    // ── Emergency attempt (3rd-tier, optional per stage) ──────────────────
+    if (emergencyKey) {
+      try {
+        console.log(`[Pipeline:${stage}] Attempting EMERGENCY model: ${emergencyKey}`);
+        const emergencyProvider = getLLMProvider(emergencyKey);
+        const text = await emergencyProvider.complete(messages, options);
+        console.log(`[Pipeline:${stage}] Emergency (${emergencyKey}) succeeded.`);
+        return { text, usedFallback: true, model: emergencyKey };
+      } catch (emergencyErr: any) {
+        const emergencyLabel = emergencyErr?.status ?? emergencyErr?.message ?? String(emergencyErr);
+        console.error(
+          `[Pipeline:${stage}] EMERGENCY model (${emergencyKey}) also failed [${emergencyLabel}]. ` +
+          `All 3 models exhausted.`
+        );
+        throw new Error(
+          `[Pipeline:${stage}] All models exhausted. ` +
+          `Primary: ${primaryKey}, Fallback: ${fallbackKey}, Emergency: ${emergencyKey}. ` +
+          `Last error: ${emergencyLabel}`
+        );
+      }
+    }
+
     throw new Error(
       `[Pipeline:${stage}] All models exhausted. ` +
       `Primary: ${primaryKey}, Fallback: ${fallbackKey}. Last error: ${errLabel}`
@@ -231,8 +265,9 @@ export async function* streamWithPipelineFallback(
   options?: CompletionOptions
 ): AsyncIterable<string> {
   const route = PIPELINE_ROUTES[stage];
-  const primaryKey = route.primary;
-  const fallbackKey = route.fallback;
+  const primaryKey   = route.primary;
+  const fallbackKey  = route.fallback;
+  const emergencyKey = route.emergency;
 
   // ── Try streaming from primary ───────────────────────────────────────────
   try {
@@ -249,9 +284,12 @@ export async function* streamWithPipelineFallback(
     return;
   } catch (primaryErr: any) {
     const errLabel = primaryErr?.status ?? primaryErr?.message ?? String(primaryErr);
+    const isTimeout = (primaryErr?.name === 'APIConnectionTimeoutError' ||
+      (primaryErr?.message || '').toLowerCase().includes('timed out') ||
+      (primaryErr?.message || '').toLowerCase().includes('timeout'));
     console.warn(
-      `[Pipeline:${stage}] Primary stream (${primaryKey}) failed at setup [${errLabel}]. ` +
-      `Falling back to complete() on ${fallbackKey}`
+      `[Pipeline:${stage}] Primary stream (${primaryKey}) failed at setup` +
+      ` [${isTimeout ? 'TIMEOUT' : errLabel}]. Falling back to complete() on ${fallbackKey}`
     );
   }
 
@@ -262,9 +300,38 @@ export async function* streamWithPipelineFallback(
     const text = await fallbackProvider.complete(messages, options);
     console.log(`[Pipeline:${stage}] Fallback (${fallbackKey}) succeeded.`);
     yield text;
+    return;
   } catch (fallbackErr: any) {
     const errLabel = fallbackErr?.status ?? fallbackErr?.message ?? String(fallbackErr);
-    console.error(`[Pipeline:${stage}] Fallback also failed [${errLabel}].`);
+    const isTimeout = (fallbackErr?.name === 'APIConnectionTimeoutError' ||
+      (fallbackErr?.message || '').toLowerCase().includes('timed out') ||
+      (fallbackErr?.message || '').toLowerCase().includes('timeout'));
+    console.warn(
+      `[Pipeline:${stage}] Fallback (${fallbackKey}) failed` +
+      ` [${isTimeout ? 'TIMEOUT' : errLabel}].` +
+      (emergencyKey ? ` Attempting emergency: ${emergencyKey}` : ' Both models exhausted.')
+    );
+
+    // ── Emergency: 3rd-tier complete(), yield as single chunk ───────────
+    if (emergencyKey) {
+      try {
+        console.log(`[Pipeline:${stage}] EMERGENCY complete() on: ${emergencyKey}`);
+        const emergencyProvider = getLLMProvider(emergencyKey);
+        const text = await emergencyProvider.complete(messages, options);
+        console.log(`[Pipeline:${stage}] Emergency (${emergencyKey}) succeeded.`);
+        yield text;
+        return;
+      } catch (emergencyErr: any) {
+        const emergencyLabel = emergencyErr?.status ?? emergencyErr?.message ?? String(emergencyErr);
+        console.error(`[Pipeline:${stage}] Emergency (${emergencyKey}) also failed [${emergencyLabel}].`);
+        throw new Error(
+          `[Pipeline:${stage}] All models exhausted (stream path). ` +
+          `Primary: ${primaryKey}, Fallback: ${fallbackKey}, Emergency: ${emergencyKey}. ` +
+          `Last error: ${emergencyLabel}`
+        );
+      }
+    }
+
     throw new Error(
       `[Pipeline:${stage}] All models exhausted (stream path). ` +
       `Primary: ${primaryKey}, Fallback: ${fallbackKey}. Last error: ${errLabel}`

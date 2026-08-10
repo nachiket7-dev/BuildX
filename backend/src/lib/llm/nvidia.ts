@@ -15,11 +15,16 @@ export class NvidiaProvider implements LLMProvider {
       if (!apiKey) {
         throw new Error('NVIDIA_API_KEY is not defined in env configuration!');
       }
+
+      // Nemotron 550B is a massive MoE model that requires a long inference window.
+      // Kimi K2.6 and GLM-5.2 are smaller, faster models — cap them at 120s to
+      // trigger fallback quickly instead of hanging the SSE stream for 5 minutes.
+      const isHeavyModel = this.model.includes('nemotron');
       this.client = new OpenAI({
         apiKey,
         baseURL: 'https://integrate.api.nvidia.com/v1',
-        timeout: 300 * 1000, // 5 minutes — Nemotron 550B inference is very slow
-        maxRetries: 0,       // We handle retries manually with backoff in agent.ts
+        timeout: isHeavyModel ? 300_000 : 120_000, // 5 min for Nemotron, 120s for Kimi/GLM
+        maxRetries: isHeavyModel ? 0 : 2,           // Nemotron: manual backoff; Kimi/GLM: 2 SDK retries
       });
     }
     return this.client;
