@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { generateVFSFromBlueprint, getLanguageFromPath } from '../services/vfsService';
+import { enhanceVfsUi } from '../services/uiEnhancerService';
 import {
   getBlueprintAny,
   getBlueprintFiles,
@@ -117,6 +118,43 @@ router.put('/:id/vfs/file', optionalAuth, async (req: Request, res: Response) =>
   } catch (err: any) {
     console.error('[VFS File Update Error]', err);
     return res.status(500).json({ error: err.message || 'Failed to update VFS file' });
+  }
+});
+
+/**
+ * POST /api/blueprints/:id/enhance-ui
+ * Upgrade existing VFS App.tsx to a high-fidelity dark glassmorphic React interface.
+ * The LLM rewrites the primary app component with KPI cards, charts, tables, and realistic mock data.
+ */
+router.post('/:id/enhance-ui', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: 'Blueprint ID is required' });
+    }
+
+    const result = await enhanceVfsUi(id);
+
+    // Build structured file list for frontend VFSContext sync
+    const files = Object.entries(result.updatedFiles).map(([path, content]) => ({
+      path,
+      content,
+      language: getLanguageFromPath(path),
+    }));
+
+    return res.json({
+      success: true,
+      data: {
+        id,
+        files,
+        fileTree: result.updatedFiles,
+        modelUsed: result.modelUsed,
+        usedFallback: result.usedFallback,
+      },
+    });
+  } catch (err: any) {
+    console.error('[VFS Enhance UI Error]', err);
+    return res.status(500).json({ error: err.message || 'Failed to enhance UI' });
   }
 });
 
