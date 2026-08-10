@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { fetchBlueprintFilesWithContent, fetchBlueprint, fetchMyBlueprints } from '../lib/api';
 import { PreviewPanel } from './PreviewPanel';
+import { WorkspaceFileTree } from './WorkspaceFileTree';
 import { useCodeGeneration } from '../hooks/useCodeGeneration';
 import {
   Cpu,
@@ -40,11 +41,14 @@ interface ChatMessage {
   model?: string;
 }
 
+type AppShellOutletContext = { sidebarOpen: boolean; onDeploy?: () => void };
+
 export function AgentPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token } = useAuth();
   const { toast } = useToast();
+  const { sidebarOpen } = useOutletContext<AppShellOutletContext>();
 
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(true);
@@ -113,8 +117,22 @@ export function AgentPage() {
         .then(bp => setAppName(bp.appName))
         .catch(() => {});
 
-      fetchBlueprintFilesWithContent(id)
-        .then(res => {
+      const fetchFilesPromise = fetchBlueprintFilesWithContent(id)
+        .then(async res => {
+          if (res.length === 0) {
+            try {
+              const initRes = await fetch(`${BASE_URL}/api/blueprints/${id}/vfs/init`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const json = await initRes.json();
+              if (json.data?.files?.length) {
+                res = json.data.files;
+              }
+            } catch {
+              // ignore error
+            }
+          }
           setFiles(res);
           // Select first non-preview file
           const first = res.find(
@@ -124,7 +142,7 @@ export function AgentPage() {
         })
         .catch(() => {});
 
-      fetch(`${BASE_URL}/api/auth/chat/${id}`, {
+      const fetchChatPromise = fetch(`${BASE_URL}/api/auth/chat/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then(r => r.json())
@@ -133,8 +151,11 @@ export function AgentPage() {
             setMessages(r.data.map((m: any) => ({ role: m.role, content: m.content })));
           }
         })
-        .catch(() => {})
-        .finally(() => setLoadingWorkspace(false));
+        .catch(() => {});
+
+      Promise.allSettled([fetchFilesPromise, fetchChatPromise]).finally(() => {
+        setLoadingWorkspace(false);
+      });
     }
   }, [id, token]);
 
@@ -356,85 +377,75 @@ export function AgentPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row min-h-[calc(100vh-4.5rem)] p-3 gap-3">
+    <div className="w-full h-full overflow-hidden flex flex-col bg-[#08080c] text-white relative selection:bg-purple-500 selection:text-white">
+      {/* Top Ambient Mesh Light */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[250px] bg-emerald-500/10 blur-[150px] pointer-events-none rounded-full" />
 
-      {/* ── 1. Left Sidebar (240px): VFS File Tree Navigation ────────────── */}
-      <aside className="w-full md:w-60 studio-card flex flex-col min-h-0 overflow-hidden shrink-0">
-        <div className="p-3 border-b border-white/5 flex items-center justify-between shrink-0 bg-white/[0.02]">
-          <div className="flex items-center gap-2">
-            <Folder size={14} className="text-purple-400" />
-            <span className="text-xs font-bold text-white font-mono-custom">Workspace Files</span>
+      {/* ── Flex Workspace Wrapper ── */}
+      <div className="flex-1 min-h-0 w-full flex overflow-hidden relative z-10 bg-[#08080c]">
+
+        {/* ── 1. Workspace File Tree Column ────────────── */}
+        {/* ── 1. Workspace File Tree (192px, never shrinks) ── */}
+        <aside className="w-48 shrink-0 h-full border-r border-white/10 bg-[#08080c] flex flex-col overflow-y-auto custom-scrollbar">
+          <div className="p-3 border-b border-white/5 flex items-center justify-between shrink-0 bg-white/[0.02]">
+            <div className="flex items-center gap-2">
+              <Folder size={14} className="text-purple-400" />
+              <span className="text-xs font-bold text-white font-mono-custom">Workspace Files</span>
+            </div>
+            <span className="text-[10px] font-mono-custom text-gray-500 bg-white/5 px-2 py-0.5 rounded">
+              {visibleFiles.length} files
+            </span>
           </div>
-          <span className="text-[10px] font-mono-custom text-gray-500 bg-white/5 px-2 py-0.5 rounded">
-            {visibleFiles.length} files
-          </span>
-        </div>
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-1 font-mono-custom text-xs">
-          {loadingWorkspace ? (
-            <div className="flex items-center justify-center h-32 gap-2 text-gray-500 text-xs">
-              <Loader2 className="animate-spin text-emerald-400" size={14} />
-              <span>Loading VFS…</span>
-            </div>
-          ) : visibleFiles.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 text-xs">
-              No workspace files. Click Initialize in main panel.
-            </div>
-          ) : (
-            visibleFiles.map(file => {
-              const isSelected = selectedFile?.path === file.path;
-              const fileName = file.path.split('/').pop() || file.path;
-              return (
-                <button
-                  key={file.path}
-                  onClick={() => {
-                    setSelectedFile(file);
-                    setActiveTab('editor');
-                  }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                    isSelected
-                      ? 'bg-purple-500/20 text-purple-200 font-semibold border border-purple-500/30'
-                      : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'
-                  }`}
-                >
-                  <FileCode size={13} className={isSelected ? 'text-purple-400 shrink-0' : 'text-gray-500 shrink-0'} />
-                  <span className="truncate flex-1">{fileName}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </aside>
+          <WorkspaceFileTree
+            files={files}
+            activeFilePath={selectedFile?.path}
+            onSelectFile={(path) => {
+              const file = files.find(f => f.path === path);
+              if (file) {
+                setSelectedFile(file);
+                setActiveTab('editor');
+              }
+            }}
+            isLoading={loadingWorkspace}
+          />
+        </aside>
 
-      {/* ── 2. Center Panel (Flex-1): Monaco Editor & Live Preview ───────── */}
-      <main className="flex-1 studio-card flex flex-col min-w-0 min-h-0 overflow-hidden relative border border-white/10">
+        {/* ── 2. Center Code Editor (w-0 flex-1 — absorbs all remaining space) ── */}
+        <main className="flex-1 w-0 min-w-0 h-full relative overflow-hidden bg-[#08080c] flex flex-col">
 
         {/* Tab Bar Header */}
-        <div className="flex items-center justify-between border-b border-white/5 px-3 h-11 shrink-0 bg-white/[0.02]">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-3 h-11 shrink-0 bg-white/[0.02]">
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06] relative">
             {(
               [
-                { key: 'editor',   label: 'Code Editor',   icon: <FileCode size={13} /> },
-                { key: 'preview',  label: 'Live Preview',  icon: <PlayCircle size={13} /> },
+                { key: 'editor',   label: '01 CODE',     icon: <FileCode size={12} /> },
+                { key: 'preview',  label: '02 PREVIEW',  icon: <PlayCircle size={12} /> },
               ] as const
             ).map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                  activeTab === tab.key ? TAB_STYLES.active : TAB_STYLES.inactive
+                className={`relative flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-mono font-medium transition-colors z-10 ${
+                  activeTab === tab.key ? 'text-white' : 'text-neutral-500 hover:text-white'
                 }`}
               >
-                {tab.icon}
-                <span>{tab.label}</span>
+                {activeTab === tab.key && (
+                  <motion.div
+                    layoutId="studioActiveTab"
+                    className="absolute inset-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30"
+                    transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">{tab.icon}{tab.label}</span>
               </button>
             ))}
           </div>
 
           {selectedFile && activeTab === 'editor' && (
-            <div className="flex items-center gap-2 font-mono-custom text-[11px] text-gray-400 truncate">
+            <div className="flex items-center gap-2 font-mono-custom text-[11px] text-gray-400 truncate min-w-0">
               <span className="text-gray-300 truncate">{selectedFile.path}</span>
-              <span className="uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px]">
+              <span className="uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px] shrink-0">
                 {selectedFile.language}
               </span>
             </div>
@@ -442,7 +453,7 @@ export function AgentPage() {
         </div>
 
         {/* Tab Panels */}
-        <div className="flex-1 overflow-hidden relative">
+        <div className="flex-1 overflow-hidden relative min-w-0">
 
           {/* Code Editor */}
           <div className={`absolute inset-0 flex flex-col overflow-hidden ${activeTab === 'editor' ? '' : 'hidden'}`}>
@@ -452,7 +463,7 @@ export function AgentPage() {
                 <span>Initialize the VFS workspace files first to edit or view code.</span>
               </div>
             ) : selectedFile ? (
-              <pre className="flex-1 overflow-auto p-4 text-xs font-mono-custom text-gray-300 bg-[#08080a] leading-relaxed whitespace-pre select-text selection:bg-purple-500/20">
+              <pre className="flex-1 overflow-auto p-4 text-xs font-mono-custom text-gray-300 bg-[#08080a] leading-relaxed whitespace-pre select-text selection:bg-purple-500/20 min-w-0">
                 {selectedFile.content}
               </pre>
             ) : (
@@ -470,8 +481,8 @@ export function AgentPage() {
         </div>
       </main>
 
-      {/* ── 3. Right Sidebar (360px): RefinementChat & Telemetry ──────────── */}
-      <aside className="w-full md:w-[360px] studio-card flex flex-col h-[580px] md:h-[calc(100vh-5.5rem)] shrink-0 border border-white/10 overflow-hidden">
+      {/* ── 3. Cortex Agent Right Panel (w-80 shrink-0 — always visible) ── */}
+      <aside className="w-80 shrink-0 h-full overflow-hidden border-l border-white/10 bg-[#08080c] z-10 studio-card flex flex-col min-h-0">
 
         {/* Panel Header */}
         <div className="p-3 border-b border-white/5 flex flex-col gap-2 shrink-0 bg-white/[0.02]">
@@ -655,6 +666,7 @@ export function AgentPage() {
         </form>
       </aside>
 
+      </div>
     </div>
   );
 }
