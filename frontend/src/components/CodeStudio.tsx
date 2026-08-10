@@ -562,17 +562,17 @@ export function CodeStudio({
   }
 
   return (
-    <div className="flex flex-col md:flex-row rounded-2xl border border-white/10 bg-bg-surface overflow-hidden h-[calc(100vh-16rem)] min-h-[420px] max-h-[580px] md:h-[580px] md:max-h-none w-full">
+    <div className="flex flex-col md:flex-row rounded-xl border border-white/10 bg-[#111116] overflow-hidden h-full w-full">
       {/* File Tree Explorer (Left) */}
-      <div className="w-full md:w-64 bg-bg-surface2 border-b md:border-b-0 md:border-r border-white/5 flex flex-col h-44 md:h-full shrink-0 select-none">
-        <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
-          <span className="font-mono-custom text-[10px] text-muted-foreground font-bold tracking-wider uppercase truncate">
+      <div className="w-full md:w-64 bg-[#0e0e14] border-b md:border-b-0 md:border-r border-white/10 flex flex-col h-44 md:h-full shrink-0 select-none">
+        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2 shrink-0">
+          <span className="font-mono text-[10px] text-zinc-400 font-bold tracking-wider uppercase truncate">
             Workspace
           </span>
           <button
             onClick={handleDownloadAll}
             disabled={downloading}
-            className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded hover:bg-purple-500/20 hover:text-purple-300 font-mono-custom flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50 whitespace-nowrap"
+            className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded hover:bg-purple-500/20 hover:text-purple-300 font-mono flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50 whitespace-nowrap"
           >
             {downloading ? (
               <div className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
@@ -584,62 +584,57 @@ export function CodeStudio({
         </div>
 
         {/* Tree items */}
-        <div className="flex-1 p-2 overflow-y-auto space-y-1.5 font-mono-custom text-xs">
+        <div className="flex-1 p-2 overflow-y-auto space-y-1.5 font-mono text-xs">
           {renderTreeNodes(buildedTree)}
         </div>
       </div>
 
       {/* Editor & View Area (Center) */}
-      <div className="flex-1 flex flex-col min-w-0 bg-black/45 min-h-0 md:h-full relative">
-        {/* Editor Tabs & Actions */}
-        <div className="h-10 bg-bg-surface2 border-b border-white/5 flex items-center justify-between select-none shrink-0 pr-2">
-          <div className="flex items-center overflow-x-auto scrollbar-none h-full flex-1">
-            {openFiles.map((path) => {
-              const f = files.find((file) => file.path === path);
-              if (!f) return null;
-              const isSelected = activeFilePath === path;
-
+      <div className="flex-1 flex flex-col min-w-0 bg-[#08080c] min-h-0 md:h-full relative">
+        {/* Editor Gliding Tabs (01 CODE | 02 DIFFS | 03 PREVIEW) & Actions */}
+        <div className="h-11 bg-[#111116] border-b border-white/10 px-3 flex items-center justify-between select-none shrink-0">
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06] relative" role="tablist">
+            {[
+              { id: 'code', label: '01 CODE' },
+              { id: 'diffs', label: '02 DIFFS' },
+            ].map((tabItem) => {
+              const isActive = (tabItem.id === 'diffs' && isDiffMode) || (tabItem.id === 'code' && !isDiffMode);
               return (
-                <div
-                  key={path}
-                  onClick={() => setActiveFilePath(path)}
-                  className={`h-full px-4 border-r border-white/5 flex items-center gap-2 cursor-pointer transition-colors text-xs font-mono-custom ${
-                    isSelected
-                      ? 'bg-black/50 text-purple-300 border-t-2 border-t-purple-500'
-                      : 'text-muted-foreground hover:bg-white/5'
+                <button
+                  key={tabItem.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    if (tabItem.id === 'diffs') setIsDiffMode(true);
+                    if (tabItem.id === 'code') setIsDiffMode(false);
+                  }}
+                  className={`relative flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-mono font-medium transition-colors z-10 ${
+                    isActive ? 'text-white' : 'text-neutral-500 hover:text-white'
                   }`}
                 >
-                  {getFileIcon(f.name, 13)}
-                  <span className="truncate max-w-[100px]">{f.name}</span>
-                  <button
-                    onClick={(e) => handleCloseFile(path, e)}
-                    className="hover:bg-white/10 hover:text-white rounded-full p-0.5 flex items-center justify-center w-4 h-4 ml-1"
-                  >
-                    ×
-                  </button>
-                </div>
+                  {isActive && (
+                    <motion.div
+                      layoutId="studioActiveTab"
+                      className="absolute inset-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30"
+                      transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                    />
+                  )}
+                  <span className="relative z-10">{tabItem.label}</span>
+                </button>
               );
             })}
           </div>
-          
-          <div className="flex items-center gap-2 pr-2">
+
+          {/* Right-side action controls */}
+          <div className="flex items-center gap-2 pr-2 ml-auto">
             <PipelineStatusIndicator />
             <div className="w-px h-4 bg-white/10 shrink-0" />
             <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setIsDiffMode(!isDiffMode)}
-                className={`p-1.5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0 font-mono ${
-                  isDiffMode ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                }`}
-                title="Toggle Side-by-Side Diff View"
-              >
-                <GitCompare size={14} />
-                <span>{isDiffMode ? 'Editor View' : 'Diff View'}</span>
-              </button>
               {activeFile && (
                 <button
                   onClick={handleCopyCode}
-                  className="p-1.5 text-muted-foreground hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0"
+                  className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0"
                   title="Copy file content"
                 >
                   {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
