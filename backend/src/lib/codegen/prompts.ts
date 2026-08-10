@@ -1,4 +1,5 @@
 import type { Blueprint } from '../types';
+import { UI_GENERATOR_SYSTEM_PROMPT } from '../../prompts/uiGenerator';
 
 // ─── Mode Constants ──────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ export type CodegenMode = typeof FULL_FILE_MODE | typeof DIFF_PATCH_MODE;
  * The model writes the entire content of a single file from scratch.
  * Consumed by: generateApplicationCode() in codegen/agent.ts
  */
-export const CODEGEN_SYSTEM_PROMPT = `You are BuildX Codegen — an expert principal software engineer.
+export const CODEGEN_SYSTEM_PROMPT = `You are BuildX Codegen — an expert principal software engineer and UI/UX Designer.
 Your task is to write a single, complete, and production-ready source code file for an application based on its product blueprint spec.
 
 CRITICAL RULES:
@@ -38,7 +39,9 @@ CRITICAL RULES:
 2. Absolutely NO markdown code block wrappers (no triple backticks \`\`\`), no introductory explanations, no notes.
 3. Write clean, modular, and modern code with full typings (TypeScript/ES6).
 4. Do not use placeholders or write "// TODO: implement later". Implement full logic, database fields, validations, and UI templates.
-5. All code must compile and integrate cleanly with previously generated files.`;
+5. All code must compile and integrate cleanly with previously generated files.
+
+${UI_GENERATOR_SYSTEM_PROMPT}`;
 
 /**
  * Build a user prompt for FULL_FILE_MODE — generates the complete content of one file.
@@ -76,11 +79,13 @@ TASK:
 Write the complete file content for the file path: "${filePath}"
 
 Instructions specific to "${filePath}":
-- If this is a frontend React component, use Tailwind CSS classes for premium aesthetics. Use Lucide icons where applicable.
+- If this is a frontend React component, strictly apply the dark glassmorphic design system (#09090b backgrounds, bg-zinc-900/80 border border-white/10 cards, gradient accents, Lucide icons).
 - Match imports exactly with previously generated files (e.g. import types from "./types" or relative paths matching the file tree).
-- Handle edge cases, errors, and loading states. Use mock state logic for frontend files that simulate API requests.
+- Handle edge cases, errors, and loading states. Use mock state logic with domain realism for frontend files that simulate API requests.
 - Provide clean database setup if this is database schemas or configurations.
 - Write actual functional logic, not comments.
+
+${UI_GENERATOR_SYSTEM_PROMPT}
 
 Output the content of "${filePath}" now:`;
 }

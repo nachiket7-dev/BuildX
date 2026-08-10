@@ -5,6 +5,7 @@ import { initSSE, sendSSE } from './stream';
 import { parseAgentJSON } from './jsonExtract';
 import { coerceBlueprintInput } from './normalizeBlueprint';
 import type { PipelineStage, CompletionOptions, LLMMessage } from './llm/types';
+import { UI_GENERATOR_SYSTEM_PROMPT } from '../prompts/uiGenerator';
 
 type AgentName = 'pm' | 'architect' | 'api_dev' | 'designer' | 'coder' | 'qa';
 
@@ -491,6 +492,9 @@ App: ${appName}
 Features: ${JSON.stringify(features)}
 Endpoints: ${JSON.stringify(endpoints.map((e) => e.path))}
 Generate 6-8 UI Screens with layouts.
+
+${UI_GENERATOR_SYSTEM_PROMPT}
+
 Generate a JSON output matching exactly:
 {
   "screens": [
