@@ -25,9 +25,14 @@ import { LoginPage } from './components/LoginPage';
 import { GithubCallbackPage } from './components/GithubCallbackPage';
 import { HomePage } from './components/HomePage';
 import { AgentPage } from './components/AgentPage';
+import { BlueprintsPage } from './components/BlueprintsPage';
+import { NewBlueprintPage } from './components/NewBlueprintPage';
+import { DeployModal } from './components/DeployModal';
 import type { Blueprint } from './lib/types';
 
-type AppShellOutletContext = { sidebarOpen: boolean };
+import { VFSProvider } from './context/VFSContext';
+
+type AppShellOutletContext = { sidebarOpen: boolean; onDeploy?: () => void };
 
 function BlueprintPage() {
   const { sidebarOpen } = useOutletContext<AppShellOutletContext>();
@@ -296,11 +301,14 @@ function BlueprintPage() {
 
 function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const { pathname } = useLocation();
 
   // Agent workspace pages need a fixed-height, no-scroll shell so the internal
   // chat column can scroll independently. All other pages retain min-h-screen.
   const isAgentPage = pathname.startsWith('/agent');
+  const routeIdMatch = pathname.match(/\/(?:agent|blueprint)\/([^/]+)/);
+  const routeId = routeIdMatch ? routeIdMatch[1] : undefined;
 
   useEffect(() => {
     if (window.innerWidth >= 768) {
@@ -309,42 +317,50 @@ function AppShell() {
   }, []);
 
   return (
-    <BlueprintSessionProvider>
-      <div className="flex flex-col relative overflow-x-hidden min-h-screen">
-        <SkipLink />
-        <AmbientBackground />
+    <VFSProvider>
+      <BlueprintSessionProvider>
+        <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#08080c] text-white relative">
+          <SkipLink />
+          <AmbientBackground />
 
-        <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
-
-        <div
-          className="app-shell-content relative z-10 flex flex-col min-h-screen"
-          style={{ marginLeft: sidebarOpen ? undefined : 0 }}
-        >
-          <motion.div
-            animate={{ marginLeft: sidebarOpen ? '280px' : 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.8 }}
-            className="flex flex-col flex-1 min-w-0"
-            style={{ willChange: 'margin' }}
-          >
+          {/* ── GLOBAL HEADER: Fixed top anchor (h-16 shrink-0 z-30) ── */}
           <Header
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             showSidebarToggle
             sidebarOpen={sidebarOpen}
+            onDeploy={() => setIsDeployModalOpen(true)}
           />
 
-          <Outlet context={{ sidebarOpen } satisfies AppShellOutletContext} />
+          {/* ── BELOW-HEADER LAYOUT: Fixed Sidebar + Main Workspace Scroll ── */}
+          <div className="flex-1 flex min-h-0 w-full overflow-hidden min-w-0 relative z-10">
+            <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-          {/* Footer is hidden on agent pages — it would push the shell beyond 100vh */}
-          {!isAgentPage && (
-            <footer className="app-footer">
-              <p>BuildX — Idea to deployable blueprint in one flow</p>
-              <p className="app-footer__sub">Powered by Groq · PostgreSQL · React</p>
-            </footer>
-          )}
-          </motion.div>
+            <motion.div
+              animate={{ marginLeft: sidebarOpen ? '280px' : 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.8 }}
+              className="flex-1 h-full min-h-0 min-w-0 overflow-y-auto custom-scrollbar flex flex-col relative z-10"
+              style={{ willChange: 'margin' }}
+            >
+              <Outlet context={{ sidebarOpen, onDeploy: () => setIsDeployModalOpen(true) } satisfies AppShellOutletContext} />
+
+              {/* Footer is hidden on agent pages */}
+              {!isAgentPage && (
+                <footer className="app-footer shrink-0">
+                  <p>BuildX — Idea to deployable blueprint in one flow</p>
+                  <p className="app-footer__sub">Powered by Groq · PostgreSQL · React</p>
+                </footer>
+              )}
+            </motion.div>
+          </div>
+
+          <DeployModal
+            isOpen={isDeployModalOpen}
+            onClose={() => setIsDeployModalOpen(false)}
+            blueprintId={routeId}
+          />
         </div>
-      </div>
-    </BlueprintSessionProvider>
+      </BlueprintSessionProvider>
+    </VFSProvider>
   );
 }
 
@@ -354,43 +370,57 @@ function BlueprintPageRoute() {
 
 export default function App() {
   const auth = useAuthProvider();
+  const location = useLocation();
 
   return (
     <AuthContext.Provider value={auth}>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/login/callback" element={<GithubCallbackPage />} />
-        <Route element={<AppShell />}>
-          <Route path="/blueprint/:id" element={<BlueprintPageRoute />} />
-          <Route path="/gallery" element={<GalleryPage />} />
-          <Route
-            path="/agent"
-            element={
-              <ProtectedRoute>
-                <AgentPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/agent/:id"
-            element={
-              <ProtectedRoute>
-                <AgentPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/create"
-            element={
-              <ProtectedRoute>
-                <BlueprintPageRoute />
-              </ProtectedRoute>
-            }
-          />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          className="flex-1 flex flex-col min-h-screen"
+        >
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/login/callback" element={<GithubCallbackPage />} />
+            <Route element={<AppShell />}>
+              <Route path="/blueprints" element={<BlueprintsPage />} />
+              <Route path="/blueprints/new" element={<NewBlueprintPage />} />
+              <Route path="/blueprint/:id" element={<BlueprintPageRoute />} />
+              <Route path="/gallery" element={<GalleryPage />} />
+              <Route
+                path="/agent"
+                element={
+                  <ProtectedRoute>
+                    <AgentPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/agent/:id"
+                element={
+                  <ProtectedRoute>
+                    <AgentPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/create"
+                element={
+                  <ProtectedRoute>
+                    <BlueprintPageRoute />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </motion.div>
+      </AnimatePresence>
     </AuthContext.Provider>
   );
 }
