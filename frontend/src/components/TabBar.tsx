@@ -1,4 +1,4 @@
-import * as Tabs from '@radix-ui/react-tabs';
+import { motion } from 'framer-motion';
 import { TABS } from '../lib/utils';
 import type { TabId } from '../lib/types';
 
@@ -9,22 +9,42 @@ interface TabBarProps {
 
 export function TabBar({ activeTab, onChange }: TabBarProps) {
   return (
-    <Tabs.Root
-      value={activeTab}
-      onValueChange={(value) => onChange(value as TabId)}
-      className="bp-tab-bar"
+    <div
+      className="inline-flex items-center gap-1 p-1.5 rounded-2xl bg-[#121216]/80 backdrop-blur-xl border border-white/10 max-w-full overflow-x-auto custom-scrollbar"
+      role="tablist"
+      aria-label="Blueprint sections"
     >
-      <div className="bp-tab-bar__scroll-wrap">
-        <Tabs.List className="bp-tab-bar__list" aria-label="Blueprint sections">
-          {TABS.map(({ id, label }) => (
-            <Tabs.Trigger key={id} value={id} className="bp-tab-bar__trigger">
+      {TABS.map(({ id, label }, idx) => {
+        const isActive = activeTab === id;
+        const num = String(idx + 1).padStart(2, '0');
+        return (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(id as TabId)}
+            className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium transition-all whitespace-nowrap shrink-0 ${
+              isActive
+                ? 'text-white bg-indigo-600/30 border border-indigo-500/40 shadow-sm shadow-indigo-500/20'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
+            }`}
+          >
+            {isActive && (
+              <motion.div
+                layoutId="activeBlueprintTab"
+                className="absolute inset-0 rounded-xl bg-indigo-600/25 border border-indigo-500/40"
+                transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-1.5">
+              <span className={`text-[9px] font-mono ${isActive ? 'text-indigo-400/80' : 'text-zinc-600 group-hover:text-zinc-400'}`}>
+                {num}
+              </span>
               {label}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-        <div className="bp-tab-bar__fade bp-tab-bar__fade--left" aria-hidden />
-        <div className="bp-tab-bar__fade bp-tab-bar__fade--right" aria-hidden />
-      </div>
-    </Tabs.Root>
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

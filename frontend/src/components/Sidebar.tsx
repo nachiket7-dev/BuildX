@@ -7,11 +7,9 @@ import {
   Lightbulb,
   MoreHorizontal,
   Plus,
-  PanelLeftClose,
   FileCode2,
   Pencil,
   Trash2,
-  Cpu,
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -138,7 +136,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
     <>
       {isOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
+          className="fixed inset-x-0 top-16 bottom-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
           onClick={onToggle}
         />
       )}
@@ -153,16 +151,9 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         {/* Header */}
         <div className="sidebar-panel__header">
           <div className="flex items-center justify-between mb-3">
-            <span className="font-mono-custom text-[10px] uppercase tracking-widest" style={{ color: 'var(--text3)' }}>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-neutral-500">
               Your work
             </span>
-            <button
-              onClick={onToggle}
-              className="sidebar-icon-btn"
-              aria-label="Close sidebar"
-            >
-              <PanelLeftClose size={16} />
-            </button>
           </div>
 
           <button
@@ -173,18 +164,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
             className="sidebar-new-btn btn-shiny w-full"
           >
             <Plus size={15} strokeWidth={2.5} />
-            <span className="font-mono-custom text-xs font-medium">New Blueprint</span>
-          </button>
-
-          <button
-            onClick={() => {
-              navigate('/agent');
-              if (window.innerWidth < 768) onToggle();
-            }}
-            className="sidebar-new-btn w-full mt-2 border border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-400"
-          >
-            <Cpu size={14} />
-            <span className="font-mono-custom text-xs font-medium">Cortex Agent</span>
+            <span className="font-mono text-xs font-medium">New Blueprint</span>
           </button>
         </div>
 

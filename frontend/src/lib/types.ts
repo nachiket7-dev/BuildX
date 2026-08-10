@@ -75,6 +75,9 @@ export interface Blueprint {
   diagrams?: BlueprintDiagrams;
   githubUrl?: string;
   modelUsed?: string;
+  title?: string;
+  category?: string;
+  suggestedRefinements?: string[];
 }
 
 // ─── Multi-Model Execution Pipeline Types ─────────────────────
