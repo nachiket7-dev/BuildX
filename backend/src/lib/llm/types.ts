@@ -31,10 +31,13 @@ export type PipelineStage = 'PLANNING' | 'INGESTION' | 'DIFF_GENERATION' | 'AUTO
 /**
  * A primary+fallback model pair for a pipeline stage.
  * Both fields are internal model keys as they appear in MODEL_MAP.
+ * `emergency` is an optional third-tier model used when both primary and fallback
+ * have exhausted all retries (e.g. gemini-3.5-flash as a low-latency escape hatch).
  */
 export interface PipelineRoute {
-  primary: string;   // internal model key (e.g. 'nemotron-3-550b')
-  fallback: string;  // internal model key (e.g. 'glm-5.2')
+  primary: string;    // internal model key (e.g. 'nemotron-3-550b')
+  fallback: string;   // internal model key (e.g. 'glm-5.2')
+  emergency?: string; // optional 3rd-tier escape hatch (e.g. 'gemini-3.5-flash')
 }
 
 /**
