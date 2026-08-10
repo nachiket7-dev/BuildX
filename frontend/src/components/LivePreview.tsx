@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { useVFS } from '../context/VFSContext';
-import { AlertCircle, Sparkles } from 'lucide-react';
+import { AlertCircle, Sparkles, Loader2, Wand2 } from 'lucide-react';
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
 
@@ -187,6 +187,7 @@ function buildSrcDocPayload(sourceCode: string, appTitle: string = 'App'): strin
 export function LivePreview({
   files: propFiles,
   activeFilePath: propActiveFilePath,
+  blueprintId,
   appName,
   viewport: initialViewport = 'desktop',
 }: LivePreviewProps) {
@@ -196,7 +197,18 @@ export function LivePreview({
 
   const [selectedViewport, setSelectedViewport] = useState<Viewport>(initialViewport);
   const [compileError, setCompileError] = useState<string | null>(null);
+  const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const handleEnhance = useCallback(async () => {
+    if (!blueprintId || vfs.isEnhancingUi) return;
+    setEnhanceError(null);
+    try {
+      await vfs.enhanceUi(blueprintId);
+    } catch (err: any) {
+      setEnhanceError(err.message || 'AI Enhancement failed. Please try again.');
+    }
+  }, [blueprintId, vfs]);
 
   // Determine active primary source code from VFS file map
   const activeSourceCode = useMemo(() => {
@@ -264,12 +276,40 @@ export function LivePreview({
       {/* Top Header & Viewport Controls */}
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="flex items-center gap-2">
+          {/* VFS Status Badge */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>VFS Real-Time Live Compiler</span>
+            {vfs.isEnhancingUi ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+            <span>{vfs.isEnhancingUi ? '✨ Upgrading VFS UI Code...' : 'VFS Real-Time Live Compiler'}</span>
           </div>
+
+          {/* Enhance with AI Button */}
+          {blueprintId && (
+            <button
+              id="enhance-ui-btn"
+              onClick={handleEnhance}
+              disabled={vfs.isEnhancingUi}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold border transition-all ${
+                vfs.isEnhancingUi
+                  ? 'bg-purple-500/10 border-purple-500/20 text-purple-400 cursor-not-allowed animate-pulse'
+                  : 'bg-purple-500/10 border-purple-500/30 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50 hover:text-white shadow-sm shadow-purple-500/10'
+              }`}
+              title="Upgrade this blueprint's VFS UI to a high-fidelity dark glassmorphic interface"
+            >
+              {vfs.isEnhancingUi ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Wand2 size={12} />
+              )}
+              <span>{vfs.isEnhancingUi ? 'Enhancing...' : '✨ Enhance with AI'}</span>
+            </button>
+          )}
         </div>
 
+        {/* Viewport Switcher */}
         <div className="flex items-center gap-1 bg-[#121216] rounded-xl p-1 border border-white/10">
           {VIEWPORTS.map(({ id, label }) => (
             <button
@@ -286,6 +326,14 @@ export function LivePreview({
           ))}
         </div>
       </div>
+
+      {/* Enhance Error Banner */}
+      {enhanceError && (
+        <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 font-mono">
+          <AlertCircle size={14} className="shrink-0 mt-0.5" />
+          <span>{enhanceError}</span>
+        </div>
+      )}
 
       {/* Frame Container */}
       <div className="w-full flex-1 min-h-0 flex flex-col rounded-2xl border border-white/10 overflow-hidden bg-[#0e0e14] shadow-2xl">

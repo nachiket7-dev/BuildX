@@ -17,7 +17,9 @@ interface VFSContextType {
   updateFile: (blueprintId: string, path: string, content: string) => Promise<void>;
   initVFS: (blueprintId: string) => Promise<Record<string, string>>;
   loadVFS: (blueprintId: string) => Promise<Record<string, string>>;
+  enhanceUi: (blueprintId: string) => Promise<Record<string, string>>;
   isLoadingVFS: boolean;
+  isEnhancingUi: boolean;
 }
 
 const VFSContext = createContext<VFSContextType | undefined>(undefined);
@@ -29,6 +31,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [fileList, setFileList] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [isLoadingVFS, setIsLoadingVFS] = useState<boolean>(false);
+  const [isEnhancingUi, setIsEnhancingUi] = useState<boolean>(false);
 
   const getLanguageFromPath = (path: string): string => {
     const ext = path.split('.').pop()?.toLowerCase() ?? '';
@@ -140,6 +143,28 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     []
   );
 
+  const enhanceUi = useCallback(async (blueprintId: string): Promise<Record<string, string>> => {
+    setIsEnhancingUi(true);
+    try {
+      const res = await axios.post(
+        `${BASE_URL}/api/blueprints/${blueprintId}/enhance-ui`,
+        {},
+        { headers: getAuthHeaders() }
+      );
+      const data = res.data?.data;
+      if (data && data.files) {
+        syncFilesState(data.files);
+        return data.fileTree || {};
+      }
+      return {};
+    } catch (err) {
+      console.error('[VFSContext] Failed to enhance UI', err);
+      throw err;
+    } finally {
+      setIsEnhancingUi(false);
+    }
+  }, []);
+
   const handleSetActiveFile = useCallback((file: VFSFile | string | null) => {
     if (!file) {
       setActiveFilePath(null);
@@ -169,7 +194,9 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateFile,
         initVFS,
         loadVFS,
+        enhanceUi,
         isLoadingVFS,
+        isEnhancingUi,
       }}
     >
       {children}
