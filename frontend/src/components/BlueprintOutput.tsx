@@ -363,7 +363,8 @@ export function BlueprintOutput({
   return (
     <section
       ref={sectionRef}
-      className="px-4 sm:px-6 pb-28 max-w-5xl mx-auto animate-fade-slide-up"
+      className="flex-1 min-h-0 overflow-y-auto pb-44 px-4 sm:px-6 max-w-5xl mx-auto animate-fade-slide-up custom-scrollbar"
+      style={{ paddingBottom: '11rem' }}
       aria-labelledby="blueprint-title"
     >
       <div className="flex flex-col gap-4 sm:gap-6 py-5 sm:py-8">
@@ -393,21 +394,21 @@ export function BlueprintOutput({
             {blueprint.description}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/50 border-t border-white/5 pt-4">
-            <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded border border-white/5 text-emerald-400 font-bold">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] border-t border-white/5 pt-4">
+            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-emerald-400 font-mono font-bold">
               + {blueprint.schema?.length ?? 0} {(blueprint.architecture?.database || '').toLowerCase().includes('mongo') ? 'collections' : 'tables'}
             </span>
-            <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded border border-white/5 text-sky-400 font-bold">
+            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-sky-400 font-mono font-bold">
               + {blueprint.endpoints?.length ?? 0} endpoints
             </span>
-            <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded border border-white/5 text-purple-400 font-bold">
+            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-purple-400 font-mono font-bold">
               + {blueprint.screens?.length ?? 0} screens
             </span>
-            <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded border border-white/5 text-amber-400 font-bold">
+            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-amber-400 font-mono font-bold">
               # {blueprint.complexity} complexity
             </span>
-            <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded border border-white/5 ml-auto text-white/30">
-              Audience: {blueprint.targetUsers}
+            <span className="flex items-center gap-1 bg-zinc-900/90 px-2.5 py-1 rounded border border-white/15 ml-auto text-zinc-200 font-mono text-[10px] font-medium shadow-sm">
+              Audience: <span className="text-white font-semibold">{blueprint.targetUsers}</span>
             </span>
           </div>
         </div>
@@ -422,7 +423,11 @@ export function BlueprintOutput({
               type="button"
               onClick={handleShare}
               aria-label={copied ? 'Link copied' : 'Copy share link'}
-              className={`bp-action ${copied ? 'bp-action--success' : 'bp-action--accent'}`}
+              className={`bp-action ${
+                copied
+                  ? 'bg-emerald-900/40 border-emerald-500/30 text-emerald-300'
+                  : 'bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white'
+              }`}
             >
               {copied ? (
                 <>
@@ -445,9 +450,7 @@ export function BlueprintOutput({
               disabled={visibility.isPending}
               aria-pressed={publicState}
               aria-label={publicState ? 'Make blueprint private' : 'Make blueprint public'}
-              className={`bp-action ${
-                publicState ? 'bp-action--visibility-public' : 'bp-action--visibility-private'
-              }`}
+              className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white"
             >
               {publicState ? (
                 <>
@@ -468,7 +471,7 @@ export function BlueprintOutput({
             onClick={handleDownload}
             disabled={downloading}
             aria-busy={downloading}
-            className="bp-action bp-action--mint"
+            className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white"
           >
             <Download size={15} strokeWidth={2} aria-hidden />
             <span className="hidden sm:inline">{downloading ? 'Exporting…' : 'Download'}</span>
@@ -482,12 +485,12 @@ export function BlueprintOutput({
                 onClick={handleGithubExport}
                 disabled={exportingGithub || checkingRepo}
                 aria-busy={exportingGithub}
-                className="bp-action bp-action--github"
-                title={hasRepo ? "Push updated scaffold files to your existing GitHub repository" : "Export this project scaffold to a new repository on your GitHub account"}
+                className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white"
+                title={hasRepo ? 'Push updated scaffold files to your existing GitHub repository' : 'Export this project scaffold to a new repository on your GitHub account'}
               >
                 <Github size={15} strokeWidth={2} aria-hidden />
                 <span className="hidden sm:inline">
-                  {exportingGithub ? 'Pushing…' : checkingRepo ? 'Checking repo…' : hasRepo ? 'Update on GitHub' : 'Export to GitHub'}
+                  {exportingGithub ? 'Pushing…' : checkingRepo ? 'Checking…' : hasRepo ? 'Update on GitHub' : 'Export to GitHub'}
                 </span>
                 <span className="sm:hidden">{exportingGithub || checkingRepo ? '…' : ''}</span>
               </button>
@@ -497,7 +500,7 @@ export function BlueprintOutput({
                   href={blueprint.githubUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bp-action bp-action--github-view animate-fade-in"
+                  className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white animate-fade-in"
                   title="Visit the generated repository on GitHub"
                 >
                   <Github size={15} strokeWidth={2} aria-hidden />
@@ -512,7 +515,7 @@ export function BlueprintOutput({
                   onClick={handleRegenerate}
                   disabled={regenerating}
                   aria-busy={regenerating}
-                  className="bp-action bp-action--ghost"
+                  className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white"
                   title="Re-generate this blueprint from scratch using its original idea"
                 >
                   <RefreshCw size={15} strokeWidth={2} aria-hidden className={regenerating ? 'animate-spin' : ''} />
@@ -522,9 +525,7 @@ export function BlueprintOutput({
             </>
           )}
 
-
-
-          <button type="button" onClick={onReset} className="bp-action bp-action--ghost">
+          <button type="button" onClick={onReset} className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white">
             <Plus size={15} strokeWidth={2} aria-hidden />
             <span className="hidden sm:inline">New</span>
           </button>
@@ -559,6 +560,7 @@ export function BlueprintOutput({
       {refinement && (
         <RefinementChat
           anchorRef={sectionRef}
+          blueprint={blueprint}
           layoutSyncKey={refinement.sidebarOpen}
           messages={refinement.messages}
           isRefining={refinement.isRefining}

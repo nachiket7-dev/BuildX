@@ -41,23 +41,40 @@ import {
 
 // ─── Shared ─────────────────────────────────────────────────
 
+// Map of section titles to Norvin numbered monospace prefixes
+const SECTION_NUMBER_MAP: Record<string, string> = {
+  'feature breakdown': '01',
+  'database schema': '02',
+  'api endpoints': '03',
+  'ui screens': '04',
+  'architecture': '05',
+  'effort estimation': '06',
+  'diagrams': '07',
+};
+
 function SectionLabel({ children }: { children: React.ReactNode }) {
   if (typeof children === 'string') {
-    const label = children.replace(/^\/\/\s*/, '');
+    const raw = children.replace(/^\/\/\s*/, '').trim();
+    const num = SECTION_NUMBER_MAP[raw.toLowerCase()] ?? '00';
+    const label = raw.toUpperCase();
     return (
-      <div className="bp-section-label" aria-label={label}>
-        <span className="bp-section-label__prefix">{'// '}</span>
-        <span className="bp-section-label__text">{label}</span>
+      <div className="flex items-center gap-2 mb-4" aria-label={label}>
+        <span className="text-[10px] font-mono tracking-widest text-neutral-600">{num} /</span>
+        <span className="text-xs font-mono font-semibold text-neutral-400 uppercase tracking-wider">{label}</span>
+        <div className="flex-1 h-px bg-white/[0.05]" />
       </div>
     );
   }
 
-  return <div className="bp-section-label">{children}</div>;
+  return <div className="flex items-center gap-2 mb-4">{children}</div>;
 }
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <SpotlightCard className={`p-5 mb-4 ${className}`} spotlightColor="rgba(82, 39, 255, 0.12)">
+    <SpotlightCard
+      className={`p-5 mb-4 bg-[#111116] border border-white/[0.08] rounded-xl ${className}`}
+      spotlightColor="rgba(82, 39, 255, 0.10)"
+    >
       {children}
     </SpotlightCard>
   );
@@ -103,29 +120,33 @@ const FEATURE_CATS = [
     key: 'authentication' as const,
     label: 'Authentication',
     icon: Lock,
-    accentVar: '--accent2',
-    bgVar: '--accent-glow',
+    iconColor: 'text-indigo-400',
+    iconBg: 'bg-indigo-500/10 border border-indigo-500/20',
+    labelColor: 'text-indigo-300',
   },
   {
     key: 'core' as const,
     label: 'Core Features',
     icon: Sliders,
-    accentVar: '--green',
-    bgVar: '--green-dim',
+    iconColor: 'text-emerald-400',
+    iconBg: 'bg-emerald-500/10 border border-emerald-500/20',
+    labelColor: 'text-emerald-300',
   },
   {
     key: 'admin' as const,
     label: 'Admin Features',
     icon: ShieldCheck,
-    accentVar: '--amber',
-    bgVar: '--amber-dim',
+    iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-500/10 border border-amber-500/20',
+    labelColor: 'text-amber-300',
   },
   {
     key: 'optional' as const,
     label: 'Enhancements',
     icon: Sparkles,
-    accentVar: '--purple',
-    bgVar: '--purple-dim',
+    iconColor: 'text-purple-400',
+    iconBg: 'bg-purple-500/10 border border-purple-500/20',
+    labelColor: 'text-purple-300',
   },
 ] as const;
 
@@ -141,19 +162,10 @@ export function FeaturesPanel({ blueprint }: { blueprint: Blueprint }) {
           return (
             <Card key={cat.key}>
               <div className="flex items-center gap-2.5 mb-4">
-                <div
-                  className="w-8 h-8 rounded-[8px] flex items-center justify-center"
-                  style={{ 
-                    background: `var(${cat.bgVar})`,
-                    color: `var(${cat.accentVar})`
-                  }}
-                >
-                  <Icon size={15} />
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${cat.iconBg} ${cat.iconColor}`}>
+                  <Icon size={14} />
                 </div>
-                <span
-                  className="font-mono-custom text-xs font-medium"
-                  style={{ color: `var(${cat.accentVar})` }}
-                >
+                <span className={`font-mono text-xs font-semibold ${cat.labelColor}`}>
                   {cat.label}
                 </span>
               </div>
@@ -161,10 +173,9 @@ export function FeaturesPanel({ blueprint }: { blueprint: Blueprint }) {
                 {items.map((item, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-2 py-1.5 px-2.5 font-mono-custom text-xs hover:bg-emerald-500/5 transition-colors rounded select-none group border-b border-white/5 last:border-b-0"
-                    style={{ color: 'var(--text2)' }}
+                    className="flex items-start gap-2 py-1.5 px-2 font-mono text-xs hover:bg-white/[0.03] transition-colors rounded select-none group border-b border-white/[0.05] last:border-b-0 text-neutral-400 hover:text-neutral-200"
                   >
-                    <span className="text-emerald-500 font-bold select-none mr-1.5 opacity-70 group-hover:opacity-100">+</span>
+                    <span className={`font-bold select-none mr-1 opacity-60 group-hover:opacity-100 ${cat.iconColor}`}>+</span>
                     <span>{item}</span>
                   </div>
                 ))}
