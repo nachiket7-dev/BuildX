@@ -13,6 +13,8 @@ import {
 import { fetchBlueprintPreviewHtml, regenerateBlueprintPreview } from '../lib/api';
 import { useModel } from '../hooks/useModel';
 import { useToast } from '../hooks/useToast';
+import { useVFS } from '../context/VFSContext';
+import { LivePreview } from './LivePreview';
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
 type PreviewSource = 'deterministic' | 'ai' | 'framework' | null;
@@ -48,6 +50,21 @@ export function PreviewPanel({ blueprintId, appName }: PreviewPanelProps) {
   const blobUrlRef = useRef<string | null>(null);
   const { selectedModel } = useModel();
   const { toast } = useToast();
+  const vfs = useVFS();
+
+  const hasVfsFiles = Object.keys(vfs.files || {}).length > 0;
+
+  if (hasVfsFiles) {
+    return (
+      <LivePreview
+        blueprintId={blueprintId}
+        appName={appName}
+        viewport={viewport}
+        files={vfs.files}
+        activeFilePath={vfs.activeFilePath}
+      />
+    );
+  }
 
   const activeViewport = VIEWPORTS.find(v => v.id === viewport)!;
 
