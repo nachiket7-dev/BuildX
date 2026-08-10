@@ -248,6 +248,99 @@ export async function refineBlueprint(
   }
 }
 
+/**
+ * Refine a saved blueprint by ID — the server loads the spec from DB, so no
+ * need to send the full blueprint object. Uses POST /api/blueprint/:id/refine.
+ */
+export async function refineByIdBlueprint(
+  blueprintId: string,
+  prompt: string,
+  model?: string
+): Promise<Blueprint> {
+  try {
+    const response = await apiClient.post<{ success: boolean; blueprint: Blueprint }>(
+      `/api/blueprint/${blueprintId}/refine`,
+      { prompt, model },
+      { headers: getAuthHeaders() }
+    );
+    return response.data.blueprint;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
+}
+
+/**
+ * Export blueprint scaffold to GitHub repository via backend API
+ */
+export async function exportBlueprintToGithub(
+  blueprint: Blueprint,
+  blueprintId?: string
+): Promise<{ success: boolean; repoUrl: string; message: string }> {
+  try {
+    const response = await apiClient.post<{
+      success: boolean;
+      repoUrl: string;
+      message: string;
+    }>(
+      '/api/blueprint/export-github',
+      { blueprint, id: blueprintId },
+      { headers: getAuthHeaders() }
+    );
+    return response.data;
+  } catch (err) {
+    if (err instanceof AxiosError && err.response?.data) {
+      const data = err.response.data as { error?: string; require_github_auth?: boolean };
+      if (data.require_github_auth) {
+        const error: any = new Error(data.error || 'GitHub authentication required');
+        error.require_github_auth = true;
+        throw error;
+      }
+    }
+    throw new Error(extractErrorMessage(err));
+  }
+}
+
+/**
+ * Trigger backend zip scaffold generation and trigger browser download
+ */
+export async function downloadBlueprintZip(blueprintId?: string, blueprint?: Blueprint): Promise<void> {
+  const url = blueprintId
+    ? `${BASE_URL}/api/blueprint/export?id=${encodeURIComponent(blueprintId)}`
+    : `${BASE_URL}/api/blueprint/export`;
+
+  const headers = getAuthHeaders();
+  const options: RequestInit = {
+    method: 'POST',
+    headers,
+  };
+
+  if (!blueprintId && blueprint) {
+    options.body = JSON.stringify(blueprint);
+  }
+
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    let errorMsg = 'Failed to generate ZIP download';
+    try {
+      const data = await response.json();
+      errorMsg = data.error || errorMsg;
+    } catch {
+      // ignore
+    }
+    throw new Error(errorMsg);
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  a.download = `${(blueprint?.appName ?? 'buildx-scaffold').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}
+
 // ─── Health check ─────────────────────────────────────────
 
 export async function checkHealth(): Promise<boolean> {

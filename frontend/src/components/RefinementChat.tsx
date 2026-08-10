@@ -1,29 +1,70 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronUp, Send, Cpu, AlertTriangle, Wrench, X, Brain, Zap, GitCompare } from 'lucide-react';
+import { ChevronUp, Send, Cpu, AlertTriangle, Wrench, X, Brain, Zap, GitCompare, Sparkles, MessageSquare, Terminal, User, Bot } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { ChatMessage } from '../hooks/useRefinement';
+import type { Blueprint } from '../lib/types';
+import { timelineNodeSlide, timelineContainer, commandDock as commandDockVariants } from '../lib/motion';
 
 interface RefinementChatProps {
   messages: ChatMessage[];
   isRefining: boolean;
   onSend: (message: string) => void;
   onClear: () => void;
+  /** Active blueprint for dynamic contextual suggestion chips */
+  blueprint?: Blueprint;
   /** Blueprint `<section>` — fixed dock matches this box on scroll / sidebar toggle */
   anchorRef: React.RefObject<HTMLElement>;
   /** Re-sync while app shell margin animates (sidebar open/close) */
   layoutSyncKey?: boolean;
 }
 
-const SUGGESTIONS = [
-  'Add Stripe payments',
-  'Switch database to MongoDB',
-  'Add a notification system',
-  'Add a real-time chat with WebSockets',
-  'Add an admin analytics dashboard',
-  'Make it a mobile app with React Native',
-];
+function resolveSuggestions(blueprint?: Blueprint): string[] {
+  if (blueprint?.suggestedRefinements && Array.isArray(blueprint.suggestedRefinements) && blueprint.suggestedRefinements.length > 0) {
+    return blueprint.suggestedRefinements;
+  }
 
-/** Matches app-shell-content `transition-all duration-300` */
+  const textToMatch = `${blueprint?.appName ?? ''} ${blueprint?.title ?? ''} ${blueprint?.category ?? ''} ${blueprint?.description ?? ''}`.toLowerCase();
+
+  // CRM / Sales apps
+  if (/crm|sale|lead|deal|customer|pipeline|contact/i.test(textToMatch)) {
+    return [
+      'Add CSV lead bulk import with validation',
+      'Add email thread tracking & webhook sync',
+      'Add automated deal stage pipeline transition rules',
+      'Add sales performance leaderboard panel',
+    ];
+  }
+
+  // Health / Medical apps
+  if (/health|med|care|clinic|doc|patient|appoint|pharm/i.test(textToMatch)) {
+    return [
+      'Add HIPAA compliance audit logging',
+      'Add automated SMS appointment reminders',
+      'Add doctor calendar sync & availability slots',
+      'Add patient prescription history export',
+    ];
+  }
+
+  // E-commerce / Store apps
+  if (/shop|store|e-?commerce|cart|checkout|product|inventory|stripe/i.test(textToMatch)) {
+    return [
+      'Add Stripe payment webhooks with idempotency',
+      'Add real-time WebSocket order tracking',
+      'Add inventory depletion alert triggers',
+      'Add multi-currency checkout support',
+    ];
+  }
+
+  // Generic / Fallback
+  return [
+    'Add role-based access control (RBAC) schema',
+    'Add Redis caching layer for API endpoints',
+    'Add automated database audit trail tables',
+    'Add OAuth 2.0 social login support',
+  ];
+}
+
 const SHELL_TRANSITION_MS = 320;
 
 interface ConversationTurn {
@@ -117,6 +158,7 @@ export function RefinementChat({
   isRefining,
   onSend,
   onClear,
+  blueprint,
   anchorRef,
   layoutSyncKey,
 }: RefinementChatProps) {
@@ -124,7 +166,6 @@ export function RefinementChat({
   const [input, setInput] = useState('');
   const [mounted, setMounted] = useState(false);
 
-  // Auto-Fix sandbox error banner state
   const [sandboxError, setSandboxError] = useState<string | null>(null);
   const [isAutoFixing, setIsAutoFixing] = useState(false);
 
@@ -147,31 +188,29 @@ export function RefinementChat({
     }
   }, [messages, isRefining]);
 
-  // Listen for sandbox errors from the sandboxRunner iframe postMessage
+  // Listen for sandbox errors from live preview iframe postMessage
   useEffect(() => {
-    function handleSandboxMessage(event: MessageEvent) {
-      if (
-        event.data &&
-        typeof event.data === 'object' &&
-        event.data.type === 'BUILDX_SANDBOX_ERROR'
-      ) {
-        const errMsg: string =
-          event.data.error ||
-          event.data.message ||
-          'Unknown sandbox runtime error';
-        setSandboxError(errMsg);
+    function handleMessage(event: MessageEvent) {
+      if (event.data?.type === 'BUILDX_SANDBOX_ERROR') {
+        const errPayload = event.data.error;
+        const msg = errPayload?.message || 'Runtime execution error captured';
+        setSandboxError(msg);
+      } else if (event.data?.type === 'BUILDX_TRIGGER_AUTO_FIX') {
+        if (sandboxError) triggerAutoFix(sandboxError);
       }
     }
-    window.addEventListener('message', handleSandboxMessage);
-    return () => window.removeEventListener('message', handleSandboxMessage);
-  }, []);
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [sandboxError]);
 
-  const handleAutoFixTrigger = () => {
-    if (!sandboxError || isRefining || isAutoFixing) return;
+  const triggerAutoFix = (errMsg: string) => {
     setIsAutoFixing(true);
-    onSend(`[AUTO_FIX] Fix this sandbox runtime error:\n\n${sandboxError}`);
-    setSandboxError(null);
-    setTimeout(() => setIsAutoFixing(false), 2000);
+    setIsExpanded(true);
+    onSend(`[AUTO-FIX DISPATCH] Fix sandbox execution error: ${errMsg}`);
+    setTimeout(() => {
+      setIsAutoFixing(false);
+      setSandboxError(null);
+    }, 1500);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -181,83 +220,111 @@ export function RefinementChat({
     setInput('');
   };
 
-  const handleSuggestion = (text: string) => {
+  const handleSuggestion = (suggestionText: string) => {
     if (isRefining) return;
-    onSend(text);
+    setInput(suggestionText);
+    setIsExpanded(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
+  const suggestions = resolveSuggestions(blueprint);
   const conversationTurns = groupConversationTurns(messages);
-  const pendingUserMessage =
-    messages.length > 0 && messages[messages.length - 1]?.role === 'user' && isRefining
-      ? messages[messages.length - 1]
-      : null;
+  const pendingUserMessage = isRefining
+    ? [...messages].reverse().find((m) => m.role === 'user')
+    : undefined;
 
   const chatPanel = (
-    <div
-      className={`refine-chat ${isExpanded ? 'refine-chat--expanded' : ''}`}
+    <motion.div
+      variants={commandDockVariants}
+      initial="hidden"
+      animate="show"
+      className={`refine-chat pointer-events-auto bg-[#121216]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3.5 space-y-3 shadow-2xl relative overflow-hidden transition-all duration-200 ${
+        isExpanded ? 'border-indigo-500/30 ring-1 ring-indigo-500/20' : 'hover:border-white/20'
+      }`}
     >
-      {/* Floating Auto-Fix Banner — appears when sandboxRunner emits BUILDX_SANDBOX_ERROR */}
-      {sandboxError && (
-        <div className="absolute -top-14 left-0 right-0 mx-2 flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-500/40 bg-amber-950/60 backdrop-blur-sm text-amber-300 text-xs font-medium shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <AlertTriangle size={14} className="shrink-0 text-amber-400" />
-          <span className="flex-1 truncate">Sandbox Error Detected</span>
-          <button
-            type="button"
-            onClick={handleAutoFixTrigger}
-            disabled={isRefining || isAutoFixing}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-200 text-[11px] font-bold transition-colors disabled:opacity-50 shrink-0"
+      {/* Sandbox Error Interceptor Bar */}
+      <AnimatePresence>
+        {sandboxError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex items-center justify-between p-2.5 bg-red-950/90 border-b border-red-500/30 text-xs font-mono text-red-200"
           >
-            <Wrench size={11} />
-            {isAutoFixing ? 'Fixing…' : 'Auto Fix'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setSandboxError(null)}
-            className="text-amber-400/70 hover:text-amber-300 p-0.5 rounded transition-colors shrink-0"
-            title="Dismiss"
-          >
-            <X size={12} />
-          </button>
-        </div>
-      )}
+            <div className="flex items-center gap-2 truncate">
+              <AlertTriangle size={14} className="text-red-400 shrink-0" />
+              <span className="truncate">Sandbox error: {sandboxError}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => triggerAutoFix(sandboxError)}
+                disabled={isAutoFixing || isRefining}
+                className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[10px] flex items-center gap-1 transition-all"
+              >
+                <Wrench size={11} />
+                <span>Auto-Fix with Kimi K2.6</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSandboxError(null)}
+                className="text-neutral-400 hover:text-white"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="refine-chat__accent" aria-hidden />
-      <div className="refine-chat__header">
+      {/* Dock Bar / Toggle */}
+      <div className="flex items-center justify-between px-4 py-3 bg-black/40 border-b border-white/[0.06]">
         <button
           type="button"
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="refine-chat__header-toggle"
+          onClick={() => {
+            const next = !isExpanded;
+            setIsExpanded(next);
+            if (next) {
+              setTimeout(() => inputRef.current?.focus(), 100);
+            }
+          }}
+          className="flex-1 flex items-center justify-between gap-3 text-left group cursor-pointer border-0 bg-transparent p-0 outline-none"
           aria-expanded={isExpanded}
         >
-          <div className="refine-chat__header-left">
-            <span className="refine-chat__header-icon" aria-hidden>
-              <Cpu size={14} strokeWidth={2} className="text-indigo-400" />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-105 transition-transform shrink-0">
+              <Sparkles size={14} />
+            </div>
+            <span className="font-mono text-xs font-semibold text-neutral-200 group-hover:text-white transition-colors truncate">
+              Cortex Agent Refinement
             </span>
-            <span className="refine-chat__header-title">Refine Blueprint</span>
-            {isRefining && (
-              <span className="px-2 py-0.5 rounded bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[10px] font-mono animate-pulse">
-                ⚡ Multi-Model Pipeline Active
-              </span>
-            )}
-            {!isExpanded && messages.length > 0 && (
-              <span className="refine-chat__header-preview">
-                {messages[messages.length - 1]?.content.slice(0, 72)}
-                {(messages[messages.length - 1]?.content.length ?? 0) > 72 ? '…' : ''}
-              </span>
-            )}
           </div>
-          <ChevronUp
-            size={14}
-            strokeWidth={2}
-            className={`refine-chat__chevron ${isExpanded ? 'refine-chat__chevron--open' : ''}`}
-            aria-hidden
-          />
+
+          <div className="flex items-center gap-2 shrink-0">
+            {messages.length > 0 && (
+              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">
+                {messages.length} message{messages.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            <div className="p-1 rounded-lg hover:bg-white/[0.08] text-neutral-400 group-hover:text-white transition-colors flex items-center justify-center">
+              <ChevronUp
+                size={15}
+                strokeWidth={2}
+                className={`transition-transform duration-300 ${isExpanded ? 'rotate-180 text-indigo-400' : ''}`}
+                aria-hidden
+              />
+            </div>
+          </div>
         </button>
+
         {messages.length > 0 && isExpanded && (
           <button
             type="button"
-            onClick={onClear}
-            className="refine-chat__clear-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear();
+            }}
+            className="ml-3 px-2 py-1 text-[10px] font-mono text-neutral-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors shrink-0"
             title="Clear chat"
           >
             Clear
@@ -265,83 +332,89 @@ export function RefinementChat({
         )}
       </div>
 
+      {/* Timeline Event Feed */}
       <div
-        className="refine-chat__collapse"
-        style={{ maxHeight: isExpanded ? 'min(55vh, 420px)' : '0px' }}
+        className="refine-chat__collapse overflow-hidden transition-all duration-300"
+        style={{ maxHeight: isExpanded ? 'min(55vh, 440px)' : '0px' }}
       >
         <div
-          className={`refine-chat__scroll ${messages.length > 0 ? 'refine-chat__scroll--has-history' : ''}`}
+          className={`refine-chat__scroll ${messages.length > 0 ? 'refine-chat__scroll--has-history p-4 max-h-[380px]' : 'p-2 max-h-none'} overflow-y-auto relative`}
         >
           {messages.length > 0 ? (
-            <div className="refine-chat__messages">
-              <div className="refine-chat__history-head">
-                <span className="refine-chat__history-title">Conversation history</span>
-                <span className="refine-chat__history-count">
-                  {conversationTurns.length}{' '}
-                  {conversationTurns.length === 1 ? 'request' : 'requests'}
-                </span>
-              </div>
-
-              <div className="refine-chat__turn-list">
-                {conversationTurns.map((turn, turnIndex) => (
-                  <article key={turn.user.timestamp} className="refine-chat__turn">
-                    <header className="refine-chat__turn-head">
-                      Request {turnIndex + 1}
-                    </header>
-                    <div className="refine-chat__bubble-row refine-chat__bubble-row--user">
-                      <span className="refine-chat__bubble-label">You asked</span>
-                      <div className="refine-chat__bubble refine-chat__bubble--user">
-                        {turn.user.content}
-                      </div>
+            <motion.div
+              variants={timelineContainer}
+              initial="hidden"
+              animate="show"
+              className="timeline-feed border-l border-white/10 ml-4 pl-4 space-y-6 font-mono text-xs"
+            >
+              {conversationTurns.map((turn, turnIndex) => (
+                <div key={turn.user.timestamp || turnIndex} className="space-y-4">
+                  {/* User Question Node */}
+                  <motion.div variants={timelineNodeSlide} className="timeline-node relative">
+                    <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400">
+                      <span className="font-mono text-[10px] text-indigo-400 font-semibold">01 / ARCHITECT</span>
+                      <span className="text-zinc-600">•</span>
+                      <span>Request #{turnIndex + 1}</span>
                     </div>
-                    {turn.assistant ? (
-                      <div className="refine-chat__bubble-row refine-chat__bubble-row--assistant">
-                        <span className="refine-chat__bubble-label">BuildX Cortex</span>
-                        <div className="refine-chat__bubble refine-chat__bubble--assistant">
-                          {turn.assistant.content}
-                        </div>
-                      </div>
-                    ) : pendingUserMessage?.timestamp === turn.user.timestamp && isRefining ? (
-                      <div className="refine-chat__bubble-row refine-chat__bubble-row--assistant">
-                        <span className="refine-chat__bubble-label">BuildX Cortex</span>
-                        <div className="refine-chat__bubble refine-chat__bubble--typing flex flex-col gap-2">
-                          <div className="flex items-center gap-2">
-                            <div className="refine-chat__typing-dots" aria-hidden>
-                              <span />
-                              <span />
-                              <span />
-                            </div>
-                            Refining blueprint via Multi-Model Pipeline…
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono text-indigo-300/80 bg-indigo-950/40 p-2 rounded border border-indigo-500/20">
-                            <span className="flex items-center gap-1"><Brain size={10} className="text-purple-400" /> PLANNING</span>
-                            <span className="text-gray-600">›</span>
-                            <span className="flex items-center gap-1"><Zap size={10} className="text-sky-400" /> INGESTION</span>
-                            <span className="text-gray-600">›</span>
-                            <span className="flex items-center gap-1"><GitCompare size={10} className="text-emerald-400" /> DIFF_GENERATION</span>
-                            <span className="text-gray-600">›</span>
-                            <span className="flex items-center gap-1 text-amber-400 font-semibold"><Wrench size={10} /> AUTO_FIX (Kimi K2.6)</span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
-                  </article>
-                ))}
-              </div>
+                    <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/20 text-neutral-200 leading-relaxed font-sans text-xs">
+                      {turn.user.content}
+                    </div>
+                  </motion.div>
 
+                  {/* Assistant Answer Node */}
+                  {turn.assistant ? (
+                    <motion.div variants={timelineNodeSlide} className="timeline-node relative">
+                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400">
+                        <span className="font-mono text-[10px] text-emerald-400 font-semibold">02 / PATCH_DIFF</span>
+                        <span className="text-zinc-600">•</span>
+                        <span>BuildX Cortex Multi-Model Stream</span>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-[#111116] border border-white/10 text-neutral-300 leading-relaxed font-sans text-xs">
+                        {turn.assistant.content}
+                      </div>
+                    </motion.div>
+                  ) : pendingUserMessage?.timestamp === turn.user.timestamp && isRefining ? (
+                    <motion.div variants={timelineNodeSlide} className="timeline-node relative">
+                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-amber-400">
+                        <span className="font-mono text-[10px] font-semibold">03 / AUTO_FIX</span>
+                        <span className="text-zinc-600">•</span>
+                        <span>Kimi K2.6 Engine Pipeline</span>
+                      </div>
+                      <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
+                        <div className="flex items-center gap-2 text-indigo-300 font-mono text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>Refining blueprint via Multi-Model Pipeline…</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-indigo-300/80 pt-2 border-t border-indigo-500/20 font-mono">
+                          <span className="flex items-center gap-1"><Brain size={10} className="text-purple-400" /> 01 / ARCHITECT</span>
+                          <span className="text-neutral-600">›</span>
+                          <span className="flex items-center gap-1"><GitCompare size={10} className="text-emerald-400" /> 02 / PATCH_DIFF</span>
+                          <span className="text-neutral-600">›</span>
+                          <span className="flex items-center gap-1 text-amber-400 font-semibold"><Wrench size={10} /> 03 / AUTO_FIX</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </div>
+              ))}
               <div ref={messagesEndRef} />
-            </div>
+
+              {/* CRITICAL: Clearance spacer so content never collides with sticky input bar */}
+              <div className="h-36 w-full pointer-events-none" />
+            </motion.div>
           ) : (
-            <div className="refine-chat__suggestions">
-              <p className="refine-chat__suggestions-label">Try saying</p>
-              <div className="refine-chat__suggestions-list">
-                {SUGGESTIONS.map((s) => (
+            <div className="refine-chat__suggestions p-2.5 space-y-1.5">
+              <span className="font-mono text-[9px] uppercase tracking-widest text-zinc-500 font-semibold block select-none">
+                TRY SAYING
+              </span>
+              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 whitespace-nowrap">
+                {suggestions.map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => handleSuggestion(s)}
                     disabled={isRefining}
-                    className="refine-chat__suggestion-chip"
+                    className="bg-white/5 hover:bg-indigo-500/10 border border-white/10 hover:border-indigo-500/30 text-zinc-300 hover:text-indigo-300 font-mono text-[11px] px-2.5 py-1 rounded-md transition-all shrink-0 cursor-pointer text-left border-0 outline-none"
                   >
                     {s}
                   </button>
@@ -352,61 +425,66 @@ export function RefinementChat({
         </div>
       </div>
 
+      {/* Docked Glass Input Bar */}
       {isExpanded && (
-        <form onSubmit={handleSubmit} className="refine-chat__form">
-          {/* Pipeline mode badge replacing model selector */}
-          <div className="refine-chat__model-slot">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 font-mono select-none whitespace-nowrap">
+        <form onSubmit={handleSubmit} className="bg-[#08080c]/90 border-t border-white/10 pt-2.5 sticky bottom-0 z-10 backdrop-blur-xl">
+          <div className="h-10 flex items-center gap-2">
+            <div className="text-[10px] font-mono px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Pipeline Mode: Autonomous</span>
+              <span className="hidden sm:inline">Engine:</span> Kimi K2.6
             </div>
+
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={isRefining}
+              placeholder={
+                isRefining ? 'Refining blueprint…' : 'e.g. "Add Stripe payment webhooks with idempotency"'
+              }
+              maxLength={500}
+              className="bg-black/60 border border-white/10 focus:border-indigo-500/50 text-white font-mono text-xs px-3 py-2 rounded-lg flex-1 h-full focus:outline-none placeholder:text-zinc-600 outline-none transition-all"
+            />
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              type="submit"
+              disabled={!input.trim() || isRefining}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3.5 h-full rounded-lg transition-all shrink-0 flex items-center justify-center border-0 cursor-pointer disabled:opacity-40 gap-1.5"
+              aria-label={isRefining ? 'Refining' : 'Send refinement'}
+            >
+              {isRefining ? (
+                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span>Send</span>
+                  <Send size={12} />
+                </>
+              )}
+            </motion.button>
           </div>
-
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isRefining}
-            placeholder={
-              isRefining ? 'Refining…' : 'e.g. "Add a payments system with Stripe"'
-            }
-            maxLength={500}
-            className="refine-chat__input"
-          />
-
-          <button
-            type="submit"
-            disabled={!input.trim() || isRefining}
-            className="refine-chat__send-btn"
-            aria-label={isRefining ? 'Refining' : 'Send refinement'}
-          >
-            {isRefining ? (
-              <span className="refine-chat__send-spinner" aria-hidden />
-            ) : (
-              <Send size={18} strokeWidth={2} aria-hidden />
-            )}
-          </button>
         </form>
       )}
-    </div>
+    </motion.div>
   );
 
-  const fixedDock =
-    mounted && anchorBounds.width > 0
-      ? createPortal(
-          <div
-            className="refine-chat-dock"
-            style={{
-              left: anchorBounds.left,
-              width: anchorBounds.width,
-            }}
-          >
-            {chatPanel}
-          </div>,
-          document.body
-        )
-      : null;
+  const fixedDock = mounted
+    ? createPortal(
+        <div
+          className="refine-chat-dock"
+          style={
+            anchorBounds.width > 0
+              ? { left: anchorBounds.left, width: anchorBounds.width }
+              : { left: '50%', transform: 'translateX(-50%)', width: 'calc(100% - 2rem)', maxWidth: '1024px' }
+          }
+        >
+          {chatPanel}
+        </div>,
+        document.body
+      )
+    : null;
 
   return (
     <>
