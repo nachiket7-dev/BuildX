@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { EXAMPLE_IDEAS } from '../lib/utils';
 import { SpotlightCard } from './SpotlightCard';
-import { BentoGrid } from './BentoGrid';
-import { Sparkles, ArrowRight, Code2, Database, ShieldCheck, Layers, Terminal, Server, Check } from 'lucide-react';
-import { motion, type Variants } from 'framer-motion';
+import { Sparkles, ArrowRight, Code2, Database, ShieldCheck, Terminal, Server, Check, Zap, Bot, GitBranch, Shield, Activity } from 'lucide-react';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { TextReveal } from './animations/TextReveal';
+import { slideFromRight } from '../lib/motion';
 
 interface HeroProps {
   onGenerate: (idea: string) => void;
@@ -30,21 +31,192 @@ const itemVariants = {
   },
 };
 
-const rightColVariants = {
-  hidden: { opacity: 0, x: 30, scale: 0.97 },
-  show: {
-    opacity: 1,
-    x: 0,
-    scale: 1,
-    transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] as [number, number, number, number], delay: 0.15 },
-  },
-};
+const rightColVariants = slideFromRight;
 
 const tabContentVariants: Variants = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0, transition: { duration: 0.2 } },
   exit: { opacity: 0, y: -8, transition: { duration: 0.12 } },
 };
+
+// ─── Simulated Multi-Model Pipeline Widget ───────────────────────────────────
+
+const HERO_PIPELINE_STAGES = [
+  { id: 'plan',   label: 'Nemotron 550B', role: 'PLANNING',        icon: Bot,       color: 'indigo' },
+  { id: 'ingest', label: 'Gemini Flash',  role: 'INGESTION',       icon: Zap,       color: 'blue'   },
+  { id: 'diff',   label: 'GLM-5.2',       role: 'DIFF_GENERATION', icon: GitBranch, color: 'purple' },
+  { id: 'fix',    label: 'Kimi K2.6',     role: 'AUTO_FIX',        icon: Shield,    color: 'emerald'},
+] as const;
+
+const STREAM_LINES = [
+  { stage: 'plan',   text: 'Decomposing spec: 4 tables, 12 endpoints, 5 screens…', color: 'text-indigo-300' },
+  { stage: 'plan',   text: 'Schema: users → appointments → payments → notifications', color: 'text-neutral-300' },
+  { stage: 'ingest', text: 'Generating API contract: POST /auth/login, GET /slots…', color: 'text-blue-300' },
+  { stage: 'ingest', text: 'Drafting Stripe webhook handler with idempotency key…', color: 'text-neutral-300' },
+  { stage: 'diff',   text: '--- backend/src/db/schema.sql', color: 'text-neutral-500' },
+  { stage: 'diff',   text: '+++ backend/src/db/schema.sql', color: 'text-neutral-500' },
+  { stage: 'diff',   text: '+ CREATE TABLE appointments (', color: 'text-emerald-400' },
+  { stage: 'diff',   text: '+   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),', color: 'text-emerald-400' },
+  { stage: 'fix',    text: 'Auditing TypeScript: 0 errors across 24 generated files', color: 'text-emerald-300' },
+  { stage: 'fix',    text: 'Adding missing index on appointments.user_id ✓', color: 'text-emerald-300' },
+];
+
+function HeroPipelineWidget() {
+  const [stageIndex, setStageIndex] = useState(0);
+  const [doneStages, setDoneStages] = useState<number[]>([]);
+  const [visibleLines, setVisibleLines] = useState<typeof STREAM_LINES>([]);
+  const [lineIndex, setLineIndex] = useState(0);
+
+  // Advance pipeline stage every 3s
+  useEffect(() => {
+    const t = setInterval(() => {
+      setStageIndex(prev => {
+        const next = (prev + 1) % HERO_PIPELINE_STAGES.length;
+        if (next === 0) {
+          setDoneStages([]);
+          setVisibleLines([]);
+          setLineIndex(0);
+        } else {
+          setDoneStages(d => [...d, prev]);
+        }
+        return next;
+      });
+    }, 3200);
+    return () => clearInterval(t);
+  }, []);
+
+  // Stream log lines for current stage
+  useEffect(() => {
+    const currentStageObj = HERO_PIPELINE_STAGES[stageIndex];
+    if (!currentStageObj) return;
+    const stageId = currentStageObj.id;
+    const stageLines = STREAM_LINES.filter(l => l && l.stage === stageId);
+    let i = 0;
+    const t = setInterval(() => {
+      if (i >= stageLines.length) { clearInterval(t); return; }
+      const lineObj = stageLines[i];
+      if (lineObj) {
+        setVisibleLines(prev => [...prev.slice(-12), lineObj]);
+      }
+      i++;
+    }, 420);
+    return () => clearInterval(t);
+  }, [stageIndex]);
+
+  const colorMap: Record<string, { dot: string; text: string; glow: string }> = {
+    indigo: { dot: 'border-indigo-500/70 bg-indigo-500/15', text: 'text-indigo-300', glow: 'rgba(99,102,241,0.35)' },
+    blue:   { dot: 'border-blue-500/70 bg-blue-500/15',     text: 'text-blue-300',   glow: 'rgba(59,130,246,0.35)' },
+    purple: { dot: 'border-purple-500/70 bg-purple-500/15', text: 'text-purple-300', glow: 'rgba(168,85,247,0.35)' },
+    emerald:{ dot: 'border-emerald-500/70 bg-emerald-500/15',text:'text-emerald-300',glow: 'rgba(16,185,129,0.35)' },
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Stage nodes */}
+      <div className="flex items-center gap-1">
+        {HERO_PIPELINE_STAGES.map((stage, i) => {
+          if (!stage) return null;
+          const isDone   = doneStages.includes(i);
+          const isActive = stageIndex === i;
+          const stageColor = stage?.color ?? 'indigo';
+          const c = colorMap[stageColor] ?? colorMap['indigo'];
+          const Icon = stage.icon;
+          return (
+            <React.Fragment key={stage.id || i}>
+              <div className="flex flex-col items-center gap-1.5 flex-1">
+                <motion.div
+                  animate={isActive
+                    ? { scale: 1.15, opacity: 1 }
+                    : isDone
+                    ? { scale: 1, opacity: 0.75 }
+                    : { scale: 0.92, opacity: 0.35 }
+                  }
+                  transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+                  className={`w-9 h-9 rounded-full border-2 flex items-center justify-center transition-all
+                    ${isActive ? `${c.dot} animate-node-glow` : isDone ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-white/10 bg-white/[0.03]'}`}
+                >
+                  {isDone
+                    ? <Check size={14} className="text-emerald-400" />
+                    : Icon ? <Icon size={14} className={isActive ? c.text : 'text-neutral-600'} /> : null
+                  }
+                </motion.div>
+                <div className="text-center">
+                  <div className={`text-[9px] font-mono font-semibold leading-tight ${
+                    isActive ? c.text : isDone ? 'text-emerald-400' : 'text-neutral-600'
+                  }`}>
+                    {stage.label}
+                  </div>
+                  <div className="text-[8px] text-neutral-600 font-mono">{stage.role}</div>
+                </div>
+              </div>
+              {i < HERO_PIPELINE_STAGES.length - 1 && (
+                <div className="pipeline-connector flex-1 -mt-5">
+                  <motion.div
+                    className="pipeline-connector__fill h-full"
+                    animate={{ scaleX: isDone ? 1 : 0 }}
+                    initial={{ scaleX: 0 }}
+                    transition={{ duration: 0.55, ease: 'easeInOut' }}
+                  />
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Live log stream */}
+      <div className="bg-[#050507] rounded-2xl border border-white/[0.07] p-3.5 min-h-[160px] font-mono text-[10.5px] overflow-hidden relative">
+        <div className="flex items-center gap-2 mb-2.5 border-b border-white/[0.06] pb-2">
+          <Activity size={11} className="text-emerald-400" />
+          <span className="text-[9px] text-neutral-500 font-mono uppercase tracking-wider">SSE Stream</span>
+          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        </div>
+        <div className="space-y-1.5">
+          <AnimatePresence initial={false}>
+            {visibleLines.map((line, i) => {
+              if (!line) return null;
+              const textColor = line?.color ?? 'text-neutral-300';
+              return (
+                <motion.div
+                  key={(line.text || '') + i}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`leading-relaxed ${textColor}`}
+                >
+                  <span className="text-neutral-600 mr-1.5 select-none">&gt;</span>
+                  {line.text}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+          {visibleLines.length === 0 && (
+            <div className="text-neutral-600 italic">
+              Initializing {HERO_PIPELINE_STAGES[stageIndex]?.role ?? 'PLANNING'}…
+            </div>
+          )}
+        </div>
+        {/* Fading bottom gradient */}
+        <div className="absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-[#050507] to-transparent pointer-events-none rounded-b-2xl" />
+      </div>
+
+      {/* Footer stats */}
+      <div className="grid grid-cols-3 gap-2 pt-1">
+        {[
+          { v: '24 files', l: 'Generated', c: 'text-indigo-400' },
+          { v: '< 30 sec', l: 'Runtime',   c: 'text-emerald-400' },
+          { v: '4 Models', l: 'Pipeline',  c: 'text-purple-400' },
+        ].map(({ v, l, c }) => (
+          <div key={l} className="text-center p-2 rounded-xl bg-white/[0.025] border border-white/[0.06] font-mono">
+            <div className={`text-xs font-bold ${c}`}>{v}</div>
+            <div className="text-[9px] text-neutral-600">{l}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 export function Hero({ onGenerate, isLoading }: HeroProps) {
   const [idea, setIdea] = useState('');
@@ -76,9 +248,8 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
   const canSubmit = charCount >= MIN_CHARS && !isLoading;
 
   return (
-    <>
-      {/* ─── Hero Section: Asymmetrical 2-Column Split Stage ─── */}
-      <section className="relative w-full px-4 sm:px-6 pt-8 sm:pt-14 pb-16 max-w-7xl mx-auto">
+    /* ─── Hero Section: Asymmetrical 2-Column Split Stage ─── */
+    <section className="relative w-full px-4 sm:px-6 pt-8 sm:pt-14 pb-16 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           
           {/* Left Column (7 cols): Builder Control Console — staggered reveal */}
@@ -102,10 +273,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               variants={itemVariants}
               className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white font-display leading-[1.1]"
             >
-              Architect your next <br />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-300 to-emerald-400">
-                big idea with AI.
-              </span>
+              <TextReveal text="Architect your next big idea with AI." />
             </motion.h1>
 
             <motion.p
@@ -295,120 +463,25 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             initial="hidden"
             animate="show"
           >
-            <SpotlightCard spotlightColor="rgba(99, 102, 241, 0.15)" className="p-5 rounded-3xl border border-white/10 bg-neutral-950/90 shadow-2xl backdrop-blur-xl">
-              <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+            <SpotlightCard spotlightColor="rgba(99, 102, 241, 0.18)" className="p-5 rounded-3xl border border-white/10 bg-neutral-950/90 shadow-2xl backdrop-blur-xl">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5 border-b border-white/[0.08] pb-3.5">
                 <div className="flex items-center gap-2 font-mono text-xs text-neutral-300">
-                  <Code2 size={15} className="text-indigo-400" />
-                  <span>Monorepo Spec Live Output</span>
+                  <Activity size={14} className="text-emerald-400" />
+                  <span className="font-semibold text-white">Multi-Model Pipeline</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20">
-                  Real-Time
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-mono text-emerald-400">SSE Streaming</span>
+                </div>
               </div>
 
-              {/* Inspector Tabs */}
-              <div className="flex gap-1 bg-black/60 p-1 rounded-xl border border-white/5 mb-4">
-                {(['schema', 'api', 'ui'] as const).map((tab) => (
-                  <motion.button
-                    key={tab}
-                    type="button"
-                    onClick={() => setPreviewTab(tab)}
-                    whileTap={{ scale: 0.96 }}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-mono transition-colors ${
-                      previewTab === tab ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    {tab === 'schema' ? 'DB Schema' : tab === 'api' ? 'API Routes' : 'React UI'}
-                  </motion.button>
-                ))}
-              </div>
-
-              {/* Inspector Tab Content with AnimatePresence transitions */}
-              <div className="bg-black/80 rounded-2xl p-4 font-mono text-xs border border-white/5 min-h-[220px] overflow-hidden">
-                <motion.div
-                  key={previewTab}
-                  variants={tabContentVariants}
-                  initial="hidden"
-                  animate="show"
-                  exit="exit"
-                >
-                  {previewTab === 'schema' && (
-                    <div className="space-y-2 text-neutral-300">
-                      <div className="text-indigo-400 font-semibold">// PostgreSQL Schema Draft</div>
-                      <div className="text-neutral-400">CREATE TABLE users (</div>
-                      <div className="pl-4 text-emerald-300">id UUID PRIMARY KEY DEFAULT gen_random_uuid(),</div>
-                      <div className="pl-4 text-neutral-300">email VARCHAR(255) NOT NULL UNIQUE,</div>
-                      <div className="pl-4 text-purple-300">role VARCHAR(50) DEFAULT 'patient',</div>
-                      <div className="pl-4 text-neutral-400">created_at TIMESTAMP WITH TIME ZONE</div>
-                      <div className="text-neutral-400">);</div>
-                    </div>
-                  )}
-
-                  {previewTab === 'api' && (
-                    <div className="space-y-2 text-neutral-300">
-                      <div className="text-indigo-400 font-semibold">// Express TypeScript Endpoints</div>
-                      <div className="flex items-center gap-2"><span className="text-emerald-400 font-bold">POST</span> <span>/api/v1/auth/login</span></div>
-                      <div className="flex items-center gap-2"><span className="text-blue-400 font-bold">GET</span> <span>/api/v1/appointments/slots</span></div>
-                      <div className="flex items-center gap-2"><span className="text-amber-400 font-bold">POST</span> <span>/api/v1/payments/webhook</span></div>
-                      <div className="flex items-center gap-2"><span className="text-purple-400 font-bold">PATCH</span> <span>/api/v1/users/profile</span></div>
-                    </div>
-                  )}
-
-                  {previewTab === 'ui' && (
-                    <div className="space-y-2 text-neutral-300">
-                      <div className="text-indigo-400 font-semibold">// Generated React + Tailwind Screen</div>
-                      <div className="text-purple-300">&lt;div className="p-6 rounded-2xl bg-neutral-900 border"&gt;</div>
-                      <div className="pl-4 text-neutral-300">&lt;AppointmentCalendar slots={'{'}availableSlots{'}'} /&gt;</div>
-                      <div className="pl-4 text-emerald-300">&lt;StripePaymentButton amount={'{'}15000{'}'} /&gt;</div>
-                      <div className="text-purple-300">&lt;/div&gt;</div>
-                    </div>
-                  )}
-                </motion.div>
-              </div>
-
-              {/* Footer Stat Pills inside Inspector */}
-              <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/5 text-center font-mono text-[11px]">
-                {[
-                  { value: '20+ Files', label: 'Monorepo', color: 'text-indigo-400' },
-                  { value: '< 30 sec', label: 'Generation', color: 'text-emerald-400' },
-                  { value: '4 Models', label: 'Pipeline', color: 'text-purple-400' },
-                ].map(({ value, label, color }, i) => (
-                  <motion.div
-                    key={label}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 + i * 0.08, duration: 0.3 }}
-                    className="p-2 rounded-xl bg-white/[0.03] border border-white/5"
-                  >
-                    <div className={`${color} font-bold`}>{value}</div>
-                    <div className="text-neutral-500 text-[9px]">{label}</div>
-                  </motion.div>
-                ))}
-              </div>
+              {/* Live Pipeline Widget */}
+              <HeroPipelineWidget />
             </SpotlightCard>
           </motion.div>
 
         </div>
       </section>
-
-      {/* Bento Grid Feature Showcase */}
-      <section className="w-full px-4 sm:px-6 py-12 max-w-7xl mx-auto border-t border-white/10">
-        <motion.div
-          className="text-center mb-10"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-80px' }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <h2 className="text-2xl sm:text-4xl font-bold font-display text-white mb-2">
-            Built for Principal Engineers & Founders
-          </h2>
-          <p className="text-neutral-400 text-sm max-w-xl mx-auto font-mono">
-            BuildX replaces boilerplate code setup with strict multi-model pipeline execution.
-          </p>
-        </motion.div>
-        <BentoGrid />
-      </section>
-    </>
   );
 }
