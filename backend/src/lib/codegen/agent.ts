@@ -18,6 +18,33 @@ function cleanModelOutput(output: string): string {
   return cleaned.trim();
 }
 
+/**
+ * Trims raw stderr / stack-trace strings before injecting them into prompt payloads.
+ *
+ * Long stack traces (sometimes 500+ lines from Node/webpack/Babel) bloat the prompt,
+ * push the token count past model limits, and are the primary cause of AUTO_FIX
+ * "Request timed out" failures. This helper:
+ *   - Keeps only the last 100 lines (most relevant errors are at the bottom)
+ *   - Hard-caps output at 4,000 characters
+ *   - Prepends a truncation notice when content was cut
+ */
+export function sanitizeTerminalError(stderr: string): string {
+  if (!stderr || typeof stderr !== 'string') return '';
+  const lines = stderr.split('\n');
+  const MAX_LINES = 100;
+  const MAX_CHARS = 4000;
+  const truncatedLines = lines.length > MAX_LINES ? lines.slice(-MAX_LINES) : lines;
+  let result = truncatedLines.join('\n').trim();
+  if (result.length > MAX_CHARS) {
+    result = result.slice(-MAX_CHARS);
+    return `[...truncated — showing last ${MAX_CHARS} chars]\n${result}`;
+  }
+  if (lines.length > MAX_LINES) {
+    return `[...truncated — showing last ${MAX_LINES} of ${lines.length} lines]\n${result}`;
+  }
+  return result;
+}
+
 function isRetriableError(err: any): boolean {
   const msg = (err?.message || '').toLowerCase();
   const name = (err?.name || '');
@@ -223,8 +250,10 @@ export async function generateApplicationCode(
       if (index < filesToGenerate.length) await sleep(1500);
 
     } catch (err: any) {
-      console.error(`[Codegen Agent] Failed generating file ${filePath}:`, err);
-      sendSSE(res, 'error', { message: `Failed generating file ${filePath}: ${err.message}` });
+      const rawErrMsg = err?.message || String(err);
+      const safeErrMsg = sanitizeTerminalError(rawErrMsg);
+      console.error(`[Codegen Agent] Failed generating file ${filePath}:`, safeErrMsg);
+      sendSSE(res, 'error', { message: `Failed generating file ${filePath}: ${safeErrMsg}` });
       throw err;
     }
   }
