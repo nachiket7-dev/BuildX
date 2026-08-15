@@ -1,11 +1,16 @@
 /**
- * Strips reasoning-model tags, markdown code blocks, comments, and repairs
- * malformed or truncated JSON returned by LLM models.
+ * jsonExtract.ts
+ *
+ * Strips reasoning-model tags, markdown code fences, comments, and repairs
+ * malformed or truncated JSON returned by LLM models — with special handling
+ * for raw code strings embedded in JSON property values.
  */
 
+// ─── Comment Stripping ───────────────────────────────────────────────────────
+
 /**
- * Removes single-line (//) and multi-line (/* *\/) comments from JSON
- * while safely ignoring comment syntax inside quoted string literals.
+ * Removes single-line and multi-line JSON comments while safely skipping
+ * over quoted string literals so comment chars inside strings are preserved.
  */
 function removeJsonComments(str: string): string {
   let result = '';
@@ -34,24 +39,16 @@ function removeJsonComments(str: string): string {
       continue;
     }
 
-    // Check for single-line comment //
     if (char === '/' && nextChar === '/') {
-      while (i < str.length && str[i] !== '\n' && str[i] !== '\r') {
-        i++;
-      }
-      if (i < str.length) {
-        result += str[i]; // preserve newline
-      }
+      while (i < str.length && str[i] !== '\n' && str[i] !== '\r') i++;
+      if (i < str.length) result += str[i];
       continue;
     }
 
-    // Check for multi-line comment /* ... */
     if (char === '/' && nextChar === '*') {
       i += 2;
-      while (i < str.length - 1 && !(str[i] === '*' && str[i + 1] === '/')) {
-        i++;
-      }
-      i++; // skip trailing /
+      while (i < str.length - 1 && !(str[i] === '*' && str[i + 1] === '/')) i++;
+      i++;
       continue;
     }
 
@@ -61,8 +58,110 @@ function removeJsonComments(str: string): string {
   return result;
 }
 
+// ─── Code-String Repair ──────────────────────────────────────────────────────
+
 /**
- * Sanitizes raw LLM output to isolate the JSON payload and fix common formatting issues.
+ * The most common LLM JSON failure mode:
+ *
+ *   "content": "function foo() {
+ *     return "bar";   ← raw newline + unescaped quote inside string
+ *   }"
+ *
+ * This function walks the raw text character-by-character, tracking whether
+ * we're inside a JSON string literal (after a key's colon separator).
+ * Inside string values it:
+ *   - Converts raw \r\n / \n / \r → \\n
+ *   - Converts raw \t → \\t
+ *   - Escapes bare " that are NOT the closing delimiter of the string
+ *   - Escapes bare \ not already followed by a valid JSON escape char
+ */
+function repairCodeStrings(raw: string): string {
+  const out: string[] = [];
+  let i = 0;
+  const len = raw.length;
+
+  // Valid single-char JSON escape followers: " \ / b f n r t
+  const VALID_ESCAPES = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u']);
+
+  while (i < len) {
+    // ── Outside a string: copy structural characters verbatim ──────────────
+    const ch = raw[i];
+
+    if (ch !== '"') {
+      out.push(ch);
+      i++;
+      continue;
+    }
+
+    // ── Entering a string value ─────────────────────────────────────────────
+    // Emit the opening quote
+    out.push('"');
+    i++;
+
+    while (i < len) {
+      const c = raw[i];
+
+      if (c === '\\') {
+        // Peek at next char
+        const next = raw[i + 1];
+        if (next !== undefined && VALID_ESCAPES.has(next)) {
+          // Valid escape sequence — copy both chars verbatim
+          out.push('\\', next);
+          i += 2;
+        } else {
+          // Bare backslash with no valid escape — double it
+          out.push('\\\\');
+          i++;
+        }
+        continue;
+      }
+
+      if (c === '"') {
+        // Could be closing delimiter OR an unescaped quote inside the string.
+        // Heuristic: look ahead past whitespace for a structural token
+        // (: , ] } \n) that confirms this is the real closing quote.
+        let j = i + 1;
+        while (j < len && (raw[j] === ' ' || raw[j] === '\t')) j++;
+        const after = raw[j];
+        const isClosing =
+          after === ':' || after === ',' || after === '}' || after === ']' ||
+          after === '\n' || after === '\r' || j >= len;
+
+        if (isClosing) {
+          // This is the real closing delimiter
+          out.push('"');
+          i++;
+          break;
+        } else {
+          // Unescaped double quote inside the string value — escape it
+          out.push('\\"');
+          i++;
+          continue;
+        }
+      }
+
+      // Raw control characters inside string values
+      if (c === '\n') { out.push('\\n'); i++; continue; }
+      if (c === '\r') {
+        // Handle \r\n as a single newline
+        if (raw[i + 1] === '\n') i++;
+        out.push('\\n'); i++; continue;
+      }
+      if (c === '\t') { out.push('\\t'); i++; continue; }
+
+      // All other characters — safe to copy
+      out.push(c);
+      i++;
+    }
+  }
+
+  return out.join('');
+}
+
+// ─── Primary Sanitizer ───────────────────────────────────────────────────────
+
+/**
+ * Sanitizes raw LLM output to isolate the JSON payload and fix common issues.
  */
 function sanitizeJsonString(input: string): string {
   let s = input;
@@ -72,22 +171,22 @@ function sanitizeJsonString(input: string): string {
     .replace(/<think>[\s\S]*?<\/redacted_thinking>/gi, '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-  // 2. Strip markdown code fences (```json ... ``` or ``` ...)
+  // 2. Strip markdown code fences (```json ... ``` or plain ```)
   s = s.replace(/```(?:json|JSON)?\s*([\s\S]*?)\s*```/g, '$1');
   s = s.replace(/^```[a-zA-Z0-9_-]*\s*/gm, '').replace(/```\s*$/gm, '');
 
   // 3. Find outermost JSON object { ... } or array [ ... ]
-  const firstBrace = s.indexOf('{');
+  const firstBrace   = s.indexOf('{');
   const firstBracket = s.indexOf('[');
   let startIdx = -1;
-  let isArray = false;
+  let isArray  = false;
 
   if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
     startIdx = firstBrace;
-    isArray = false;
+    isArray  = false;
   } else if (firstBracket !== -1) {
     startIdx = firstBracket;
-    isArray = true;
+    isArray  = true;
   }
 
   if (startIdx === -1) {
@@ -102,24 +201,26 @@ function sanitizeJsonString(input: string): string {
     s = s.substring(startIdx);
   }
 
-  // 4. Remove comments safely (preserving URLs/strings)
+  // 4. Remove comments safely (preserving URLs and strings)
   s = removeJsonComments(s);
 
-  // 5. Remove trailing commas before closing braces or brackets (e.g., ", }" -> "}")
+  // 5. Remove trailing commas before } or ]
   s = s.replace(/,\s*([}\]])/g, '$1');
 
   // 6. Fix single-quoted keys and string values
   s = s
-    .replace(/([{,]\s*)'([^'\n\r]+)'(\s*:)/g, '$1"$2"$3') // keys
-    .replace(/:\s*'([^'\n\r]*)'/g, ': "$1"')              // object string values
-    .replace(/(\[|,)\s*'([^'\n\r]*)'/g, '$1 "$2"');         // array string items
+    .replace(/([{,]\s*)'([^'\n\r]+)'(\s*:)/g, '$1"$2"$3')  // keys
+    .replace(/:\s*'([^'\n\r]*)'/g, ': "$1"')                // object string values
+    .replace(/(\[|,)\s*'([^'\n\r]*)'/g, '$1 "$2"');          // array items
 
   return s.trim();
 }
 
+// ─── Truncation Repair ───────────────────────────────────────────────────────
+
 /**
- * Repairs truncated JSON strings by balancing open brackets/braces
- * and rolling back to the last valid comma checkpoint if needed.
+ * Repairs truncated JSON by balancing open brackets/braces and rolling back
+ * to the last valid comma checkpoint when needed.
  */
 function repairTruncatedJson(cleaned: string): string {
   let result = '';
@@ -132,69 +233,39 @@ function repairTruncatedJson(cleaned: string): string {
     const char = cleaned[i];
 
     if (char === ',' && !inString && !isEscaped) {
-      lastCommaCheckpoint = {
-        length: result.length,
-        stack: [...stack],
-      };
+      lastCommaCheckpoint = { length: result.length, stack: [...stack] };
     }
 
     result += char;
 
-    if (isEscaped) {
-      isEscaped = false;
-      continue;
-    }
-
-    if (char === '\\') {
-      isEscaped = true;
-      continue;
-    }
-
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
+    if (isEscaped) { isEscaped = false; continue; }
+    if (char === '\\') { isEscaped = true; continue; }
+    if (char === '"') { inString = !inString; continue; }
 
     if (!inString) {
-      if (char === '{' || char === '[') {
-        stack.push(char);
-      } else if (char === '}') {
-        if (stack[stack.length - 1] === '{') {
-          stack.pop();
-        }
-      } else if (char === ']') {
-        if (stack[stack.length - 1] === '[') {
-          stack.pop();
-        }
-      }
+      if      (char === '{' || char === '[') stack.push(char);
+      else if (char === '}' && stack[stack.length - 1] === '{') stack.pop();
+      else if (char === ']' && stack[stack.length - 1] === '[') stack.pop();
     }
   }
 
-  // Close open string literal
   let attempt = result;
-  if (inString) {
-    attempt += '"';
-  }
-
-  // Close open structures
+  if (inString) attempt += '"';
   const tempStack = [...stack];
   while (tempStack.length > 0) {
     const last = tempStack.pop();
     if (last === '{') attempt += '}';
     else if (last === '[') attempt += ']';
   }
-
-  // Remove trailing commas that might have been exposed before closing
   attempt = attempt.replace(/,\s*([}\]])/g, '$1');
 
   try {
     JSON.parse(attempt);
     return attempt;
   } catch {
-    // If first attempt fails and we have a comma checkpoint, rollback
     if (lastCommaCheckpoint) {
       let rolledBack = result.slice(0, lastCommaCheckpoint.length);
-      const cpStack = [...lastCommaCheckpoint.stack];
+      const cpStack  = [...lastCommaCheckpoint.stack];
       while (cpStack.length > 0) {
         const last = cpStack.pop();
         if (last === '{') rolledBack += '}';
@@ -213,15 +284,50 @@ function repairTruncatedJson(cleaned: string): string {
   }
 }
 
+// ─── Field-Level Key Extractor ───────────────────────────────────────────────
+
+/**
+ * Last-resort extraction: pull top-level string field values directly from
+ * raw text using a regex that handles multi-line strings. Used when full JSON
+ * parsing has failed to avoid hard-throwing on the agent pipeline.
+ *
+ * Extracts: plan, message, files (as raw string), diff
+ */
+export function extractFieldsFromBrokenJson(raw: string): Record<string, string> | null {
+  try {
+    const result: Record<string, string> = {};
+
+    // Extract simple string fields: "plan": "...", "message": "..."
+    const simpleFieldRe = /"(plan|message|diff)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+    let m: RegExpExecArray | null;
+    while ((m = simpleFieldRe.exec(raw)) !== null) {
+      result[m[1]] = m[2].replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"');
+    }
+
+    // Extract "files" array as raw string for further processing
+    const filesMatch = raw.match(/"files"\s*:\s*(\[[\s\S]*?\])\s*[,}]/);
+    if (filesMatch) {
+      result['files_raw'] = filesMatch[1];
+    }
+
+    return Object.keys(result).length > 0 ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Public API ──────────────────────────────────────────────────────────────
+
 /**
  * Extracts and cleans JSON from raw LLM responses.
+ * Multi-pass: sanitize → repair code strings → repair truncation.
  */
 export function extractJSON(raw: string): string {
   if (!raw || typeof raw !== 'string') {
     throw new Error('No valid JSON string provided');
   }
 
-  // Quick path: raw is already valid JSON
+  // Quick path: already valid JSON
   try {
     const trimmed = raw.trim();
     JSON.parse(trimmed);
@@ -230,28 +336,38 @@ export function extractJSON(raw: string): string {
     // Proceed to full sanitization
   }
 
-  // Step 1: Sanitize markdown, comments, surrounding text, trailing commas
+  // Pass 1: sanitize markdown, comments, structural issues
   let sanitized = sanitizeJsonString(raw);
 
-  // Step 2: Test if sanitized is valid
   try {
     JSON.parse(sanitized);
     return sanitized;
   } catch {
-    // Proceed to repair
+    // Proceed
   }
 
-  // Step 3: Repair truncated brackets/braces/quotes
-  const repaired = repairTruncatedJson(sanitized);
+  // Pass 2: repair unescaped code strings (most common agent failure mode)
+  const codeRepaired = repairCodeStrings(sanitized);
+  const afterCommaClean = codeRepaired.replace(/,\s*([}\]])/g, '$1');
 
-  // Step 4: Final trailing comma sweep
-  const cleaned = repaired.replace(/,\s*([}\]])/g, '$1');
+  try {
+    JSON.parse(afterCommaClean);
+    console.info('[JSON Extract] Repaired via code-string escape pass.');
+    return afterCommaClean;
+  } catch {
+    // Proceed
+  }
+
+  // Pass 3: repair truncated brackets/braces
+  const repaired = repairTruncatedJson(afterCommaClean);
+  const cleaned  = repaired.replace(/,\s*([}\]])/g, '$1');
 
   return cleaned;
 }
 
 /**
  * Parses JSON returned by an agent with multi-pass fallback repair.
+ * Never throws unless all repair strategies are exhausted.
  */
 export function parseAgentJSON<T>(raw: string): T {
   // Pass 1: standard extract & parse
@@ -259,7 +375,7 @@ export function parseAgentJSON<T>(raw: string): T {
     const json = extractJSON(raw);
     return JSON.parse(json) as T;
   } catch (err1: any) {
-    // Pass 2: aggressive cleanup (unescaped newlines inside strings, replace literal control characters)
+    // Pass 2: aggressive cleanup + code-string repair from scratch
     try {
       let aggressive = raw
         .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -267,16 +383,17 @@ export function parseAgentJSON<T>(raw: string): T {
         .replace(/```/g, '');
 
       const start = Math.max(aggressive.indexOf('{'), aggressive.indexOf('['));
-      if (start !== -1) {
-        aggressive = aggressive.slice(start);
-      }
+      if (start !== -1) aggressive = aggressive.slice(start);
+
       aggressive = removeJsonComments(aggressive);
+      aggressive = aggressive.replace(/,\s*([}\]])/g, '$1');
+      aggressive = repairCodeStrings(aggressive);
       aggressive = aggressive.replace(/,\s*([}\]])/g, '$1');
       aggressive = repairTruncatedJson(aggressive);
 
       return JSON.parse(aggressive) as T;
     } catch (err2: any) {
-      console.error('[parseAgentJSON Failed] Raw preview:', raw.slice(0, 300));
+      console.error('[parseAgentJSON Failed] Raw preview:', raw.slice(0, 400));
       throw new Error(`AI returned malformed JSON: ${err1.message}`);
     }
   }

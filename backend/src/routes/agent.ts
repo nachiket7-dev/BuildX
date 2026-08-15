@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../lib/auth';
 import { getBlueprintForUser, getBlueprintMeta, getBlueprintFiles, saveBlueprintFile, saveChatMessage, getChatMessages } from '../lib/db';
 import { completeWithPipelineFallback, getPipelineMaxTokens } from '../lib/llm/router';
-import { extractJSON } from '../lib/jsonExtract';
+import { extractJSON, extractFieldsFromBrokenJson } from '../lib/jsonExtract';
 import { parseDiffBlocks, applySearchReplace } from '../lib/codegen/diffParser';
 import { DIFF_PATCH_SYSTEM_PROMPT, buildDiffPatchPrompt, buildAutoFixPrompt } from '../lib/codegen/prompts';
 import type { PipelineStage } from '../lib/llm/types';
@@ -27,14 +27,19 @@ You MUST respond with a single valid JSON object of EXACTLY this schema — noth
   ]
 }
 
-CRITICAL RULES:
-1. Return ONLY the JSON object. No markdown fences, no preamble, no trailing text.
-2. "files" MUST contain every file you create or modify. Never omit files.
-3. Every "content" field MUST be the COMPLETE source code for new files OR Search/Replace diff blocks for edits.
-4. Frontend files: React 18, Tailwind CSS, Lucide React icons.
-5. Backend files: Express + TypeScript.
-6. Write functional logic that integrates with existing VFS files.
-7. MINIMIZE RESPONSE SIZE: Only include files in "files" that strictly need modifications. Keep the "plan" and "message" text extremely brief (1-2 sentences).`;
+CRITICAL JSON ENCODING RULES — MUST FOLLOW EXACTLY:
+1. Return ONLY the JSON object. No markdown fences (\`\`\`json), no preamble, no trailing text.
+2. ALL string values in the JSON MUST be properly escaped:
+   - Every double quote \" inside a string value MUST be escaped as \\\"
+   - Every backslash \\ inside a string value MUST be escaped as \\\\
+   - Every newline inside a string value MUST be escaped as \\n (not a real newline character)
+   - Every tab inside a string value MUST be escaped as \\t
+3. "files" MUST contain every file you create or modify. Never omit files.
+4. Every "content" field MUST be the COMPLETE source code for new files OR Search/Replace diff blocks for edits.
+5. Frontend files: React 18, Tailwind CSS, Lucide React icons.
+6. Backend files: Express + TypeScript.
+7. Write functional logic that integrates with existing VFS files.
+8. MINIMIZE RESPONSE SIZE: Only include files in "files" that strictly need modifications. Keep the "plan" and "message" text extremely brief (1-2 sentences).`;
 
 // Helper: emit a single SSE event
 function sseEvent(res: Response, event: string, data: object) {
@@ -152,12 +157,65 @@ Respond with ONLY the JSON object matching the required schema.`;
       const cleanJson = extractJSON(rawResponse);
       parsed = JSON.parse(cleanJson);
     } catch (parseError: any) {
-      console.error('[Agent] JSON parsing FAILED:', parseError.message);
-      const errMsg = `Agent returned malformed JSON: ${parseError.message}. Retrying via DIFF_GENERATION pipeline...`;
-      await saveChatMessage(id, req.user!.userId, 'assistant', `⚠️ ${errMsg}`);
-      sseEvent(res, 'error', { error: errMsg });
-      res.end();
-      return;
+      console.warn('[Agent] Primary JSON parse failed:', parseError.message, '— attempting field extraction fallback...');
+
+      // ── Fallback 1: Field-level extraction from broken JSON ───────────────
+      const fields = extractFieldsFromBrokenJson(rawResponse);
+      if (fields) {
+        console.info('[Agent] Field extraction fallback succeeded. Recovering plan/message/files.');
+        parsed = {
+          plan: fields['plan'] || '',
+          message: fields['message'] || 'Workspace files have been updated.',
+          files: [],
+        };
+
+        // Try to parse files_raw if we extracted it
+        if (fields['files_raw']) {
+          try {
+            parsed.files = JSON.parse(fields['files_raw']);
+          } catch {
+            console.warn('[Agent] Could not parse files_raw — will treat response as diff-only.');
+          }
+        }
+
+        // ── Fallback 2: If no files extracted, route raw response to diffParser
+        if (!parsed.files || parsed.files.length === 0) {
+          console.info('[Agent] No files parsed — routing raw response directly to diffParser.');
+          // We will emit a silent recovery message and let diffParser handle it below
+          // by creating a synthetic files array with the raw response as diff content
+          const diffBlocks = parseDiffBlocks(rawResponse);
+          if (Array.isArray(diffBlocks) && diffBlocks.length > 0) {
+            // Get all VFS file paths and guess the target from context
+            const existingPaths = files.map((f: any) => f.path);
+            const mentionedPath = existingPaths.find((p: string) =>
+              rawResponse.includes(p.split('/').pop()!)
+            );
+            if (mentionedPath) {
+              parsed.files = [{ path: mentionedPath, content: rawResponse, action: 'modify' }];
+              parsed.message = parsed.message || 'Applied diff patch from agent response.';
+              console.info(`[Agent] Routing diff blocks to inferred file: ${mentionedPath}`);
+            }
+          }
+        }
+
+        // If we still have nothing useful, fail silently without an error banner
+        if (!parsed.files) parsed.files = [];
+
+      } else {
+        // ── Fallback 3: Absolute last resort — save a terse recovery message ─
+        console.error('[Agent] All JSON repair strategies failed:', parseError.message);
+        const recoveryMsg = 'I ran into a formatting issue with my response. Please try rephrasing your request.';
+        await saveChatMessage(id, req.user!.userId, 'assistant', recoveryMsg);
+        sseEvent(res, 'done', {
+          success: false,
+          message: recoveryMsg,
+          plan: '',
+          modifiedFiles: [],
+          pipelineUsed: { ingestion: 'gemini-3.5-flash', autoFix: autoFixResult.model, diffGen: 'none' },
+        });
+        res.end();
+        return;
+      }
     }
 
     const plan = parsed.plan || '';
