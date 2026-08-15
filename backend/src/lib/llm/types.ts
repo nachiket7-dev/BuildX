@@ -21,10 +21,10 @@ export interface LLMProvider {
 /**
  * Named execution stages for the dual-pipeline architecture.
  *
- * - PLANNING       → heavy reasoning (Nemotron 550B primary)
+ * - PLANNING       → fast context synthesis (Gemini 3.5 Flash primary)
  * - INGESTION      → fast context parsing (Gemini 3.5 Flash primary)
  * - DIFF_GENERATION→ surgical patch output (GLM-5.2 primary)
- * - AUTO_FIX       → error-driven self-correction (Nemotron 550B primary)
+ * - AUTO_FIX       → error-driven self-correction (Kimi K2.6 primary)
  */
 export type PipelineStage = 'PLANNING' | 'INGESTION' | 'DIFF_GENERATION' | 'AUTO_FIX';
 

@@ -20,12 +20,16 @@ export const MODEL_PROVIDER_LABELS: Record<string, string> = {
 
 /** Maps old localStorage / saved blueprint keys to current model IDs */
 export const LEGACY_MODEL_ALIASES: Record<string, ModelId> = {
-  'llama-3.1-8b':         'gemini-3.5-flash',
-  'llama-3.3-70b':        'gemini-3.5-flash',
-  'gemini-2.5-flash':     'gemini-3.5-flash',
-  'gemini-2.5-pro':       'gemini-3.1-pro',
-  'gemini-3.0-flash':     'gemini-3.5-flash',
-  'gemini-3.0-pro':       'gemini-3.1-pro',
+  'llama-3.1-8b':           'gemini-3.5-flash',
+  'llama-3.1-8b-instant':   'gemini-3.5-flash',
+  'llama-3.3-70b':          'gemini-3.5-flash',
+  'llama-3.3-70b-versatile': 'gemini-3.5-flash',
+  'llama3-70b-8192':        'gemini-3.5-flash',
+  'llama3-8b-8192':         'gemini-3.5-flash',
+  'gemini-2.5-flash':       'gemini-3.5-flash',
+  'gemini-2.5-pro':         'gemini-3.1-pro',
+  'gemini-3.0-flash':       'gemini-3.5-flash',
+  'gemini-3.0-pro':         'gemini-3.1-pro',
   'gemini-3-flash-preview': 'gemini-3.5-flash',
 };
 
