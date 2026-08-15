@@ -17,58 +17,74 @@ export const PRIMARY_MODEL_KEYS = [
   'qwen-3-32b',
   'gpt-oss-120b',
   'nemotron-3-550b',
+  'nemotron-3-super-120b',
 ] as const;
 
 /** Legacy keys stored in DB / localStorage → current primary key */
 export const LEGACY_MODEL_ALIASES: Record<string, string> = {
   'llama-3.1-8b':          'gemini-3.5-flash',
+  'llama-3.1-8b-instant':  'gemini-3.5-flash',
   'llama-3.3-70b':         'gemini-3.5-flash',
+  'llama-3.3-70b-versatile':'gemini-3.5-flash',
+  'llama3-70b-8192':       'gemini-3.5-flash',
+  'llama3-8b-8192':        'gemini-3.5-flash',
   'gemini-2.5-flash':      'gemini-3.5-flash',
   'gemini-2.5-pro':        'gemini-3.1-pro',
   'gemini-3.0-flash':      'gemini-3.5-flash',
   'gemini-3.0-pro':        'gemini-3.1-pro',
   'gemini-3-flash-preview':'gemini-3.5-flash',
+  // Backward compat: old Nemotron-4 340B key → Super 120B (lighter, free-tier compatible)
+  'nemotron-4-340b':       'nemotron-3-super-120b',
 };
 
 // ─── Model Map ──────────────────────────────────────────────────────────────
 /** Maps external model key strings to internal provider configurations. */
 export const MODEL_MAP: Record<string, { provider: string; modelId: string }> = {
-  // Groq
-  'qwen-3-32b':      { provider: 'groq',   modelId: 'qwen/qwen3-32b' },
-  'gpt-oss-120b':    { provider: 'groq',   modelId: GPT_OSS_MODEL_ID },
+  // Groq (Fast & Free)
+  'qwen-3-32b':           { provider: 'groq',   modelId: 'qwen/qwen3-32b' },
+  'gpt-oss-120b':         { provider: 'groq',   modelId: GPT_OSS_MODEL_ID },
 
-  // Google AI Studio
-  'gemini-3.5-flash':{ provider: 'gemini', modelId: 'gemini-3.5-flash' },
-  'gemini-3.1-pro':  { provider: 'gemini', modelId: 'gemini-3.1-pro-preview' },
+  // Google AI Studio (Primary & Ultra Fast)
+  'gemini-3.5-flash':     { provider: 'gemini', modelId: 'gemini-3.5-flash' },
+  'gemini-3.1-pro':       { provider: 'gemini', modelId: 'gemini-3.1-pro-preview' },
 
-  // NVIDIA NIM — Nemotron 3 Ultra 550B
-  'nemotron-3-550b': { provider: 'nvidia', modelId: 'nvidia/nemotron-3-ultra-550b-a55b' },
+  // NVIDIA NIM — Nemotron 3 Ultra 550B (frontier; requires NVIDIA paid tier)
+  'nemotron-3-550b':      { provider: 'nvidia', modelId: 'nvidia/nemotron-3-ultra-550b-a55b' },
 
-  // NVIDIA NIM — Z-AI GLM-5.2 (pipeline DIFF_GENERATION primary + universal fallback)
-  'glm-5.2':         { provider: 'nvidia', modelId: 'z-ai/glm-5.2' },
+  // NVIDIA NIM — Nemotron 3 Super 120B (lighter; available on free NVIDIA tier)
+  'nemotron-3-super-120b':{ provider: 'nvidia', modelId: 'nvidia/nemotron-3-super-120b-a12b' },
 
-  // NVIDIA NIM — Moonshot Kimi K2.6 (AUTO_FIX primary + PLANNING secondary fallback)
-  'kimi-k2.6':       { provider: 'nvidia', modelId: 'moonshotai/kimi-k2.6' },
+  // NVIDIA NIM — Moonshot Kimi K2.6 (AUTO_FIX secondary + code repair)
+  'kimi-k2.6':            { provider: 'nvidia', modelId: 'moonshotai/kimi-k2.6' },
 };
 
 // ─── Pipeline Routes ─────────────────────────────────────────────────────────
 /**
- * Defines primary + fallback model assignments per pipeline stage.
+ * Defines primary + fallback + emergency model assignments per pipeline stage.
  *
- * Routing map (per spec):
- *   PLANNING       → Nemotron 3 Ultra (primary)  | Kimi K2.6 (fallback)
- *   INGESTION      → Gemini 3.5 Flash (primary)  | GLM-5.2 (fallback)
- *   DIFF_GENERATION→ GLM-5.2 (primary)           | Gemini 3.5 Flash (fallback)
- *   AUTO_FIX       → Kimi K2.6 (primary)         | GLM-5.2 (fallback)
+ * Routing strategy (optimized for speed, reliability, and zero timeouts):
+ *
+ *   PLANNING       → Gemini 3.5 Flash (primary)
+ *                  | Nemotron 3 Super 120B (fallback)
+ *                  | Qwen 3-32B (emergency Groq escape hatch)
+ *
+ *   INGESTION      → Gemini 3.5 Flash (primary)
+ *                  | Qwen 3-32B (fallback)
+ *                  | Nemotron 3 Super 120B (emergency)
+ *
+ *   DIFF_GENERATION→ Gemini 3.5 Flash (primary, instant latency + 8k tokens)
+ *                  | Qwen 3-32B (fallback, Groq)
+ *                  | Nemotron 3 Super 120B (emergency)
+ *
+ *   AUTO_FIX       → Gemini 3.5 Flash (primary, fast code-repair)
+ *                  | Kimi K2.6 (fallback, NVIDIA)
+ *                  | Qwen 3-32B (emergency)
  */
 export const PIPELINE_ROUTES: Record<PipelineStage, PipelineRoute> = {
-  PLANNING:        { primary: 'nemotron-3-550b',  fallback: 'kimi-k2.6'                                   },
-  INGESTION:       { primary: 'gemini-3.5-flash', fallback: 'glm-5.2'                                     },
-  DIFF_GENERATION: { primary: 'glm-5.2',          fallback: 'gemini-3.5-flash'                            },
-  // AUTO_FIX: Kimi K2.6 → GLM-5.2 → gemini-3.5-flash (emergency low-latency escape hatch)
-  // gemini-3.5-flash added as 3rd-tier to prevent "All models exhausted" hangs when both
-  // NVIDIA NIM models time out under high load.
-  AUTO_FIX:        { primary: 'kimi-k2.6',        fallback: 'glm-5.2', emergency: 'gemini-3.5-flash'     },
+  PLANNING:        { primary: 'gemini-3.5-flash', fallback: 'nemotron-3-super-120b', emergency: 'qwen-3-32b' },
+  INGESTION:       { primary: 'gemini-3.5-flash', fallback: 'qwen-3-32b',            emergency: 'nemotron-3-super-120b' },
+  DIFF_GENERATION: { primary: 'gemini-3.5-flash', fallback: 'qwen-3-32b',            emergency: 'nemotron-3-super-120b' },
+  AUTO_FIX:        { primary: 'gemini-3.5-flash', fallback: 'kimi-k2.6',             emergency: 'qwen-3-32b' },
 };
 
 // ─── Model Key Resolution ────────────────────────────────────────────────────
@@ -365,10 +381,10 @@ export function getRefineMaxTokensForModel(requestedModel?: string): number {
 /** Token budget for pipeline stages (stage-specific, not user-model-specific). */
 export function getPipelineMaxTokens(stage: PipelineStage): number {
   switch (stage) {
-    case 'PLANNING':        return 8000;  // Nemotron 550B — large reasoning budget
+    case 'PLANNING':        return 8000;  // Gemini Flash — large reasoning & blueprint budget
     case 'INGESTION':       return 8000;  // Gemini Flash — fast + generous context
-    case 'DIFF_GENERATION': return 4096;  // GLM-5.2 — surgical patches, shorter output
-    case 'AUTO_FIX':        return 8192;  // Kimi K2.6 — code-repair focused, large context
+    case 'DIFF_GENERATION': return 8000;  // Gemini Flash / Qwen 3-32B — full file / patch generation
+    case 'AUTO_FIX':        return 8192;  // Gemini Flash / Kimi — code-repair focused, large context
   }
 }
 
@@ -378,15 +394,15 @@ export function getProviderHealth(): Record<string, { configured: boolean; label
   return {
     groq: {
       configured: Boolean(process.env.GROQ_API_KEY),
-      label: 'Groq',
+      label: 'Groq (Qwen 3-32B + GPT-OSS 120B)',
     },
     gemini: {
       configured: Boolean(process.env.GEMINI_API_KEY),
-      label: 'Google AI Studio',
+      label: 'Google AI Studio (Gemini 3.5 Flash + 3.1 Pro)',
     },
     nvidia: {
       configured: Boolean(process.env.NVIDIA_API_KEY),
-      label: 'NVIDIA NIM (Nemotron + GLM-5.2 + Kimi K2.6)',
+      label: 'NVIDIA NIM (Nemotron Super + Kimi K2.6)',
     },
   };
 }

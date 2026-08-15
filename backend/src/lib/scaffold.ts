@@ -364,59 +364,622 @@ export default function ${componentName}Page() {
 }
 
 function generateFrontendApp(bp: Blueprint): string {
-  const imports = bp.screens
-    .map((s) => {
-      const name = toPascalCase(s.name.replace(/[^a-zA-Z0-9]/g, ''));
-      return `import ${name}Page from './pages/${name}Page';`;
-    })
-    .join('\n');
+  const name = bp.appName || 'BuildX App';
+  const desc = bp.description || '';
+  const domainLower = (name + ' ' + desc + ' ' + JSON.stringify(bp.screens || []) + ' ' + JSON.stringify(bp.features || {})).toLowerCase();
 
-  const routes = bp.screens
-    .map((s) => {
-      const name = toPascalCase(s.name.replace(/[^a-zA-Z0-9]/g, ''));
-      const path = s.name.toLowerCase() === 'home' || s.name.toLowerCase() === 'landing'
-        ? '/'
-        : '/' + toKebabCase(s.name);
-      return `        <Route path="${path}" element={<${name}Page />} />`;
-    })
-    .join('\n');
+  const isCrm = domainLower.includes('crm') || domainLower.includes('pipeline') || domainLower.includes('sales') || domainLower.includes('deal') || domainLower.includes('lead') || domainLower.includes('flowcrm');
+  const isMedical = domainLower.includes('med') || domainLower.includes('health') || domainLower.includes('patient') || domainLower.includes('doctor') || domainLower.includes('clinic') || domainLower.includes('triage') || domainLower.includes('hospital');
+  const isDev = domainLower.includes('code') || domainLower.includes('dev') || domainLower.includes('infra') || domainLower.includes('cloud') || domainLower.includes('server') || domainLower.includes('deploy') || domainLower.includes('api') || domainLower.includes('git');
+  const isEcommerce = domainLower.includes('food') || domainLower.includes('fit') || domainLower.includes('order') || domainLower.includes('store') || domainLower.includes('shop') || domainLower.includes('cart') || domainLower.includes('delivery') || domainLower.includes('commerce');
 
-  return `import React from 'react';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-
-${imports}
+  if (isCrm) {
+    return `import React, { useState } from 'react';
 
 export default function App() {
+  const [selectedDeal, setSelectedDeal] = useState<any>(null);
+  const [filter, setFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const metrics = [
+    { label: 'MRR', value: '$184,200', change: '+14.2%', note: 'vs last month' },
+    { label: 'Active Deals', value: '42', change: '+8', note: 'in pipeline' },
+    { label: 'Win Rate', value: '84.2%', change: '+3.1%', note: 'target 80%' },
+    { label: 'Avg Deal Size', value: '$24,500', change: '+$2.1k', note: 'Q3 average' },
+  ];
+
+  const deals = [
+    { id: 'DEAL-9041', company: 'Acme Corp', val: '$24,000', stage: 'qualified', priority: 'High', rep: 'Sarah K.', avatar: 'AC', days: '3 days in stage', email: 'sarah.k@acme.corp', phone: '+1 (555) 019-2834', notes: 'Evaluating Enterprise Tier for 250 seats.' },
+    { id: 'DEAL-9042', company: 'Vercel Inc', val: '$48,500', stage: 'qualified', priority: 'Critical', rep: 'Alex M.', avatar: 'VC', days: '1 day in stage', email: 'alex.m@vercel.com', phone: '+1 (555) 012-9982', notes: 'Needs SSO SAML integration & custom SLA.' },
+    { id: 'DEAL-9043', company: 'Supabase', val: '$15,500', stage: 'qualified', priority: 'Medium', rep: 'David R.', avatar: 'SB', days: '5 days in stage', email: 'david.r@supabase.io', phone: '+1 (555) 014-4431', notes: 'Interested in Postgres database migration assistance.' },
+    { id: 'DEAL-9044', company: 'Stripe', val: '$65,000', stage: 'meeting', priority: 'Critical', rep: 'Sarah K.', avatar: 'ST', days: '2 days in stage', email: 'billing@stripe.com', phone: '+1 (555) 018-7721', notes: 'Technical demo completed with VP of Eng.' },
+    { id: 'DEAL-9045', company: 'Linear', val: '$32,000', stage: 'meeting', priority: 'High', rep: 'Elena R.', avatar: 'LN', days: '4 days in stage', email: 'elena.r@linear.app', phone: '+1 (555) 011-3329', notes: 'Discussing annual prepay discount.' },
+    { id: 'DEAL-9046', company: 'OpenAI', val: '$95,000', stage: 'meeting', priority: 'Critical', rep: 'Alex M.', avatar: 'AI', days: '1 day in stage', email: 'procurement@openai.com', phone: '+1 (555) 017-8812', notes: 'Security audit questionnaire submitted.' },
+    { id: 'DEAL-9047', company: 'Datadog', val: '$42,000', stage: 'proposal', priority: 'High', rep: 'David R.', avatar: 'DD', days: '6 days in stage', email: 'ops@datadog.com', phone: '+1 (555) 013-5591', notes: 'Proposal v2 delivered. Legal reviewing redlines.' },
+    { id: 'DEAL-9048', company: 'Figma', val: '$54,000', stage: 'proposal', priority: 'High', rep: 'Sarah K.', avatar: 'FG', days: '2 days in stage', email: 'design@figma.com', phone: '+1 (555) 016-1120', notes: 'Contract sent via DocuSign.' },
+    { id: 'DEAL-9049', company: 'GitHub', val: '$120,000', stage: 'won', priority: 'Critical', rep: 'Alex M.', avatar: 'GH', days: 'Closed Today', email: 'partners@github.com', phone: '+1 (555) 019-9944', notes: 'Signed 3-year enterprise contract!' },
+    { id: 'DEAL-9050', company: 'Notion', val: '$28,000', stage: 'won', priority: 'High', rep: 'Elena R.', avatar: 'NT', days: 'Closed Yesterday', email: 'sales@notion.so', phone: '+1 (555) 015-6677', notes: 'Kickoff call scheduled for Monday.' },
+  ];
+
+  const columns = [
+    { id: 'qualified', title: 'Qualified', color: 'text-blue-400 border-blue-500/30' },
+    { id: 'meeting', title: 'Meeting Scheduled', color: 'text-indigo-400 border-indigo-500/30' },
+    { id: 'proposal', title: 'Proposal Sent', color: 'text-purple-400 border-purple-500/30' },
+    { id: 'won', title: 'Closed Won', color: 'text-emerald-400 border-emerald-500/30' },
+  ];
+
+  const filteredDeals = deals.filter(d => {
+    if (searchQuery && !d.company.toLowerCase().includes(searchQuery.toLowerCase()) && !d.id.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (filter === 'enterprise' && parseInt(d.val.replace(/[^0-9]/g, '')) < 40000) return false;
+    if (filter === 'critical' && d.priority !== 'Critical') return false;
+    return true;
+  });
+
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-gray-50">
-        {/* Navigation */}
-        <nav className="bg-white shadow-sm border-b px-6 py-3">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <h1 className="text-xl font-bold">${bp.appName}</h1>
-            <div className="flex gap-4">
-${bp.screens.slice(0, 6).map((s) => {
-  const path = s.name.toLowerCase() === 'home' || s.name.toLowerCase() === 'landing'
-    ? '/'
-    : '/' + toKebabCase(s.name);
-  return `              <Link to="${path}" className="text-sm text-gray-600 hover:text-gray-900">${s.icon} ${s.name}</Link>`;
-}).join('\n')}
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans p-6">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 mb-6 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-white tracking-tight">${name}</h1>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px]">
+              LIVE PIPELINE
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 font-mono mt-1">REAL-TIME REVENUE & DEAL STAGE TELEMETRY</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search deals, companies, IDs..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 font-mono w-64"
+          />
+          <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs transition-all shadow-lg shadow-indigo-500/20">
+            + Add Deal
+          </button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {metrics.map((m, idx) => (
+          <div key={idx} className="bg-zinc-900/80 border border-white/10 backdrop-blur-xl rounded-2xl p-4 shadow-2xl">
+            <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block">{m.label}</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-xl font-bold text-white font-mono">{m.value}</span>
+              <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                {m.change}
+              </span>
+            </div>
+            <span className="text-[10px] text-zinc-500 mt-1 block font-mono">{m.note}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between gap-4 mb-4 bg-zinc-900/40 p-2 rounded-xl border border-white/5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-400 font-mono pl-2">Filter:</span>
+          {['all', 'enterprise', 'critical'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={\`px-3 py-1 rounded-lg text-xs font-mono capitalize transition-all \${
+                filter === f ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40' : 'text-zinc-400 hover:text-white'
+              }\`}
+            >
+              {f === 'all' ? 'All Reps' : f === 'enterprise' ? 'Enterprise Only ($40k+)' : 'Critical Only'}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-zinc-500 font-mono pr-2">{filteredDeals.length} deals active</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {columns.map(col => {
+          const colDeals = filteredDeals.filter(d => d.stage === col.id);
+          const colTotal = colDeals.reduce((sum, d) => sum + parseInt(d.val.replace(/[^0-9]/g, '') || '0'), 0);
+
+          return (
+            <div key={col.id} className="bg-zinc-900/50 border border-white/10 rounded-2xl p-3 flex flex-col gap-3 min-h-[480px]">
+              <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                <span className={\`text-xs font-bold uppercase tracking-wider font-mono \${col.color.split(' ')[0]}\`}>
+                  {col.title} ({colDeals.length})
+                </span>
+                <span className="font-mono text-xs text-zinc-400">\${colTotal.toLocaleString()}</span>
+              </div>
+
+              <div className="space-y-3 flex-1 overflow-y-auto">
+                {colDeals.map(deal => (
+                  <div
+                    key={deal.id}
+                    onClick={() => setSelectedDeal(deal)}
+                    className="bg-zinc-900/90 hover:bg-zinc-800/90 border border-white/10 hover:border-indigo-500/40 rounded-xl p-3.5 shadow-lg transition-all cursor-pointer space-y-2.5 group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 flex items-center justify-center font-bold text-[10px] font-mono">
+                          {deal.avatar}
+                        </div>
+                        <span className="font-semibold text-xs text-white group-hover:text-indigo-300 transition-colors">
+                          {deal.company}
+                        </span>
+                      </div>
+                      <span className="font-mono text-xs font-bold text-emerald-400">{deal.val}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                      <span className="text-zinc-500">{deal.id}</span>
+                      <span className={\`px-1.5 py-0.5 rounded border \${
+                        deal.priority === 'Critical' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      }\`}>
+                        {deal.priority}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[10px] font-mono text-zinc-500">
+                      <span>👤 {deal.rep}</span>
+                      <span>⏱ {deal.days}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {selectedDeal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end" onClick={() => setSelectedDeal(null)}>
+          <div className="w-full max-w-md bg-[#121216] border-l border-white/10 p-6 flex flex-col gap-5 h-full overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 flex items-center justify-center font-bold text-sm font-mono">
+                  {selectedDeal.avatar}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">{selectedDeal.company}</h3>
+                  <span className="text-xs font-mono text-zinc-400">{selectedDeal.id}</span>
+                </div>
+              </div>
+              <button onClick={() => setSelectedDeal(null)} className="p-1 rounded-lg hover:bg-white/10 text-zinc-400 text-xs">✕</button>
+            </div>
+
+            <div className="space-y-4 font-mono text-xs">
+              <div className="bg-zinc-900/80 p-4 rounded-xl border border-white/10 space-y-2">
+                <div className="flex justify-between"><span className="text-zinc-500">Deal Value:</span><span className="text-emerald-400 font-bold">{selectedDeal.val}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Priority:</span><span className="text-amber-400">{selectedDeal.priority}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Assigned Rep:</span><span className="text-white">{selectedDeal.rep}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Stage Duration:</span><span className="text-zinc-300">{selectedDeal.days}</span></div>
+              </div>
+
+              <div className="bg-zinc-900/80 p-4 rounded-xl border border-white/10 space-y-2">
+                <span className="text-zinc-400 font-bold block mb-2">Contact Details</span>
+                <div className="flex justify-between"><span className="text-zinc-500">Email:</span><span className="text-indigo-400">{selectedDeal.email}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Phone:</span><span className="text-zinc-300">{selectedDeal.phone}</span></div>
+              </div>
+
+              <div className="bg-zinc-900/80 p-4 rounded-xl border border-white/10 space-y-2">
+                <span className="text-zinc-400 font-bold block mb-2">Activity History</span>
+                <p className="text-zinc-300 font-sans text-xs leading-relaxed">{selectedDeal.notes}</p>
+              </div>
             </div>
           </div>
-        </nav>
+        </div>
+      )}
+    </div>
+  );
+}
+`;
+  }
 
-        {/* Routes */}
-        <main className="max-w-7xl mx-auto py-6">
-          <Routes>
-${routes}
-          </Routes>
-        </main>
+  if (isMedical) {
+    return `import React, { useState } from 'react';
+
+export default function App() {
+  const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+
+  const metrics = [
+    { label: 'Active Patients', val: '28', status: '2 In ICU' },
+    { label: 'On-Call Physicians', val: '4', status: 'Active Shift' },
+    { label: 'System SLA', val: '99.8%', status: 'HIPAA Compliant' },
+    { label: 'Triage Queue', val: '12', status: 'Avg 4.2m Wait' },
+  ];
+
+  const patients = [
+    { mrn: '#MRN-8942', name: 'Eleanor Vance', age: 48, status: 'Triage', bp: '138/88 mmHg', hr: '84 bpm', spo2: '97%', doctor: 'Dr. Vance', room: 'Bay 4', notes: 'Acute chest discomfort, ECG normal.' },
+    { mrn: '#MRN-9104', name: 'Marcus Brody', age: 62, status: 'In Consultation', bp: '120/80 mmHg', hr: '72 bpm', spo2: '99%', doctor: 'Dr. Chen', room: 'Exam 2', notes: 'Routine post-op checkup.' },
+    { mrn: '#MRN-7731', name: 'Sophia Martinez', age: 34, status: 'Discharged', bp: '118/76 mmHg', hr: '68 bpm', spo2: '98%', doctor: 'Dr. Al-Mansoor', room: 'Outpatient', notes: 'Medication prescribed, follow up in 2 weeks.' },
+    { mrn: '#MRN-6420', name: 'Jonathan Reed', age: 55, status: 'Observation', bp: '142/92 mmHg', hr: '90 bpm', spo2: '95%', doctor: 'Dr. Ramirez', room: 'Bed 12', notes: 'Elevated blood pressure, monitoring response.' },
+    { mrn: '#MRN-8193', name: 'Clara Oswald', age: 29, status: 'Triage', bp: '110/70 mmHg', hr: '75 bpm', spo2: '99%', doctor: 'Dr. Vance', room: 'Bay 1', notes: 'Mild fever and dehydration.' },
+    { mrn: '#MRN-5512', name: 'Arthur Pendelton', age: 71, status: 'In Consultation', bp: '135/85 mmHg', hr: '80 bpm', spo2: '96%', doctor: 'Dr. Chen', room: 'Exam 4', notes: 'Joint mobility assessment.' },
+  ];
+
+  const filtered = patients.filter(p => {
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.mrn.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filter !== 'all' && p.status.toLowerCase() !== filter) return false;
+    return true;
+  });
+
+  return (
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans p-6">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 mb-6 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-white tracking-tight">${name}</h1>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px]">
+              HIPAA COMPLIANT
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 font-mono mt-1">PATIENT TRIAGE & CLINICAL TELEMETRY QUEUE</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search patients, records, MRNs..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 font-mono w-64"
+          />
+        </div>
+      </header>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {metrics.map((m, i) => (
+          <div key={i} className="bg-zinc-900/80 border border-white/10 backdrop-blur-xl rounded-2xl p-4 shadow-2xl">
+            <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block">{m.label}</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-xl font-bold text-white font-mono">{m.val}</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                {m.status}
+              </span>
+            </div>
+          </div>
+        ))}
       </div>
-    </BrowserRouter>
+
+      <div className="bg-zinc-900/80 border border-white/10 backdrop-blur-xl rounded-2xl overflow-hidden shadow-2xl">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between">
+          <span className="font-mono text-xs text-zinc-300 font-bold">CLINICAL PATIENT QUEUE</span>
+          <div className="flex gap-2">
+            {['all', 'triage', 'in consultation', 'discharged'].map(s => (
+              <button
+                key={s}
+                onClick={() => setFilter(s)}
+                className={\`px-2.5 py-1 rounded-lg text-[11px] font-mono capitalize \${filter === s ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40' : 'text-zinc-400 hover:text-white'}\`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <table className="w-full text-left font-mono text-xs">
+          <thead className="bg-zinc-950 text-zinc-500 border-b border-white/10 text-[10px] uppercase tracking-wider">
+            <tr>
+              <th className="p-4">MRN</th>
+              <th className="p-4">Patient Name</th>
+              <th className="p-4">Status</th>
+              <th className="p-4">Vital Signs</th>
+              <th className="p-4">Attending Doctor</th>
+              <th className="p-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5 text-zinc-300">
+            {filtered.map(p => (
+              <tr key={p.mrn} onClick={() => setSelectedPatient(p)} className="hover:bg-white/5 cursor-pointer transition-colors">
+                <td className="p-4 font-bold text-indigo-400">{p.mrn}</td>
+                <td className="p-4 font-sans font-semibold text-white">{p.name} <span className="text-xs text-zinc-500">({p.age}y)</span></td>
+                <td className="p-4">
+                  <span className={\`px-2 py-0.5 rounded-full border text-[10px] \${
+                    p.status === 'Triage' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                    p.status === 'Discharged' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                    'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                  }\`}>
+                    {p.status}
+                  </span>
+                </td>
+                <td className="p-4 text-zinc-300">{p.bp} · {p.hr} · {p.spo2}</td>
+                <td className="p-4 text-zinc-400">{p.doctor}</td>
+                <td className="p-4 text-right">
+                  <button className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded border border-white/10 text-xs">View Chart</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {selectedPatient && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end" onClick={() => setSelectedPatient(null)}>
+          <div className="w-full max-w-md bg-[#121216] border-l border-white/10 p-6 flex flex-col gap-4 h-full overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center pb-4 border-b border-white/10">
+              <div>
+                <h3 className="text-base font-bold text-white">{selectedPatient.name}</h3>
+                <span className="text-xs font-mono text-indigo-400">{selectedPatient.mrn}</span>
+              </div>
+              <button onClick={() => setSelectedPatient(null)} className="text-zinc-400 hover:text-white">✕</button>
+            </div>
+            <div className="space-y-3 font-mono text-xs">
+              <div className="bg-zinc-900 p-4 rounded-xl border border-white/10 space-y-2">
+                <div className="flex justify-between"><span className="text-zinc-500">Blood Pressure:</span><span className="text-white">{selectedPatient.bp}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Heart Rate:</span><span className="text-white">{selectedPatient.hr}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Oxygen Saturation:</span><span className="text-emerald-400">{selectedPatient.spo2}</span></div>
+                <div className="flex justify-between"><span className="text-zinc-500">Assigned Location:</span><span className="text-zinc-300">{selectedPatient.room}</span></div>
+              </div>
+              <div className="bg-zinc-900 p-4 rounded-xl border border-white/10">
+                <span className="text-zinc-400 font-bold block mb-2">Clinical Notes & Diagnosis</span>
+                <p className="text-zinc-300 font-sans text-xs leading-relaxed">{selectedPatient.notes}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+`;
+  }
+
+  if (isDev) {
+    return `import React, { useState } from 'react';
+
+export default function App() {
+  const metrics = [
+    { label: 'CPU Usage', val: '24.8%', status: 'Normal' },
+    { label: 'Memory Usage', val: '4.2 / 16 GB', status: 'Stable' },
+    { label: 'API Latency', val: '24ms avg', status: 'p95 18ms' },
+    { label: 'System Uptime', val: '99.99%', status: 'SLA Met' },
+  ];
+
+  const endpoints = [
+    { path: '/api/v1/auth/verify', latency: '18ms', status: '200 OK', load: '1,420 req/s' },
+    { path: '/api/v1/deployments', latency: '34ms', status: '200 OK', load: '840 req/s' },
+    { path: '/api/v1/webhooks', latency: '12ms', status: '200 OK', load: '3,100 req/s' },
+    { path: '/api/v1/analytics', latency: '42ms', status: '200 OK', load: '520 req/s' },
+  ];
+
+  const logs = [
+    '10:42:01.104 [sys] Container build succeeded in 3.4s',
+    '10:42:02.310 [net] Route /api/v1/deployments bound to port 3001',
+    '10:42:03.001 [db] Postgres connection pool initialized (10 connections)',
+    '10:42:04.882 [auth] OAuth provider GitHub verified successfully',
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-mono text-xs p-6">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 mb-6 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> ● All Systems Operational
+            </span>
+            <span className="text-zinc-600">|</span>
+            <span className="text-zinc-400">Environment: Production (us-east-1)</span>
+          </div>
+          <h1 className="text-xl font-bold text-white font-sans mt-1">${name} Developer Console</h1>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-white/10 text-zinc-400 text-xs">
+            Commit: <span className="text-indigo-400">v2.4.1-beta</span>
+          </span>
+          <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-sans font-semibold text-xs">
+            + New Deployment
+          </button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {metrics.map((m, i) => (
+          <div key={i} className="bg-zinc-900/80 border border-white/10 backdrop-blur-xl rounded-2xl p-4 shadow-2xl">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-widest block">{m.label}</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-xl font-bold text-white">{m.val}</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{m.status}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-zinc-900/80 border border-white/10 backdrop-blur-xl rounded-2xl p-4 shadow-2xl space-y-3">
+          <span className="text-zinc-300 font-bold block border-b border-white/10 pb-2">API ENDPOINT LATENCY & HEALTH</span>
+          <div className="space-y-2">
+            {endpoints.map((ep, i) => (
+              <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-white/5">
+                <span className="text-indigo-300 font-bold">{ep.path}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-zinc-400">{ep.load}</span>
+                  <span className="text-emerald-400 font-bold">{ep.latency}</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px]">{ep.status}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-zinc-900/80 border border-white/10 backdrop-blur-xl rounded-2xl p-4 shadow-2xl space-y-3">
+          <span className="text-zinc-300 font-bold block border-b border-white/10 pb-2">DEPLOYMENT LOG STREAM</span>
+          <div className="bg-black/60 p-3 rounded-xl border border-white/10 space-y-1.5 text-[11px] text-zinc-400 font-mono">
+            {logs.map((l, i) => (
+              <div key={i} className="leading-relaxed hover:text-zinc-200">{l}</div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+  }
+
+  if (isEcommerce) {
+    return `import React, { useState } from 'react';
+
+export default function App() {
+  const [filter, setFilter] = useState('all');
+
+  const orders = [
+    { id: '#ORD-9421', customer: 'Elena Rostova', items: '2x Organic Acai Bowl, 1x Cold Brew', total: '$38.50', status: 'In Transit', driver: 'Marcus V. · ETA 12 mins' },
+    { id: '#ORD-9422', customer: 'Michael Chang', items: '1x Salmon Poke Bowl, 1x Green Juice', total: '$27.80', status: 'Preparing', driver: 'Assigning driver...' },
+    { id: '#ORD-9423', customer: 'Sarah Jenkins', items: '3x Avocado Toast, 2x Espresso', total: '$44.00', status: 'Delivered', driver: 'Completed' },
+    { id: '#ORD-9424', customer: 'David Kim', items: '1x Protein Smoothie Bowl', total: '$14.50', status: 'Pending', driver: 'Awaiting Kitchen' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans p-6">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 mb-6 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-white tracking-tight">${name} Operations Console</h1>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px]">
+              LIVE DISPATCH
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 font-mono mt-1">REAL-TIME FULFILLMENT & DISPATCH MONITOR</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-xs text-zinc-400 bg-zinc-900 px-3 py-1.5 rounded-xl border border-white/10">
+            Today's Orders: <span className="text-emerald-400 font-bold">1,240</span> ($34.2k)
+          </span>
+        </div>
+      </header>
+
+      <div className="bg-zinc-900/80 border border-white/10 backdrop-blur-xl rounded-2xl overflow-hidden shadow-2xl">
+        <div className="p-4 border-b border-white/10 flex justify-between items-center">
+          <span className="font-mono text-xs font-bold text-zinc-300">LIVE ORDER DISPATCH GRID</span>
+          <div className="flex gap-2 font-mono text-xs">
+            {['all', 'pending', 'preparing', 'in transit', 'delivered'].map(s => (
+              <button key={s} onClick={() => setFilter(s)} className={\`px-2.5 py-1 rounded-lg capitalize \${filter === s ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40' : 'text-zinc-400'}\`}>{s}</button>
+            ))}
+          </div>
+        </div>
+
+        <table className="w-full text-left font-mono text-xs">
+          <thead className="bg-zinc-950 text-zinc-500 border-b border-white/10 text-[10px] uppercase">
+            <tr>
+              <th className="p-4">Order ID</th>
+              <th className="p-4">Customer</th>
+              <th className="p-4">Itemized Receipt</th>
+              <th className="p-4">Total</th>
+              <th className="p-4">Status</th>
+              <th className="p-4">Driver Assignment</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5 text-zinc-300">
+            {orders.filter(o => filter === 'all' || o.status.toLowerCase() === filter).map(o => (
+              <tr key={o.id} className="hover:bg-white/5 transition-colors">
+                <td className="p-4 font-bold text-indigo-400">{o.id}</td>
+                <td className="p-4 font-sans text-white">{o.customer}</td>
+                <td className="p-4 text-zinc-400">{o.items}</td>
+                <td className="p-4 font-bold text-emerald-400">{o.total}</td>
+                <td className="p-4">
+                  <span className={\`px-2 py-0.5 rounded-full border text-[10px] \${
+                    o.status === 'In Transit' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                    o.status === 'Delivered' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                    'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  }\`}>{o.status}</span>
+                </td>
+                <td className="p-4 text-zinc-400">{o.driver}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+`;
+  }
+
+  // Default High-Density SaaS Interface
+  return `import React, { useState } from 'react';
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('overview');
+
+  const metrics = [
+    { label: 'Monthly Recurring Revenue', value: '$84,200', change: '+18.4%' },
+    { label: 'Active Workspace Users', value: '1,420', change: '+12.1%' },
+    { label: 'System Availability', value: '99.9%', change: 'SLA OK' },
+    { label: 'Open Support Tickets', value: '18', change: '-4' },
+  ];
+
+  const items = [
+    { id: '#USR-9021', name: 'Acme Corp Admin', status: 'Active', plan: 'Enterprise', usage: '84%', lastSeen: '2m ago' },
+    { id: '#USR-9022', name: 'Vercel Workspace', status: 'Active', plan: 'Pro Tier', usage: '62%', lastSeen: '5m ago' },
+    { id: '#USR-9023', name: 'Supabase Project', status: 'Pending', plan: 'Starter', usage: '15%', lastSeen: '1h ago' },
+    { id: '#USR-9024', name: 'Linear Integration', status: 'Active', plan: 'Enterprise', usage: '91%', lastSeen: 'Just now' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans p-6">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 mb-6 border-b border-white/10">
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">${name}</h1>
+          <p className="text-xs text-zinc-400 font-mono mt-1">${desc.slice(0, 80)}...</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-xs">
+            + Create Item
+          </button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {metrics.map((m, i) => (
+          <div key={i} className="bg-zinc-900/80 border border-white/10 backdrop-blur-xl rounded-2xl p-4 shadow-2xl">
+            <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest block">{m.label}</span>
+            <div className="flex items-baseline justify-between mt-1">
+              <span className="text-xl font-bold text-white font-mono">{m.value}</span>
+              <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{m.change}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-zinc-900/80 border border-white/10 backdrop-blur-xl rounded-2xl overflow-hidden shadow-2xl">
+        <div className="p-4 border-b border-white/10 flex justify-between items-center">
+          <span className="font-mono text-xs font-bold text-zinc-300">WORKSPACE ACTIVITY MONITOR</span>
+        </div>
+        <table className="w-full text-left font-mono text-xs">
+          <thead className="bg-zinc-950 text-zinc-500 border-b border-white/10 text-[10px] uppercase">
+            <tr>
+              <th className="p-4">ID</th>
+              <th className="p-4">Workspace Name</th>
+              <th className="p-4">Status</th>
+              <th className="p-4">Plan Tier</th>
+              <th className="p-4">Quota Usage</th>
+              <th className="p-4">Last Activity</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5 text-zinc-300">
+            {items.map(item => (
+              <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                <td className="p-4 font-bold text-indigo-400">{item.id}</td>
+                <td className="p-4 font-sans text-white">{item.name}</td>
+                <td className="p-4">
+                  <span className="px-2 py-0.5 rounded-full border text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">{item.status}</span>
+                </td>
+                <td className="p-4 text-zinc-300">{item.plan}</td>
+                <td className="p-4 text-zinc-400">{item.usage}</td>
+                <td className="p-4 text-zinc-500">{item.lastSeen}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 `;
 }
+
 
 function generateApiClient(bp: Blueprint): string {
   let code = `import axios from 'axios';

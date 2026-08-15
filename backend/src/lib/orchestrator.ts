@@ -378,7 +378,9 @@ export async function generateBlueprintAgentic(
 }
 
 function pmPrompt(idea: string): string {
-  return `You are a Product Manager Agent.
+  return `CRITICAL: Return ONLY raw, valid JSON. Do NOT wrap the JSON in markdown code blocks (\`\`\`json), do NOT add conversational introductions or trailers, and ensure all object keys are double-quoted.
+
+You are a Product Manager Agent.
 Analyze this app idea: "${idea}"
 
 Determine:
@@ -417,7 +419,9 @@ Return ONLY valid JSON. No markdown code fences, no leading/trailing text.`;
 function dbPrompt(features: Blueprint['features'], database: string): string {
   const isMongo = database.toLowerCase().includes('mongo');
   if (isMongo) {
-    return `You are a Database Architect Agent.
+    return `CRITICAL: Return ONLY raw, valid JSON. Do NOT wrap the JSON in markdown code blocks (\`\`\`json), do NOT add conversational introductions or trailers, and ensure all object keys are double-quoted.
+
+You are a Database Architect Agent.
 Review features: ${JSON.stringify(features)}
 The database stack selected is MongoDB. Design 5-6 MongoDB collections. Avoid shortcuts.
 Generate a JSON output matching exactly:
@@ -439,7 +443,9 @@ For "erDiagram", generate a custom, valid Mermaid entity-relationship diagram re
 
 Return ONLY valid JSON. No markdown, no comments.`;
   } else {
-    return `You are a Database Architect Agent.
+    return `CRITICAL: Return ONLY raw, valid JSON. Do NOT wrap the JSON in markdown code blocks (\`\`\`json), do NOT add conversational introductions or trailers, and ensure all object keys are double-quoted.
+
+You are a Database Architect Agent.
 Review features: ${JSON.stringify(features)}
 The database stack selected is ${database}. Design 5-6 relational database tables. Avoid shortcuts.
 Generate a JSON output matching exactly:
@@ -468,7 +474,9 @@ function apiPrompt(
   features: Blueprint['features'],
   schema: Blueprint['schema']
 ): string {
-  return `You are an API Developer Agent.
+  return `CRITICAL: Return ONLY raw, valid JSON. Do NOT wrap the JSON in markdown code blocks (\`\`\`json), do NOT add conversational introductions or trailers, and ensure all object keys are double-quoted.
+
+You are an API Developer Agent.
 App: ${appName}
 Features: ${JSON.stringify(features)}
 Database Tables/Collections: ${schema.map((t) => t.table).join(', ')}
@@ -487,7 +495,9 @@ function uiPrompt(
   features: Blueprint['features'],
   endpoints: Blueprint['endpoints']
 ): string {
-  return `You are a UI/UX Designer Agent.
+  return `CRITICAL: Return ONLY raw, valid JSON. Do NOT wrap the JSON in markdown code blocks (\`\`\`json), do NOT add conversational introductions or trailers, and ensure all object keys are double-quoted.
+
+You are a UI/UX Designer Agent.
 App: ${appName}
 Features: ${JSON.stringify(features)}
 Endpoints: ${JSON.stringify(endpoints.map((e) => e.path))}
@@ -518,7 +528,9 @@ function codePrompt(
   const isMongo = database.toLowerCase().includes('mongo');
   const dbClient = isMongo ? 'Mongoose models' : 'Prisma client or pg library queries';
 
-  return `You are a Developer Agent.
+  return `CRITICAL: Return ONLY raw, valid JSON. Do NOT wrap the JSON in markdown code blocks (\`\`\`json), do NOT add conversational introductions or trailers, and ensure all object keys are double-quoted.
+
+You are a Developer Agent.
 App: ${appName}
 Description: ${description}
 Database selected: ${database} (${dbClient})
@@ -550,3 +562,4 @@ CRITICAL FORMATTING RULES:
 
 Return ONLY valid JSON. No markdown code fences, no explanation text.`;
 }
+

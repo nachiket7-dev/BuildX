@@ -374,9 +374,9 @@ export function LivePreview({
                 sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
               />
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center p-6 text-zinc-500 font-mono text-xs">
-                <Sparkles size={24} className="text-indigo-400/50" />
-                <p>Generating live preview from VFS codebase...</p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center p-6 text-zinc-400 font-mono text-xs bg-[#09090b]">
+                <Loader2 size={24} className="text-indigo-400 animate-spin" />
+                <p className="animate-pulse">Compiling VFS code for Live Preview...</p>
               </div>
             )}
           </div>
