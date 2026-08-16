@@ -423,6 +423,45 @@ function buildSrcDocPayload(
       \`;
     }
   </script>
+
+  <!-- Bidirectional Element-to-Code Selection Inspector -->
+  <script>
+    window.addEventListener('click', function(e) {
+      var target = e.target;
+      if (!target) return;
+      
+      var tagName = (target.tagName || '').toLowerCase();
+      var textContent = '';
+      for (var i = 0; i < target.childNodes.length; i++) {
+        if (target.childNodes[i].nodeType === 3) {
+          var t = target.childNodes[i].textContent.trim();
+          if (t) { textContent = t; break; }
+        }
+      }
+      if (!textContent) {
+        textContent = (target.textContent || '').trim().slice(0, 60);
+      }
+      
+      var className = typeof target.className === 'string' ? target.className : '';
+      var id = target.id || '';
+      var placeholder = target.getAttribute ? (target.getAttribute('placeholder') || '') : '';
+      var ariaLabel = target.getAttribute ? (target.getAttribute('aria-label') || '') : '';
+      var title = target.getAttribute ? (target.getAttribute('title') || '') : '';
+
+      window.parent.postMessage({
+        type: 'buildx:preview-element-click',
+        element: {
+          tagName: tagName,
+          textContent: textContent,
+          className: className,
+          id: id,
+          placeholder: placeholder,
+          ariaLabel: ariaLabel,
+          title: title
+        }
+      }, '*');
+    }, true);
+  </script>
 </body>
 </html>`;
 }
