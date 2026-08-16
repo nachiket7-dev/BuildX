@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { useVFS } from '../context/VFSContext';
 import { AlertCircle, Loader2, Wand2 } from 'lucide-react';
+import { SchemaUISynthesizer } from './preview/SchemaUISynthesizer';
 import type { LayoutParadigm, ProductArchetype, Blueprint } from '../lib/types';
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
@@ -181,30 +182,19 @@ function buildSrcDocPayload(
     // --- Adaptive Shell Wrapper Components ---
 
     function StorefrontTopNavShell({ children, title }) {
-      const [cartCount, setCartCount] = useState(3);
-      const [activeCategory, setActiveCategory] = useState('All');
       const [showAuthModal, setShowAuthModal] = useState(false);
-      const categories = ['All', '🔥 Popular', '🍔 Burgers & Fast', '🥗 Fresh Bowls', '🍣 Asian & Sushi', '🍕 Pizza', '☕ Drinks', '⭐ Top Rated'];
 
       return (
         <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col">
           {/* Top Consumer Navbar */}
           <header className="sticky top-0 z-50 bg-[#0e0e14]/90 backdrop-blur-xl border-b border-white/10 px-4 lg:px-8 py-3">
             <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-              {/* Brand + Context */}
-              <div className="flex items-center gap-4 shrink-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center font-bold text-white shadow-lg shadow-orange-500/20 text-sm">
-                    {title ? title.charAt(0) : 'B'}
-                  </div>
-                  <span className="font-bold text-base tracking-tight text-white">{title || 'Storefront'}</span>
+              {/* Brand */}
+              <div className="flex items-center gap-2.5 shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center font-bold text-white shadow-lg shadow-orange-500/20 text-sm">
+                  {title ? title.charAt(0) : 'A'}
                 </div>
-                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-zinc-300">
-                  <span className="text-orange-400">📍</span>
-                  <span className="font-medium">San Francisco, CA</span>
-                  <span className="text-zinc-500">·</span>
-                  <span className="text-emerald-400 font-mono">25-35 min</span>
-                </div>
+                <span className="font-bold text-base tracking-tight text-white">{title || 'App'}</span>
               </div>
 
               {/* Center Search */}
@@ -213,7 +203,7 @@ function buildSrcDocPayload(
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs">🔍</span>
                   <input
                     type="text"
-                    placeholder="Search dishes, groceries, or essentials..."
+                    placeholder={\`Search \${title || 'App'}...\`}
                     className="w-full bg-zinc-900/80 border border-white/10 rounded-xl pl-8 pr-12 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-orange-500/50"
                   />
                   <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-zinc-500 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">⌘K</span>
@@ -222,38 +212,14 @@ function buildSrcDocPayload(
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 shrink-0">
-                <button className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 transition-all text-xs" title="Favorites">
-                  ❤️
-                </button>
-                <button className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs font-semibold shadow-lg shadow-orange-500/20 transition-all">
-                  <span>🛒 Cart</span>
-                  <span className="bg-black/30 px-1.5 py-0.2 rounded-full text-[11px] font-mono">{cartCount}</span>
-                </button>
                 <button 
                   onClick={() => setShowAuthModal(!showAuthModal)} 
                   className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-xs font-bold border border-white/20 ml-1 cursor-pointer hover:ring-2 hover:ring-orange-500 transition-all"
-                  title="Profile & Account"
+                  title="Account"
                 >
-                  JD
+                  {title ? title.charAt(0) : 'A'}
                 </button>
               </div>
-            </div>
-
-            {/* Horizontal Subcategory Filter Pills */}
-            <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto pt-2.5 pb-0.5 scrollbar-none">
-              {categories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={\`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all \${
-                    activeCategory === cat
-                      ? 'bg-orange-500/20 border border-orange-500/40 text-orange-300 font-semibold'
-                      : 'bg-white/5 border border-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/10'
-                  }\`}
-                >
-                  {cat}
-                </button>
-              ))}
             </div>
           </header>
 
@@ -269,10 +235,10 @@ function buildSrcDocPayload(
                 </button>
                 <div className="text-center mb-6">
                   <div className="w-12 h-12 rounded-xl bg-orange-500/20 border border-orange-500/30 text-orange-400 font-bold text-lg flex items-center justify-center mx-auto mb-3">
-                    {title ? title.charAt(0) : 'B'}
+                    {title ? title.charAt(0) : 'A'}
                   </div>
-                  <h3 className="text-lg font-bold text-white">Sign In to {title || 'Storefront'}</h3>
-                  <p className="text-xs text-zinc-400 mt-1">Access your saved addresses & order history</p>
+                  <h3 className="text-lg font-bold text-white">Sign In to {title || 'App'}</h3>
+                  <p className="text-xs text-zinc-400 mt-1">Sign in to your account</p>
                 </div>
                 <div className="space-y-3">
                   <div>
@@ -294,7 +260,7 @@ function buildSrcDocPayload(
             </div>
           )}
 
-          {/* Main Storefront Canvas Content */}
+          {/* Main Canvas Content */}
           <main className="flex-1 w-full max-w-7xl mx-auto p-4 lg:p-6">
             {children}
           </main>
@@ -738,10 +704,17 @@ export function LivePreview({
                 className="w-full h-full border-none"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
               />
+            ) : blueprint && (blueprint.screens?.length || blueprint.schema?.length) ? (
+              <div className="w-full h-full overflow-auto bg-[#09090b]">
+                <SchemaUISynthesizer
+                  blueprint={blueprint}
+                  activeScreenId={activeScreenId}
+                />
+              </div>
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center p-6 text-zinc-400 font-mono text-xs bg-[#09090b]">
                 <Loader2 size={24} className="text-indigo-400 animate-spin" />
-                <p className="animate-pulse">Compiling VFS code for Live Preview...</p>
+                <p className="animate-pulse">Generating preview...</p>
               </div>
             )}
           </div>
