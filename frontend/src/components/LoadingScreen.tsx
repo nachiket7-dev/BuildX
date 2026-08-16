@@ -65,7 +65,7 @@ export function LoadingScreen() {
         </div>
 
         <h2
-          className="font-display font-extrabold text-2xl text-center mb-2 bg-gradient-to-r from-white via-slate-200 to-emerald-400 bg-clip-text text-transparent"
+          className="font-display font-extrabold text-2xl text-center mb-2 bg-gradient-to-r from-emerald-300 via-teal-200 to-sylven-light bg-clip-text text-transparent"
         >
           Architecting your app...
         </h2>

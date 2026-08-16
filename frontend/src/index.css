@@ -75,7 +75,9 @@
   }
 
   html, body, #root {
-    min-height: 100%;
+    background-color: #0B0C0E !important;
+    color: #F8FAFC;
+    min-height: 100vh;
     margin: 0;
     padding: 0;
   }
@@ -201,9 +203,9 @@
     z-index: 0;
     pointer-events: none;
     background:
-      radial-gradient(ellipse 120% 80% at 50% -20%, rgba(82, 39, 255, 0.35) 0%, transparent 55%),
-      radial-gradient(ellipse 80% 50% at 20% 10%, rgba(124, 255, 103, 0.2) 0%, transparent 50%),
-      radial-gradient(ellipse 70% 45% at 80% 15%, rgba(59, 31, 153, 0.18) 0%, transparent 45%);
+      radial-gradient(ellipse 120% 80% at 50% -20%, rgba(16, 185, 129, 0.15) 0%, transparent 55%),
+      radial-gradient(ellipse 80% 50% at 20% 10%, rgba(52, 211, 153, 0.1) 0%, transparent 50%),
+      radial-gradient(ellipse 70% 45% at 80% 15%, rgba(5, 150, 105, 0.08) 0%, transparent 45%);
   }
 
   .dot-grid-canvas {
@@ -228,8 +230,8 @@
     background: linear-gradient(
       180deg,
       transparent 0%,
-      rgba(82, 39, 255, 0.45) 35%,
-      rgba(59, 31, 153, 0.25) 55%,
+      rgba(16, 185, 129, 0.3) 35%,
+      rgba(5, 150, 105, 0.15) 55%,
       transparent 100%
     );
     transform-origin: top center;
