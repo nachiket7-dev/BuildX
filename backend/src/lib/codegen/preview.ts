@@ -346,7 +346,29 @@ function activate(id,btn){
   if(el)el.style.display='block';
   if(btn){btn.classList.add('active');}
 }
-(function(){var first=document.querySelector('.nav-btn[data-target]');if(first)first.click();})();
+(function(){
+  var landingName = "${escHtml(blueprint.primaryLandingScreenId || '')}".toLowerCase();
+  var targetBtn = null;
+  var allBtns = Array.from(document.querySelectorAll('.nav-btn[data-target]'));
+  
+  if (landingName) {
+    targetBtn = allBtns.find(function(b) {
+      return b.textContent && b.textContent.toLowerCase().includes(landingName);
+    });
+  }
+  if (!targetBtn) {
+    targetBtn = allBtns.find(function(b) {
+      var t = (b.textContent || '').toLowerCase();
+      return !t.includes('login') && !t.includes('auth') && !t.includes('sign') && !t.includes('register') && !t.includes('api');
+    });
+  }
+  if (!targetBtn && allBtns.length > 0) {
+    targetBtn = allBtns[0];
+  }
+  if (targetBtn) {
+    targetBtn.click();
+  }
+})();
 </script>
 </body>
 </html>`;

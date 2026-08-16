@@ -153,6 +153,7 @@ router.post(
       const id = await saveBlueprint(idea, attachModelMeta(blueprint, model), userId, false);
       await recordPremiumUsageIfNeeded(userId, model);
       console.log(`[Blueprint] Success: ${blueprint.appName} (id: ${id})`);
+      console.log('--- GENERATED BLUEPRINT LAYOUT ---', { id, layoutParadigm: blueprint.layoutParadigm, productArchetype: blueprint.productArchetype });
       res.json({ success: true, data: attachModelMeta(blueprint, model), id });
     } catch (err) {
       if ((err as Error).message.includes('Daily limit')) {
@@ -194,6 +195,7 @@ router.post('/generate-stream', requireAuth, blueprintLimiter, async (req: Reque
       const id = await saveBlueprint(idea, attachModelMeta(blueprint, model), userId, false);
       await recordPremiumUsageIfNeeded(userId, model);
       console.log(`[Blueprint:stream] Success: ${blueprint.appName} (id: ${id})`);
+      console.log('--- GENERATED BLUEPRINT LAYOUT ---', { id, layoutParadigm: blueprint.layoutParadigm, productArchetype: blueprint.productArchetype });
       sendSSE(res, 'saved', { id });
       endSSE(res);
     } catch (saveErr) {

@@ -57,6 +57,57 @@ function safeParadigm(p: unknown): Blueprint['layoutParadigm'] {
   return undefined;
 }
 
+export function deriveLayoutParadigm(partial: Record<string, unknown>): Blueprint['layoutParadigm'] {
+  const explicit = safeParadigm(partial.layoutParadigm);
+  if (explicit) return explicit;
+
+  const text = `${partial.appName ?? ''} ${partial.title ?? ''} ${partial.description ?? ''} ${partial.idea ?? ''} ${partial.targetUsers ?? ''}`.toLowerCase();
+
+  if (/(food|delivery|store|e-commerce|ecommerce|shopping|biteswift|foodhub|restaurant|market|grocery|cart|menu|dish|order)/i.test(text)) {
+    return 'TOP_NAV_STOREFRONT';
+  }
+  if (/(mobile|social|fitness|fitpal|workout|feed|chat|photo|pal|media|story|reel|social)/i.test(text)) {
+    return 'MOBILE_EMULATOR_SHELL';
+  }
+  if (/(dev|console|api|infra|terminal|cluster|codepro|devconnect|telemetry|monitor)/i.test(text)) {
+    return 'SPLIT_CONSOLE';
+  }
+  return 'LEFT_SIDEBAR_DASHBOARD';
+}
+
+export function deriveProductArchetype(
+  partial: Record<string, unknown>,
+  layoutParadigm?: Blueprint['layoutParadigm']
+): Blueprint['productArchetype'] {
+  const explicit = safeArchetype(partial.productArchetype);
+  if (explicit) return explicit;
+
+  const paradigm = layoutParadigm || deriveLayoutParadigm(partial);
+  if (paradigm === 'TOP_NAV_STOREFRONT') return 'B2C_STOREFRONT';
+  if (paradigm === 'MOBILE_EMULATOR_SHELL') return 'B2C_MOBILE_FEED';
+  if (paradigm === 'SPLIT_CONSOLE') return 'DEVTOOL_CONSOLE';
+  return 'B2B_SAAS_WORKSPACE';
+}
+
+export function deriveLandingScreenId(
+  partial: Record<string, unknown>,
+  screens: Blueprint['screens']
+): string | undefined {
+  if (typeof partial.primaryLandingScreenId === 'string' && partial.primaryLandingScreenId.trim()) {
+    return partial.primaryLandingScreenId.trim();
+  }
+  const landingKeywords = ['discovery', 'catalog', 'feed', 'pipeline', 'deals', 'dashboard', 'home', 'explore', 'overview', 'console', 'storefront'];
+  const authKeywords = ['login', 'signup', 'register', 'auth', 'onboarding'];
+  for (const kw of landingKeywords) {
+    const found = screens.find(
+      s => s.name.toLowerCase().includes(kw) && !authKeywords.some(a => s.name.toLowerCase().includes(a))
+    );
+    if (found) return found.name;
+  }
+  const firstNonAuth = screens.find(s => !authKeywords.some(a => s.name.toLowerCase().includes(a)));
+  return firstNonAuth?.name || screens[0]?.name;
+}
+
 function unescapeString(str: string): string {
   return str
     .replace(/\\n/g, '\n')
@@ -217,6 +268,18 @@ export function applyBlueprintFallbacks(
     sqlCode = '-- No SQL generated';
   }
 
+  const normalizedScreens: Blueprint['screens'] = Array.isArray(partial.screens)
+    ? (partial.screens as Blueprint['screens']).map((screen) => ({
+        name: String(screen.name ?? 'Screen'),
+        icon: String(screen.icon ?? 'layout'),
+        components: String(screen.components ?? ''),
+      }))
+    : [];
+
+  const layoutParadigm = deriveLayoutParadigm(partial);
+  const productArchetype = deriveProductArchetype(partial, layoutParadigm);
+  const primaryLandingScreenId = deriveLandingScreenId(partial, normalizedScreens);
+
   const blueprint: Blueprint = {
     appName: unescapeString(String(partial.appName ?? 'Untitled App').trim() || 'Untitled App'),
     description: unescapeString(String(partial.description ?? 'No description provided.').trim() || 'No description provided.'),
@@ -235,18 +298,10 @@ export function applyBlueprintFallbacks(
       description: String(ep.description ?? ''),
       ...(ep.auth != null ? { auth: Boolean(ep.auth) } : {}),
     })),
-    screens: Array.isArray(partial.screens)
-      ? (partial.screens as Blueprint['screens']).map((screen) => ({
-          name: String(screen.name ?? 'Screen'),
-          icon: String(screen.icon ?? 'layout'),
-          components: String(screen.components ?? ''),
-        }))
-      : [],
-    ...(safeArchetype(partial.productArchetype) ? { productArchetype: safeArchetype(partial.productArchetype) } : {}),
-    ...(safeParadigm(partial.layoutParadigm) ? { layoutParadigm: safeParadigm(partial.layoutParadigm) } : {}),
-    ...(typeof partial.primaryLandingScreenId === 'string' && partial.primaryLandingScreenId.trim()
-      ? { primaryLandingScreenId: partial.primaryLandingScreenId.trim() }
-      : {}),
+    screens: normalizedScreens,
+    productArchetype,
+    layoutParadigm,
+    primaryLandingScreenId,
     architecture: {
       frontend: String(a.frontend ?? 'React + TypeScript'),
       backend: String(a.backend ?? 'Node.js + Express'),
