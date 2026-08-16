@@ -73,6 +73,21 @@ export interface BlueprintDiagrams {
   apiFlow?: string;
 }
 
+export type ProductArchetype =
+  | 'B2C_STOREFRONT'
+  | 'B2C_MOBILE_FEED'
+  | 'B2B_SAAS_WORKSPACE'
+  | 'DEVTOOL_CONSOLE'
+  | 'TWO_SIDED_MARKETPLACE'
+  | 'CREATOR_PORTAL';
+
+export type LayoutParadigm =
+  | 'TOP_NAV_STOREFRONT'
+  | 'LEFT_SIDEBAR_DASHBOARD'
+  | 'MOBILE_EMULATOR_SHELL'
+  | 'FULLSCREEN_CANVAS'
+  | 'SPLIT_CONSOLE';
+
 export interface Blueprint {
   appName: string;
   description: string;
@@ -82,6 +97,9 @@ export interface Blueprint {
   schema: SchemaTable[];
   endpoints: ApiEndpoint[];
   screens: UiScreen[];
+  productArchetype?: ProductArchetype;
+  layoutParadigm?: LayoutParadigm;
+  primaryLandingScreenId?: string;
   architecture: Architecture;
   code: StarterCode;
   effort: Effort;
@@ -137,6 +155,15 @@ export const BlueprintSchema = z.object({
       components: z.string(),
     })
   ),
+  productArchetype: z.enum([
+    'B2C_STOREFRONT', 'B2C_MOBILE_FEED', 'B2B_SAAS_WORKSPACE',
+    'DEVTOOL_CONSOLE', 'TWO_SIDED_MARKETPLACE', 'CREATOR_PORTAL',
+  ]).optional(),
+  layoutParadigm: z.enum([
+    'TOP_NAV_STOREFRONT', 'LEFT_SIDEBAR_DASHBOARD', 'MOBILE_EMULATOR_SHELL',
+    'FULLSCREEN_CANVAS', 'SPLIT_CONSOLE',
+  ]).optional(),
+  primaryLandingScreenId: z.string().optional(),
   architecture: z.object({
     frontend: z.string(),
     backend: z.string(),

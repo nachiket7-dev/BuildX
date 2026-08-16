@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { fetchBlueprintFilesWithContent, fetchBlueprint, fetchMyBlueprints } from '../lib/api';
+import type { Blueprint } from '../lib/types';
 import { PreviewPanel } from './PreviewPanel';
 import { WorkspaceFileTree } from './WorkspaceFileTree';
 import { useCodeGeneration } from '../hooks/useCodeGeneration';
@@ -55,6 +56,7 @@ export function AgentPage() {
 
   // Active workspace state
   const [appName, setAppName] = useState<string>('');
+  const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [files, setFiles] = useState<VfsFile[]>([]);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [selectedFile, setSelectedFile] = useState<VfsFile | null>(null);
@@ -114,7 +116,10 @@ export function AgentPage() {
       const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
       fetchBlueprint(id)
-        .then(bp => setAppName(bp.appName))
+        .then(bp => {
+          setAppName(bp.appName);
+          setBlueprint(bp);
+        })
         .catch(() => {});
 
       const fetchFilesPromise = fetchBlueprintFilesWithContent(id)
@@ -476,7 +481,14 @@ export function AgentPage() {
 
           {/* Live Preview */}
           <div className={`absolute inset-0 overflow-y-auto p-4 ${activeTab === 'preview' ? '' : 'hidden'}`}>
-            <PreviewPanel blueprintId={id} appName={appName} key={previewKey} />
+            <PreviewPanel
+              blueprintId={id}
+              appName={appName}
+              layoutParadigm={blueprint?.layoutParadigm}
+              productArchetype={blueprint?.productArchetype}
+              primaryLandingScreenId={blueprint?.primaryLandingScreenId}
+              key={previewKey}
+            />
           </div>
         </div>
       </main>

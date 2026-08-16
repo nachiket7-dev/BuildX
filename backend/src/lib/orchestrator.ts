@@ -124,6 +124,9 @@ export async function runAgenticBlueprintPipeline(
   let schema: Blueprint['schema'] = [];
   let endpoints: Blueprint['endpoints'] = [];
   let screens: Blueprint['screens'] = [];
+  let productArchetype: Blueprint['productArchetype'];
+  let layoutParadigm: Blueprint['layoutParadigm'];
+  let primaryLandingScreenId: Blueprint['primaryLandingScreenId'];
   let architecture: Blueprint['architecture'] = {
     frontend: 'React 18 + TS + Tailwind',
     backend: 'Express + Node + TS',
@@ -263,15 +266,33 @@ export async function runAgenticBlueprintPipeline(
     0.3
   );
 
-  const uiData = parseAgentJSON<{ screens?: Blueprint['screens']; apiFlowDiagram?: string }>(uiRaw);
+  const uiData = parseAgentJSON<{
+    screens?: Blueprint['screens'];
+    productArchetype?: Blueprint['productArchetype'];
+    layoutParadigm?: Blueprint['layoutParadigm'];
+    primaryLandingScreenId?: string;
+    apiFlowDiagram?: string;
+  }>(uiRaw);
 
   screens = uiData.screens || [];
+  productArchetype = uiData.productArchetype;
+  layoutParadigm = uiData.layoutParadigm;
+  primaryLandingScreenId = uiData.primaryLandingScreenId;
+
   if (uiData.apiFlowDiagram) {
     diagrams.apiFlow = uiData.apiFlowDiagram;
   }
 
-  notifyAgent('designer', 'completed', `Designed layouts for ${screens.length} layout templates.`, 'INGESTION');
+  notifyAgent(
+    'designer',
+    'completed',
+    `Designed layouts for ${screens.length} layout templates (Archetype: ${productArchetype || 'B2B_SAAS_WORKSPACE'}, Paradigm: ${layoutParadigm || 'LEFT_SIDEBAR_DASHBOARD'}).`,
+    'INGESTION'
+  );
   events.section?.('screens', screens);
+  if (productArchetype) events.section?.('productArchetype', productArchetype);
+  if (layoutParadigm) events.section?.('layoutParadigm', layoutParadigm);
+  if (primaryLandingScreenId) events.section?.('primaryLandingScreenId', primaryLandingScreenId);
   if (diagrams.apiFlow) {
     events.section?.('diagrams', diagrams);
   }
@@ -357,6 +378,9 @@ export async function runAgenticBlueprintPipeline(
     schema,
     endpoints,
     screens,
+    productArchetype,
+    layoutParadigm,
+    primaryLandingScreenId,
     architecture,
     code,
     effort,
@@ -507,6 +531,9 @@ ${UI_GENERATOR_SYSTEM_PROMPT}
 
 Generate a JSON output matching exactly:
 {
+  "productArchetype": "B2C_STOREFRONT" | "B2C_MOBILE_FEED" | "B2B_SAAS_WORKSPACE" | "DEVTOOL_CONSOLE" | "TWO_SIDED_MARKETPLACE" | "CREATOR_PORTAL",
+  "layoutParadigm": "TOP_NAV_STOREFRONT" | "LEFT_SIDEBAR_DASHBOARD" | "MOBILE_EMULATOR_SHELL" | "FULLSCREEN_CANVAS" | "SPLIT_CONSOLE",
+  "primaryLandingScreenId": "Exact screen name representing core app experience (e.g. 'Restaurant Discovery' or 'Deals Pipeline')",
   "screens": [
     { "name": "Dashboard", "icon": "📊", "components": "layout widgets, statistics cards, action buttons" }
   ],
