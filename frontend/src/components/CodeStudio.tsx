@@ -404,14 +404,22 @@ export function CodeStudio({
   }, [toast]);
 
   // ─── Keyboard Shortcuts for Diff Review (⌘Enter / Esc) ─────────────────────
+  const currentPendingDiff =
+    (activeFile && vfs.pendingDiffs[activeFile.path]) ||
+    (pendingDiff && pendingDiff.filePath === activeFile?.path ? pendingDiff : pendingDiff);
+
   const handleAcceptDiff = useCallback(async () => {
-    if (!pendingDiff || !activeFile) return;
-    const targetPath = pendingDiff.filePath || activeFile.path;
-    const targetContent = pendingDiff.modified;
+    const activeDiff = (activeFile && vfs.pendingDiffs[activeFile.path]) || pendingDiff;
+    if (!activeDiff || !activeFile) return;
+    const targetPath = activeDiff.filePath || activeFile.path;
 
     try {
       if (blueprintId) {
-        await vfs.updateFile(blueprintId, targetPath, targetContent);
+        if (vfs.pendingDiffs[targetPath]) {
+          await vfs.acceptDiff(blueprintId, targetPath);
+        } else {
+          await vfs.updateFile(blueprintId, targetPath, activeDiff.modified);
+        }
       }
       triggerPatchFlash();
       setPendingDiff(null);
@@ -420,16 +428,19 @@ export function CodeStudio({
     } catch (err: any) {
       toast(err.message || 'Failed to update file in VFS', 'error');
     }
-  }, [pendingDiff, activeFile, blueprintId, vfs, toast]);
+  }, [vfs, pendingDiff, activeFile, blueprintId, toast]);
 
   const handleRejectDiff = useCallback(() => {
+    if (activeFile && vfs.pendingDiffs[activeFile.path]) {
+      vfs.rejectDiff(activeFile.path);
+    }
     setPendingDiff(null);
     setIsDiffMode(false);
     toast('Proposed AI changes discarded', 'info');
-  }, [toast]);
+  }, [vfs, activeFile, toast]);
 
   useEffect(() => {
-    if (!pendingDiff) return;
+    if (!currentPendingDiff) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
@@ -441,7 +452,7 @@ export function CodeStudio({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pendingDiff, handleAcceptDiff, handleRejectDiff]);
+  }, [currentPendingDiff, handleAcceptDiff, handleRejectDiff]);
 
   // ─── File Open/Close Handlers ──────────────────────────────────────────────
   const handleOpenFile = (path: string) => {
@@ -848,7 +859,7 @@ export function CodeStudio({
           </AnimatePresence>
 
           {/* ─── Diff Mode / AI Review Mode ─── */}
-          {(isDiffMode || pendingDiff !== null) && activeFile ? (
+          {(isDiffMode || currentPendingDiff !== null) && activeFile ? (
             <div className="h-full flex flex-col min-h-0 relative">
               {/* Floating Action Header Bar */}
               <div className="z-20 flex items-center justify-between px-4 py-2 bg-indigo-950/60 backdrop-blur-md border-b border-indigo-500/30 text-indigo-300 text-xs shrink-0 shadow-lg">
@@ -885,11 +896,11 @@ export function CodeStudio({
                   className="h-full rounded-xl overflow-hidden border border-white/10"
                 >
                   <Original
-                    value={pendingDiff ? pendingDiff.original : activeContent}
+                    value={currentPendingDiff ? currentPendingDiff.original : activeContent}
                     extensions={[...languageExts, EditorView.lineWrapping]}
                   />
                   <Modified
-                    value={pendingDiff ? pendingDiff.modified : activeContent}
+                    value={currentPendingDiff ? currentPendingDiff.modified : activeContent}
                     extensions={[...languageExts, EditorView.lineWrapping]}
                   />
                 </CodeMirrorMerge>

@@ -230,11 +230,11 @@ export function AgentPage() {
     scrollToBottom();
   }, [messages, liveThinkingSteps, isThinking, expandedThinking, scrollToBottom]);
 
-  async function handleSend(e: React.FormEvent) {
-    e.preventDefault();
-    if (!prompt.trim() || isThinking || !id || !token) return;
+  async function handleSend(e?: React.FormEvent, overridePrompt?: string) {
+    if (e) e.preventDefault();
+    const userMessage = (overridePrompt ?? prompt).trim();
+    if (!userMessage || isThinking || !id || !token) return;
 
-    const userMessage = prompt.trim();
     setPrompt('');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsThinking(true);
@@ -355,9 +355,18 @@ export function AgentPage() {
     }
   }
 
-  // ─── Bidirectional Element-to-Code Selection Message Listener ──────────────
+  // ─── Bidirectional Element-to-Code Selection & Auto-Fix Message Listener ──
   useEffect(() => {
     const handlePreviewMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'buildx:trigger-autofix' && event.data.error) {
+        const err = event.data.error;
+        const autoFixPrompt = `Fix runtime render error in live preview:\nError: ${err.message}\n${err.stack ? `Stack Trace:\n${err.stack}` : ''}`;
+        setPrompt(autoFixPrompt);
+        handleSend(undefined, autoFixPrompt);
+        toast('Dispatched auto-fix command to Cortex Agent', 'info');
+        return;
+      }
+
       if (event.data?.type === 'buildx:preview-element-click' && event.data.element) {
         const el = event.data.element;
         const view = editorViewRef.current;

@@ -8,13 +8,26 @@ export interface VFSFile {
   language: string;
 }
 
+export interface PendingDiff {
+  original: string;
+  modified: string;
+  filePath?: string;
+  summary?: string;
+}
+
 interface VFSContextType {
   files: Record<string, string>;
+  committedFiles: Record<string, string>;
+  pendingDiffs: Record<string, PendingDiff>;
   fileList: VFSFile[];
   activeFile: VFSFile | null;
   activeFilePath: string | null;
   setActiveFile: (file: VFSFile | string | null) => void;
   updateFile: (blueprintId: string, path: string, content: string) => Promise<void>;
+  stageDiff: (path: string, diff: PendingDiff | string) => void;
+  acceptDiff: (blueprintId: string, path: string) => Promise<void>;
+  rejectDiff: (path: string) => void;
+  clearAllDiffs: () => void;
   initVFS: (blueprintId: string) => Promise<Record<string, string>>;
   loadVFS: (blueprintId: string) => Promise<Record<string, string>>;
   enhanceUi: (blueprintId: string) => Promise<Record<string, string>>;
@@ -28,6 +41,7 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [files, setFiles] = useState<Record<string, string>>({});
+  const [pendingDiffs, setPendingDiffs] = useState<Record<string, PendingDiff>>({});
   const [fileList, setFileList] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [isLoadingVFS, setIsLoadingVFS] = useState<boolean>(false);
@@ -143,6 +157,62 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     []
   );
 
+  const stageDiff = useCallback((path: string, diff: PendingDiff | string) => {
+    const diffObj: PendingDiff = typeof diff === 'string'
+      ? { original: files[path] || '', modified: diff }
+      : diff;
+    setPendingDiffs(prev => ({ ...prev, [path]: diffObj }));
+    setActiveFilePath(path);
+  }, [files]);
+
+  const acceptDiff = useCallback(async (blueprintId: string, path: string): Promise<void> => {
+    const diff = pendingDiffs[path];
+    if (!diff) return;
+
+    try {
+      // Persist to backend database strictly upon acceptance
+      await axios.put(
+        `${BASE_URL}/api/blueprints/${blueprintId}/vfs/file`,
+        { path, content: diff.modified },
+        { headers: getAuthHeaders() }
+      );
+
+      setFiles(prev => ({ ...prev, [path]: diff.modified }));
+      setFileList(prev => {
+        const lang = getLanguageFromPath(path);
+        const idx = prev.findIndex(f => f.path === path);
+        if (idx > -1) {
+          const copy = [...prev];
+          copy[idx] = { path, content: diff.modified, language: lang };
+          return copy;
+        }
+        return [...prev, { path, content: diff.modified, language: lang }];
+      });
+
+      // Clear diff from pending map
+      setPendingDiffs(prev => {
+        const copy = { ...prev };
+        delete copy[path];
+        return copy;
+      });
+    } catch (err) {
+      console.error('[VFSContext] Failed to accept and persist diff', err);
+      throw err;
+    }
+  }, [pendingDiffs]);
+
+  const rejectDiff = useCallback((path: string) => {
+    setPendingDiffs(prev => {
+      const copy = { ...prev };
+      delete copy[path];
+      return copy;
+    });
+  }, []);
+
+  const clearAllDiffs = useCallback(() => {
+    setPendingDiffs({});
+  }, []);
+
   const enhanceUi = useCallback(async (blueprintId: string): Promise<Record<string, string>> => {
     setIsEnhancingUi(true);
     try {
@@ -187,11 +257,17 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <VFSContext.Provider
       value={{
         files,
+        committedFiles: files,
+        pendingDiffs,
         fileList,
         activeFile,
         activeFilePath,
         setActiveFile: handleSetActiveFile,
         updateFile,
+        stageDiff,
+        acceptDiff,
+        rejectDiff,
+        clearAllDiffs,
         initVFS,
         loadVFS,
         enhanceUi,
