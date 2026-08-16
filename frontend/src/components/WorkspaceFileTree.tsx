@@ -97,17 +97,17 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
           <button
             key={filePath}
             onClick={() => onSelectFile(filePath)}
-            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors group ${
+            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors group font-mono text-xs ${
               isSelected
-                ? 'bg-purple-500/20 text-purple-200 font-semibold border border-purple-500/30 shadow-sm'
-                : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                ? 'bg-purple-500/20 text-brand-glow font-semibold border border-purple-500/30 shadow-sm shadow-purple-500/10'
+                : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'
             }`}
           >
             {getFileIcon(filePath)}
             <div className="truncate flex-1 min-w-0">
               <span className="truncate block leading-tight">{fileName}</span>
               {dirPath && (
-                <span className="text-[9px] text-gray-500 block truncate group-hover:text-gray-400">
+                <span className="text-[9px] text-zinc-500 block truncate group-hover:text-zinc-400">
                   {dirPath}
                 </span>
               )}

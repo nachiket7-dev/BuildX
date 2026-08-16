@@ -72,8 +72,8 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <SpotlightCard
-      className={`p-5 mb-4 bg-[#111116] border border-white/[0.08] rounded-xl ${className}`}
-      spotlightColor="rgba(82, 39, 255, 0.10)"
+      className={`p-5 mb-4 bg-brand-surface border border-brand-border rounded-2xl shadow-lg ${className}`}
+      spotlightColor="rgba(168, 85, 247, 0.12)"
     >
       {children}
     </SpotlightCard>

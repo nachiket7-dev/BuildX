@@ -61,16 +61,16 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             initial="hidden"
             animate="show"
             exit="exit"
-            className="relative w-full max-w-md my-auto rounded-3xl border border-white/10 p-6 sm:p-8 bg-[#121216]/95 backdrop-blur-2xl shadow-2xl overflow-hidden text-white"
+            className="relative w-full max-w-md my-auto rounded-3xl border border-brand-border p-6 sm:p-8 bg-brand-surface backdrop-blur-2xl shadow-2xl overflow-hidden text-white font-sans"
           >
             {/* Ambient Background Glows */}
-            <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
 
             {/* Close button */}
             <button
               onClick={onClose}
-              className="absolute top-5 right-5 w-8 h-8 rounded-xl bg-zinc-900 border border-white/10 hover:border-white/20 text-zinc-400 hover:text-white flex items-center justify-center transition-all"
+              className="absolute top-5 right-5 w-8 h-8 rounded-xl bg-brand-surface2 border border-brand-border hover:border-brand-accent/40 text-zinc-400 hover:text-white flex items-center justify-center transition-all"
             >
               <X size={15} />
             </button>
@@ -92,14 +92,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
             {/* Emerald Status Tag Badge */}
             <div className="mb-6 flex justify-center">
-              <span className="inline-flex items-center gap-2 font-mono text-xs text-emerald-400/90 border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="inline-flex items-center gap-2 font-mono text-xs text-brand-green border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-1 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
                 00 / JWT AUTHENTICATION
               </span>
             </div>
 
             {/* Gliding Tab Indicator */}
-            <div className="flex items-center p-1 rounded-xl bg-zinc-950 border border-white/10 mb-6 relative font-mono text-xs" role="tablist">
+            <div className="flex items-center p-1 rounded-xl bg-brand-bg border border-brand-border mb-6 relative font-mono text-xs" role="tablist">
               {(['login', 'signup'] as AuthTab[]).map((t, idx) => {
                 const num = String(idx + 1).padStart(2, '0');
                 const label = t === 'login' ? 'Sign in' : 'Sign up';
@@ -118,7 +118,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     {isActive && (
                       <motion.div
                         layoutId="authModalTabIndicator"
-                        className="absolute inset-0 rounded-lg bg-indigo-600/30 border border-indigo-500/40 shadow-sm"
+                        className="absolute inset-0 rounded-lg bg-purple-600/30 border border-purple-500/40 shadow-sm"
                         transition={{ type: 'spring', stiffness: 400, damping: 35 }}
                       />
                     )}
@@ -169,7 +169,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                           placeholder="Jane Doe"
                           required
                           minLength={2}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-sm text-white placeholder:text-zinc-600 focus:outline-none font-mono transition-all"
+                          className="w-full pl-10 pr-4 py-3 rounded-xl bg-brand-bg border border-brand-border focus:border-brand-accent focus:ring-1 focus:ring-purple-500/30 text-sm text-white placeholder:text-zinc-600 focus:outline-none font-mono transition-all"
                         />
                       </div>
                     </div>
@@ -189,7 +189,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
                     required
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-sm text-white placeholder:text-zinc-600 focus:outline-none font-mono transition-all"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-brand-bg border border-brand-border focus:border-brand-accent focus:ring-1 focus:ring-purple-500/30 text-sm text-white placeholder:text-zinc-600 focus:outline-none font-mono transition-all"
                   />
                 </div>
               </div>
@@ -207,7 +207,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     placeholder="Min 6 characters"
                     required
                     minLength={6}
-                    className="w-full pl-10 pr-12 py-3 rounded-xl bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-sm text-white placeholder:text-zinc-600 focus:outline-none font-mono transition-all"
+                    className="w-full pl-10 pr-12 py-3 rounded-xl bg-brand-bg border border-brand-border focus:border-brand-accent focus:ring-1 focus:ring-purple-500/30 text-sm text-white placeholder:text-zinc-600 focus:outline-none font-mono transition-all"
                   />
                   <button
                     type="button"
@@ -220,13 +220,13 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 </div>
               </div>
 
-              {/* Signature Electric Indigo Primary CTA Button */}
+              {/* Primary CTA Button */}
               <motion.button
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium py-3 rounded-xl text-sm transition-all shadow-lg shadow-indigo-500/25 border border-indigo-400/30 flex items-center justify-center gap-2 mt-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium py-3 rounded-xl text-sm transition-all shadow-lg shadow-purple-500/25 border border-purple-400/30 flex items-center justify-center gap-2 mt-2 disabled:opacity-40 disabled:cursor-not-allowed font-mono"
               >
                 {isLoading ? (
                   <span className="flex items-center justify-center gap-2 font-mono text-xs">
@@ -242,10 +242,10 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               </motion.button>
             </form>
 
-            <div className="my-5 flex items-center justify-center gap-3">
-              <span className="h-px flex-1 bg-white/10" />
-              <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">or</span>
-              <span className="h-px flex-1 bg-white/10" />
+            <div className="my-5 flex items-center justify-center gap-3 font-mono">
+              <span className="h-px flex-1 bg-brand-borderSubtle" />
+              <span className="text-[10px] uppercase tracking-widest text-zinc-500">or</span>
+              <span className="h-px flex-1 bg-brand-borderSubtle" />
             </div>
 
             {/* Secondary GitHub Button */}
@@ -265,7 +265,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 const redirectUri = encodeURIComponent(window.location.origin + '/login/callback');
                 window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=user:email,repo&redirect_uri=${redirectUri}&state=${state}`;
               }}
-              className="w-full bg-zinc-900/90 border border-white/10 hover:border-white/25 text-white rounded-xl py-3 text-sm font-medium transition-all flex items-center justify-center gap-2.5"
+              className="w-full bg-brand-surface2 border border-brand-border hover:border-brand-accent/40 text-white rounded-xl py-3 text-sm font-medium transition-all flex items-center justify-center gap-2.5 font-mono shadow-sm"
             >
               <Github size={16} />
               <span>Continue with GitHub</span>

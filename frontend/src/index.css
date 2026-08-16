@@ -25,51 +25,51 @@
     --ring: 255 72% 60%;
     --radius: 0.75rem;
 
-    /* Obsidian Dark Palette — Studio Dark Token #08080a */
-    --bg: #08080a;
-    --surface: #0c0c0e;
-    --surface2: #121215;
-    --surface3: #18181b;
+    /* BuildX Unified Dark Palette */
+    --bg: #09090D;
+    --surface: #13141F;
+    --surface2: #181926;
+    --surface3: #222338;
 
-    --border-rgba: rgba(255, 255, 255, 0.08);
-    --border2: rgba(255, 255, 255, 0.12);
+    --border-rgba: rgba(255, 255, 255, 0.1);
+    --border2: rgba(255, 255, 255, 0.14);
 
-    --accent-hex: #6366f1;
-    --accent2: #818cf8;
-    --accent3: #10b981;
-    --accent-deep: #4f46e5;
-    --accent-glow: rgba(99, 102, 241, 0.12);
-    --accent-rgb: 99, 102, 241;
+    --accent-hex: #A855F7;
+    --accent2: #C084FC;
+    --accent3: #34D399;
+    --accent-deep: #9333EA;
+    --accent-glow: rgba(168, 85, 247, 0.15);
+    --accent-rgb: 168, 85, 247;
 
-    --green: #10b981;
-    --green-dim: rgba(16, 185, 129, 0.1);
-    --amber: #f59e0b;
+    --green: #34D399;
+    --green-dim: rgba(52, 211, 153, 0.1);
+    --amber: #F59E0B;
     --amber-dim: rgba(245, 158, 11, 0.08);
-    --coral: #ef4444;
+    --coral: #EF4444;
     --coral-dim: rgba(239, 68, 68, 0.08);
-    --blue: #3b82f6;
-    --blue-dim: rgba(59, 130, 246, 0.1);
-    --purple: #a855f7;
+    --blue: #38BDF8;
+    --blue-dim: rgba(56, 189, 248, 0.1);
+    --purple: #A855F7;
     --purple-dim: rgba(168, 85, 247, 0.1);
 
-    --text: #ffffff;
-    --text2: #a1a1aa;
-    --text3: #71717a;
+    --text: #F8FAFC;
+    --text2: #94A3B8;
+    --text3: #64748B;
 
     /* Shell (header + sidebar) */
-    --shell-bg: rgba(9, 9, 11, 0.85);
-    --shell-bg-solid: #0d0b14;
-    --shell-border: rgba(82, 39, 255, 0.12);
-    --shell-border-subtle: rgba(255, 255, 255, 0.06);
-    --shell-inset-glow: rgba(82, 39, 255, 0.08);
+    --shell-bg: rgba(9, 9, 13, 0.85);
+    --shell-bg-solid: #0d0d14;
+    --shell-border: rgba(168, 85, 247, 0.15);
+    --shell-border-subtle: rgba(255, 255, 255, 0.08);
+    --shell-inset-glow: rgba(168, 85, 247, 0.08);
     --nav-active-bg: var(--accent-glow);
-    --nav-active-border: rgba(82, 39, 255, 0.28);
+    --nav-active-border: rgba(168, 85, 247, 0.35);
     --nav-active-text: var(--accent2);
 
     /* Typography */
-    --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
-    --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
-    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --font-sans: 'Inter', 'Geist', 'DM Sans', system-ui, -apple-system, sans-serif;
+    --font-display: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', ui-monospace, monospace;
   }
 
   * {

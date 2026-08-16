@@ -163,38 +163,27 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
   const bp = blueprintData;
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-[#08080c] text-white relative">
+    <div className="w-full h-full flex flex-col overflow-hidden bg-brand-bg text-white relative font-sans">
       <PageHead
         title={`${bp.appName} Architecture — BuildX`}
         description={bp.description}
       />
 
       {/* Top Ambient Radial Lights */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-emerald-500/10 blur-[140px] pointer-events-none rounded-full" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-purple-500/10 blur-[140px] pointer-events-none rounded-full" />
       <div className="absolute top-36 right-10 w-[500px] h-[300px] bg-indigo-600/15 blur-[160px] pointer-events-none rounded-full" />
 
       {/* Lower Split Container: Independent Panel Scrolling */}
       <div className="flex-1 flex min-h-0 w-full overflow-hidden relative z-10">
-        {/* Left Sidebar Navigation Panel */}
-        <aside className="w-64 h-full shrink-0 border-r border-white/10 overflow-y-auto custom-scrollbar bg-[#08080c] p-4 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <span className="font-mono text-xs text-indigo-400 font-semibold">NAVIGATION</span>
-            <span className="text-[10px] font-mono text-zinc-500">ID: {id}</span>
-          </div>
-
-          <Link
-            to="/blueprints"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-900 border border-white/10 text-xs font-mono text-zinc-300 hover:text-white hover:border-white/20 transition-all"
-          >
-            <ArrowLeft size={13} />
-            <span>← Back to Library</span>
-          </Link>
-
-          <div className="space-y-1 pt-2 font-mono text-xs">
-            <div className="text-[10px] text-zinc-500 uppercase font-semibold px-2 mb-1">Sections</div>
+        {/* Left Sidebar Section Navigator */}
+        <aside className="w-64 h-full border-r border-brand-border bg-brand-surface p-4 flex flex-col justify-between shrink-0 font-mono text-xs hidden md:flex">
+          <div className="space-y-1">
+            <div className="text-[11px] font-semibold text-zinc-500 px-3 py-2 uppercase tracking-wider">
+              Sections
+            </div>
             {[
               { id: 'features', label: '01 Features' },
-              { id: 'schema', label: '02 Database DDL' },
+              { id: 'schema', label: '02 Data Schema' },
               { id: 'api', label: '03 API Endpoints' },
               { id: 'ui', label: '04 UI Screens' },
               { id: 'architecture', label: '05 Architecture' },
@@ -204,9 +193,9 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
               <button
                 key={s.id}
                 onClick={() => setActiveTab(s.id as TabId)}
-                className={`w-full text-left px-3 py-2 rounded-lg transition-all ${
+                className={`w-full text-left px-3 py-2 rounded-xl transition-all ${
                   activeTab === s.id
-                    ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 font-semibold'
+                    ? 'bg-purple-600/20 text-brand-glow border border-purple-500/30 font-semibold shadow-sm shadow-purple-500/10'
                     : 'text-zinc-400 hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -216,84 +205,78 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
           </div>
         </aside>
 
-        {/* Right Main Content Workspace Panel */}
-        <main className="flex-1 h-full min-h-0 overflow-y-auto custom-scrollbar p-6 relative space-y-6">
+        <main className="flex-1 h-full min-h-0 overflow-y-auto custom-scrollbar p-6 relative space-y-6 bg-brand-bg">
 
-        {/* Banner Commit Card in Dark Glass (#121216) */}
-        <div className="bg-[#121216] border border-white/10 rounded-2xl p-6 font-mono text-xs relative overflow-hidden shadow-2xl space-y-4">
+        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 font-mono text-xs relative overflow-hidden shadow-2xl space-y-4">
           <div className="absolute right-6 top-6 text-[10px] text-zinc-500 select-none font-bold">
             COMMIT: {id.substring(0, 7)}
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0 text-purple-300 font-bold text-[11px]">
+            <div className="w-6 h-6 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0 text-brand-glow font-bold text-[11px]">
               λ
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-bold text-purple-300 leading-snug">
+              <h1 className="text-base sm:text-lg font-bold text-brand-glow leading-snug">
                 feat({bp.appName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}): initialize project architecture specification
               </h1>
               <div className="text-zinc-400 text-[11px] mt-1">
-                committed by <span className="text-white font-semibold">BuildX Agentic Pipeline</span> via <span className="text-emerald-400 font-semibold">Kimi K2.6 Engine</span>
+                committed by <span className="text-white font-semibold">BuildX Agentic Pipeline</span> via <span className="text-brand-green font-semibold">Cortex Architecture Engine</span>
               </div>
             </div>
           </div>
 
-          <p className="text-zinc-300 leading-relaxed font-sans text-xs pt-2 border-t border-white/10">
+          <p className="text-zinc-300 leading-relaxed font-sans text-xs pt-2 border-t border-brand-borderSubtle">
             {bp.description}
           </p>
 
           <div className="flex flex-wrap items-center gap-2 pt-2 text-[11px]">
-            <span className="flex items-center gap-1.5 bg-zinc-900 border border-white/10 px-3 py-1 rounded-lg text-emerald-400 font-mono font-bold">
+            <span className="flex items-center gap-1.5 bg-brand-bg border border-brand-border px-3 py-1 rounded-lg text-brand-green font-mono font-bold">
               + {bp.schema?.length ?? 0} Tables
             </span>
-            <span className="flex items-center gap-1.5 bg-zinc-900 border border-white/10 px-3 py-1 rounded-lg text-sky-400 font-mono font-bold">
+            <span className="flex items-center gap-1.5 bg-brand-bg border border-brand-border px-3 py-1 rounded-lg text-brand-cyan font-mono font-bold">
               + {bp.endpoints?.length ?? 0} Endpoints
             </span>
-            <span className="flex items-center gap-1.5 bg-zinc-900 border border-white/10 px-3 py-1 rounded-lg text-purple-400 font-mono font-bold">
+            <span className="flex items-center gap-1.5 bg-brand-bg border border-brand-border px-3 py-1 rounded-lg text-brand-glow font-mono font-bold">
               + {bp.screens?.length ?? 0} Screens
             </span>
-            <span className="flex items-center gap-1.5 bg-zinc-900 border border-white/10 px-3 py-1 rounded-lg text-amber-400 font-mono font-bold">
+            <span className="flex items-center gap-1.5 bg-brand-bg border border-brand-border px-3 py-1 rounded-lg text-brand-amber font-mono font-bold">
               # {bp.complexity} Complexity
             </span>
-            <span className="flex items-center gap-1.5 bg-zinc-900 border border-white/10 px-3 py-1 rounded-lg ml-auto text-zinc-300 font-mono text-[11px]">
+            <span className="flex items-center gap-1.5 bg-brand-bg border border-brand-border px-3 py-1 rounded-lg ml-auto text-zinc-300 font-mono text-[11px]">
               Target Audience: <span className="text-white font-semibold">{bp.targetUsers}</span>
             </span>
           </div>
         </div>
 
-        {/* GitHub Sync & ZIP Export Card */}
-        <div className="w-full bg-[#121216]/90 border border-white/10 rounded-2xl p-6 md:p-8 flex flex-col justify-between gap-5 relative overflow-hidden backdrop-blur-xl">
-          {/* Header & Description Block */}
+        <div className="w-full bg-brand-surface border border-brand-border rounded-2xl p-6 md:p-8 flex flex-col justify-between gap-5 relative overflow-hidden backdrop-blur-xl">
           <div>
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 inline-flex items-center justify-center shrink-0 text-indigo-400">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 inline-flex items-center justify-center shrink-0 text-brand-glow">
                 <Github size={16} />
               </div>
               <h3 className="text-base font-bold text-white tracking-tight font-mono">
                 GitHub Sync &amp; ZIP Export
               </h3>
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed max-w-xl mt-2.5">
+            <p className="text-xs text-zinc-400 leading-relaxed max-w-xl mt-2.5 font-sans">
               Push production monorepos directly to GitHub or export a self-contained ZIP archive ready for immediate deployment.
             </p>
           </div>
 
-          {/* Separate Badges Row (isolated with vertical margins) */}
-          <div className="flex flex-wrap items-center gap-2.5 my-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[11px]">
+          <div className="flex flex-wrap items-center gap-2.5 my-3 font-mono">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-brand-green text-[11px]">
               <Check size={11} /> OAuth 2.0
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-mono text-[11px]">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-brand-glow text-[11px]">
               20+ files
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 font-mono text-[11px]">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-brand-cyan text-[11px]">
               JWT secured
             </span>
           </div>
 
-          {/* Action Buttons Row */}
-          <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-white/10 mt-1">
+          <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-brand-borderSubtle mt-1 font-mono">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -306,7 +289,7 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-white font-medium text-xs transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-brand-surface2 hover:bg-brand-surface3 border border-brand-border text-white font-medium text-xs transition-colors"
             >
               <Download size={14} />
               <span>Download ZIP</span>
@@ -314,15 +297,13 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
           </div>
         </div>
 
-        {/* Navigation Tabs — hugs pill width, no full-width background */}
         <div className="flex items-start mb-6 overflow-x-auto custom-scrollbar">
           <TabBar activeTab={activeTab} onChange={setActiveTab} />
         </div>
 
-        {/* Feature Breakdown Cards Panel */}
-        <div className="bg-[#121216] border border-white/10 rounded-2xl p-6 space-y-6 shadow-xl">
-          <div className="flex items-center justify-between pb-4 border-b border-white/10 font-mono text-xs">
-            <span className="text-indigo-400 font-semibold">01 / FEATURE BREAKDOWN</span>
+        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 space-y-6 shadow-xl">
+          <div className="flex items-center justify-between pb-4 border-b border-brand-borderSubtle font-mono text-xs">
+            <span className="text-brand-glow font-semibold">01 / FEATURE BREAKDOWN</span>
             <span className="text-zinc-500 uppercase">{activeTab} VIEW</span>
           </div>
 
@@ -335,10 +316,9 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
           {activeTab === 'diagrams' && <DiagramsPanel blueprint={bp} />}
         </div>
 
-        {/* History Stream & Timeline Feed */}
-        <div className="bg-[#121216] border border-white/10 rounded-2xl p-6 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10 font-mono text-xs">
-            <span className="text-emerald-400 font-semibold">02 / CORTEX TIMELINE FEED</span>
+        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-brand-borderSubtle font-mono text-xs">
+            <span className="text-brand-green font-semibold">02 / CORTEX TIMELINE FEED</span>
             <span className="text-zinc-500">{messages.length} TURNS</span>
           </div>
 
