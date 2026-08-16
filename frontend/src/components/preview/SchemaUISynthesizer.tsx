@@ -133,7 +133,7 @@ function parseComponents(components: string): string[] {
 
 /** Pick an accent color from app name */
 function pickAccent(appName: string): string {
-  const palettes = ['#10b981', '#0ea5e9', '#34d399', '#f59e0b', '#38bdf8', '#14b8a6', '#059669', '#e2e8f0'];
+  const palettes = ['#7c3aed', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6', '#ef4444'];
   const h = hashSeed(appName || 'App');
   return palettes[h % palettes.length];
 }
@@ -251,7 +251,7 @@ function DashboardView({ tables, appName, endpoints }: { tables: SchemaTable[]; 
               <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.03] transition-colors">
                 <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
                   ep.method === 'GET' ? 'bg-emerald-500/15 text-emerald-400' :
-                  ep.method === 'POST' ? 'bg-cyan-500/15 text-cyan-400' :
+                  ep.method === 'POST' ? 'bg-indigo-500/15 text-indigo-400' :
                   ep.method === 'PUT' || ep.method === 'PATCH' ? 'bg-amber-500/15 text-amber-400' :
                   'bg-red-500/15 text-red-400'
                 }`}>
@@ -288,13 +288,13 @@ function ListView({ table, screenName }: { table: SchemaTable; screenName: strin
               placeholder={`Search ${table.table.replace(/_/g, ' ')}...`}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-7 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-sylven/50 w-48 font-mono"
+              className="pl-7 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-indigo-500/50 w-48"
             />
           </div>
           <button className="p-1.5 rounded-lg bg-white/5 border border-white/5 text-zinc-400 hover:text-white transition-colors">
             <Filter size={12} />
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sylven/20 border border-sylven/30 text-sylven-light text-xs font-semibold hover:bg-sylven/30 transition-colors font-mono">
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/30 transition-colors">
             <Plus size={12} />
             <span>Add New</span>
           </button>
@@ -348,7 +348,7 @@ function ListView({ table, screenName }: { table: SchemaTable; screenName: strin
           <span>Showing 1-8 of 24 records</span>
           <div className="flex items-center gap-1">
             <button className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-400 transition-colors">Prev</button>
-            <button className="px-2 py-1 rounded bg-sylven/20 text-sylven-light font-semibold">1</button>
+            <button className="px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 font-semibold">1</button>
             <button className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-400 transition-colors">2</button>
             <button className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-400 transition-colors">3</button>
             <button className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-400 transition-colors">Next</button>
@@ -396,7 +396,7 @@ function FormView({ table, screenName }: { table: SchemaTable; screenName: strin
               <div key={col.name}>
                 <label className="block text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">{label}</label>
                 <div className="relative">
-                  <select className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none appearance-none focus:border-sylven/50">
+                  <select className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none appearance-none focus:border-indigo-500/50">
                     {STATUS_KEYS.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                   <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
@@ -413,7 +413,7 @@ function FormView({ table, screenName }: { table: SchemaTable; screenName: strin
                 <textarea
                   placeholder={`Enter ${label.toLowerCase()}...`}
                   rows={3}
-                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none resize-none focus:border-sylven/50"
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none resize-none focus:border-indigo-500/50"
                 />
               </div>
             );
@@ -434,7 +434,7 @@ function FormView({ table, screenName }: { table: SchemaTable; screenName: strin
               <input
                 type={inputType}
                 placeholder={`Enter ${label.toLowerCase()}...`}
-                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-sylven/50"
+                className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-indigo-500/50"
               />
             </div>
           );
@@ -445,7 +445,7 @@ function FormView({ table, screenName }: { table: SchemaTable; screenName: strin
           <button className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-zinc-400 hover:text-white transition-colors">
             Cancel
           </button>
-          <button className="px-4 py-2 rounded-xl bg-sylven/20 border border-sylven/30 text-xs text-sylven-light font-semibold hover:bg-sylven/30 transition-colors font-mono">
+          <button className="px-4 py-2 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-xs text-indigo-300 font-semibold hover:bg-indigo-500/30 transition-colors">
             Save
           </button>
         </div>
@@ -474,7 +474,7 @@ function DetailView({ table, screenName }: { table: SchemaTable; screenName: str
       {/* Header card */}
       <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-5">
         <div className="flex items-center gap-4 mb-5">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-teal-500/30 border border-emerald-500/20 flex items-center justify-center text-2xl font-bold text-sylven-light">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 border border-indigo-500/20 flex items-center justify-center text-2xl font-bold text-indigo-300">
             {screenName.charAt(0)}
           </div>
           <div>
@@ -526,11 +526,11 @@ function AuthView({ appName, accent }: { appName: string; accent: string }) {
         <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-6 space-y-4">
           <div>
             <label className="block text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">Email</label>
-            <input type="email" placeholder="you@example.com" className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-sylven/50" />
+            <input type="email" placeholder="you@example.com" className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-indigo-500/50" />
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">Password</label>
-            <input type="password" placeholder="••••••••" className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-sylven/50" />
+            <input type="password" placeholder="••••••••" className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-indigo-500/50" />
           </div>
           <button
             className="w-full py-2.5 rounded-xl text-white text-xs font-semibold transition-opacity hover:opacity-90"
@@ -539,7 +539,7 @@ function AuthView({ appName, accent }: { appName: string; accent: string }) {
             Sign In
           </button>
           <p className="text-center text-[10px] text-zinc-500">
-            Don't have an account? <span className="text-sylven-light cursor-pointer hover:underline">Sign up</span>
+            Don't have an account? <span className="text-indigo-400 cursor-pointer hover:underline">Sign up</span>
           </p>
         </div>
       </div>
@@ -594,7 +594,7 @@ function GenericView({ screen, table }: { screen: UiScreen; table: SchemaTable |
               key={i}
               className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 hover:border-white/[0.15] transition-all group cursor-pointer"
             >
-              <div className="w-9 h-9 rounded-xl bg-sylven/15 border border-sylven/20 flex items-center justify-center text-sylven-light mb-3 group-hover:scale-110 transition-transform">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-3 group-hover:scale-110 transition-transform">
                 <span className="text-sm">{screen.icon || '📄'}</span>
               </div>
               <h4 className="text-xs font-semibold text-white mb-1">{item}</h4>

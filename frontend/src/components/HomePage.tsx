@@ -24,7 +24,7 @@ export function HomePage() {
         )}
       </AnimatePresence>
 
-      <div className="min-h-screen flex flex-col relative bg-obsidian-bg text-white overflow-x-hidden">
+      <div className="min-h-screen flex flex-col relative bg-[#08080a] text-white overflow-x-hidden">
         <PageHead
           title="BuildX — AI Full-Stack App Architect"
           description="Turn plain-English app ideas into production-ready monorepos with multi-model AI orchestration."

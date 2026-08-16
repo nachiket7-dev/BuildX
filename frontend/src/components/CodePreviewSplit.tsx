@@ -59,11 +59,11 @@ export function CodePreviewSplit({ codeElement, previewElement }: CodePreviewSpl
       {/* Draggable Divider Handle (Desktop only) */}
       <div
         onMouseDown={startDrag}
-        className={`hidden lg:flex w-2 items-center justify-center cursor-col-resize hover:bg-sylven/30 transition-all select-none z-20 relative self-stretch ${
-          isDragging ? 'bg-sylven' : 'bg-transparent'
+        className={`hidden lg:flex w-2 items-center justify-center cursor-col-resize hover:bg-purple-500/30 transition-all select-none z-20 relative self-stretch ${
+          isDragging ? 'bg-purple-500' : 'bg-transparent'
         }`}
       >
-        <div className="w-1 h-8 rounded-full bg-white/20 hover:bg-sylven/40" />
+        <div className="w-1 h-8 rounded-full bg-white/20 hover:bg-white/40" />
       </div>
 
       {/* Live Preview Sandbox Pane */}

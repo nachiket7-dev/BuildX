@@ -104,7 +104,7 @@ export function LandingPreloader({ onComplete }: LandingPreloaderProps) {
           initial={{ y: 0 }}
           exit={{ y: '-100%' }}
           transition={{ duration: 0.85, ease: [0.87, 0, 0.13, 1] as [number, number, number, number] }}
-          className="fixed inset-0 z-[9999] bg-obsidian-bg text-white flex flex-col justify-between p-8 md:p-16 overflow-hidden pointer-events-none"
+          className="fixed inset-0 z-[9999] bg-[#08080c] text-white flex flex-col justify-between p-8 md:p-16 overflow-hidden pointer-events-none"
         >
           {/* ── Corner Crosshairs (+) ── */}
           <div className="absolute top-4 left-4 text-zinc-600 font-mono text-xs z-20 select-none">+</div>
@@ -124,22 +124,22 @@ export function LandingPreloader({ onComplete }: LandingPreloaderProps) {
 
           {/* ── Ambient Mesh Lighting ── */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[300px] bg-emerald-500/15 blur-[150px] pointer-events-none rounded-full" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-sylven/15 blur-[160px] pointer-events-none rounded-full" />
-          <div className="absolute bottom-0 left-0 w-[400px] h-[300px] bg-teal-500/10 blur-[120px] pointer-events-none rounded-full" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-600/15 blur-[160px] pointer-events-none rounded-full" />
+          <div className="absolute bottom-0 left-0 w-[400px] h-[300px] bg-purple-600/10 blur-[120px] pointer-events-none rounded-full" />
 
           {/* ── Top Header Rail ── */}
           <div className="flex items-center justify-between relative z-10">
-            <span className="font-mono text-[11px] tracking-widest text-norvin-muted uppercase">
+            <span className="font-mono text-[11px] tracking-widest text-zinc-500 uppercase">
               00 / INITIALIZING ENGINE
             </span>
-            <span className="font-mono text-[11px] tracking-widest text-norvin-muted uppercase">
+            <span className="font-mono text-[11px] tracking-widest text-zinc-500 uppercase">
               V2.4
             </span>
           </div>
 
           {/* ── Center Typography Glass Card Container ── */}
           <div className="absolute inset-0 flex items-center justify-center p-4 z-10 pointer-events-none">
-            <div className="bg-obsidian-surface/60 backdrop-blur-md border border-obsidian-border rounded-3xl p-8 md:p-12 shadow-2xl flex flex-col items-center justify-center text-center relative max-w-3xl w-full">
+            <div className="bg-[#121216]/40 backdrop-blur-md border border-white/5 rounded-3xl p-8 md:p-12 shadow-2xl flex flex-col items-center justify-center text-center relative max-w-3xl w-full">
               {/* Letter mask container */}
               <motion.div
                 variants={containerVariants}
@@ -162,7 +162,7 @@ export function LandingPreloader({ onComplete }: LandingPreloaderProps) {
                         lineHeight: 1,
                         background:
                           i === LETTERS.length - 1
-                            ? 'linear-gradient(135deg, #34d399 0%, #10b981 100%)'
+                            ? 'linear-gradient(135deg, #a78bfa 0%, #818cf8 100%)'
                             : 'white',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: i === LETTERS.length - 1 ? 'transparent' : 'white',

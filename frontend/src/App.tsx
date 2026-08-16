@@ -319,7 +319,7 @@ function AppShell() {
   return (
     <VFSProvider>
       <BlueprintSessionProvider>
-        <div className="h-screen w-screen overflow-hidden flex flex-col bg-obsidian-bg text-white relative">
+        <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#08080c] text-white relative">
           <SkipLink />
           <AmbientBackground />
 

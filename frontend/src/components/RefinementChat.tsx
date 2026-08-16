@@ -226,6 +226,7 @@ export function RefinementChat({
     setIsExpanded(true);
     setTimeout(() => inputRef.current?.focus(), 50);
   };
+
   const suggestions = resolveSuggestions(blueprint);
   const conversationTurns = groupConversationTurns(messages);
   const pendingUserMessage = isRefining
@@ -237,8 +238,8 @@ export function RefinementChat({
       variants={commandDockVariants}
       initial="hidden"
       animate="show"
-      className={`refine-chat pointer-events-auto bg-obsidian-surface/95 backdrop-blur-xl border border-obsidian-border rounded-2xl p-3.5 space-y-3 shadow-2xl relative overflow-hidden transition-all duration-200 ${
-        isExpanded ? 'border-sylven/40 ring-1 ring-sylven/20' : 'hover:border-obsidian-border'
+      className={`refine-chat pointer-events-auto bg-[#121216]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3.5 space-y-3 shadow-2xl relative overflow-hidden transition-all duration-200 ${
+        isExpanded ? 'border-indigo-500/30 ring-1 ring-indigo-500/20' : 'hover:border-white/20'
       }`}
     >
       {/* Sandbox Error Interceptor Bar */}
@@ -259,7 +260,7 @@ export function RefinementChat({
                 type="button"
                 onClick={() => triggerAutoFix(sandboxError)}
                 disabled={isAutoFixing || isRefining}
-                className="px-2.5 py-1 rounded bg-sylven hover:bg-sylven-light text-obsidian-bg font-semibold text-[10px] flex items-center gap-1 transition-all"
+                className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[10px] flex items-center gap-1 transition-all"
               >
                 <Wrench size={11} />
                 <span>Auto-Fix with Kimi K2.6</span>
@@ -277,7 +278,7 @@ export function RefinementChat({
       </AnimatePresence>
 
       {/* Dock Bar / Toggle */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/40 border-b border-obsidian-borderSubtle">
+      <div className="flex items-center justify-between px-4 py-3 bg-black/40 border-b border-white/[0.06]">
         <button
           type="button"
           onClick={() => {
@@ -291,7 +292,7 @@ export function RefinementChat({
           aria-expanded={isExpanded}
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-sylven/15 border border-sylven/30 flex items-center justify-center text-sylven-light group-hover:scale-105 transition-transform shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-105 transition-transform shrink-0">
               <Sparkles size={14} />
             </div>
             <span className="font-mono text-xs font-semibold text-neutral-200 group-hover:text-white transition-colors truncate">
@@ -301,7 +302,7 @@ export function RefinementChat({
 
           <div className="flex items-center gap-2 shrink-0">
             {messages.length > 0 && (
-              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-sylven/20 text-sylven-light border border-sylven/30 font-medium">
+              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">
                 {messages.length} message{messages.length !== 1 ? 's' : ''}
               </span>
             )}
@@ -309,7 +310,7 @@ export function RefinementChat({
               <ChevronUp
                 size={15}
                 strokeWidth={2}
-                className={`transition-transform duration-300 ${isExpanded ? 'rotate-180 text-sylven-light' : ''}`}
+                className={`transition-transform duration-300 ${isExpanded ? 'rotate-180 text-indigo-400' : ''}`}
                 aria-hidden
               />
             </div>
@@ -319,8 +320,12 @@ export function RefinementChat({
         {messages.length > 0 && isExpanded && (
           <button
             type="button"
-            onClick={onClear}
-            className="text-[10px] text-zinc-500 hover:text-zinc-300 font-mono transition-colors ml-2 shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear();
+            }}
+            className="ml-3 px-2 py-1 text-[10px] font-mono text-neutral-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors shrink-0"
+            title="Clear chat"
           >
             Clear
           </button>
@@ -340,18 +345,18 @@ export function RefinementChat({
               variants={timelineContainer}
               initial="hidden"
               animate="show"
-              className="timeline-feed border-l border-obsidian-border ml-4 pl-4 space-y-6 font-mono text-xs"
+              className="timeline-feed border-l border-white/10 ml-4 pl-4 space-y-6 font-mono text-xs"
             >
               {conversationTurns.map((turn, turnIndex) => (
                 <div key={turn.user.timestamp || turnIndex} className="space-y-4">
                   {/* User Question Node */}
                   <motion.div variants={timelineNodeSlide} className="timeline-node relative">
-                    <div className="flex items-center gap-2 mb-1.5 text-[10px] text-norvin-muted font-mono">
-                      <span className="text-[10px] text-sylven-light font-semibold">01 / ARCHITECT</span>
+                    <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400">
+                      <span className="font-mono text-[10px] text-indigo-400 font-semibold">01 / ARCHITECT</span>
                       <span className="text-zinc-600">•</span>
                       <span>Request #{turnIndex + 1}</span>
                     </div>
-                    <div className="p-3.5 rounded-xl bg-obsidian-panel border border-obsidian-border text-zinc-100 leading-relaxed font-sans text-xs shadow-sm">
+                    <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/20 text-neutral-200 leading-relaxed font-sans text-xs">
                       {turn.user.content}
                     </div>
                   </motion.div>
@@ -359,32 +364,32 @@ export function RefinementChat({
                   {/* Assistant Answer Node */}
                   {turn.assistant ? (
                     <motion.div variants={timelineNodeSlide} className="timeline-node relative">
-                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-norvin-muted font-mono">
-                        <span className="text-[10px] text-sylven-light font-semibold">02 / PATCH_DIFF</span>
+                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400">
+                        <span className="font-mono text-[10px] text-emerald-400 font-semibold">02 / PATCH_DIFF</span>
                         <span className="text-zinc-600">•</span>
                         <span>BuildX Cortex Multi-Model Stream</span>
                       </div>
-                      <div className="p-3.5 rounded-xl bg-obsidian-surface border border-obsidian-border text-zinc-200 leading-relaxed font-sans text-xs shadow-sm">
+                      <div className="p-3.5 rounded-xl bg-[#111116] border border-white/10 text-neutral-300 leading-relaxed font-sans text-xs">
                         {turn.assistant.content}
                       </div>
                     </motion.div>
                   ) : pendingUserMessage?.timestamp === turn.user.timestamp && isRefining ? (
                     <motion.div variants={timelineNodeSlide} className="timeline-node relative">
-                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-amber-400 font-mono">
-                        <span className="text-[10px] font-semibold">03 / AUTO_FIX</span>
+                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-amber-400">
+                        <span className="font-mono text-[10px] font-semibold">03 / AUTO_FIX</span>
                         <span className="text-zinc-600">•</span>
-                        <span>Cortex Engine Pipeline</span>
+                        <span>Kimi K2.6 Engine Pipeline</span>
                       </div>
-                      <div className="p-3.5 rounded-xl bg-obsidian-panel border border-sylven/30 space-y-2">
-                        <div className="flex items-center gap-2 text-sylven-light font-mono text-xs">
-                          <span className="w-1.5 h-1.5 rounded-full bg-sylven animate-pulse" />
+                      <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
+                        <div className="flex items-center gap-2 text-indigo-300 font-mono text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           <span>Refining blueprint via Multi-Model Pipeline…</span>
                         </div>
-                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-norvin-muted pt-2 border-t border-obsidian-borderSubtle font-mono">
-                          <span className="flex items-center gap-1"><Brain size={10} className="text-sylven-light" /> 01 / ARCHITECT</span>
-                          <span className="text-zinc-600">›</span>
-                          <span className="flex items-center gap-1"><GitCompare size={10} className="text-sylven-light" /> 02 / PATCH_DIFF</span>
-                          <span className="text-zinc-600">›</span>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-indigo-300/80 pt-2 border-t border-indigo-500/20 font-mono">
+                          <span className="flex items-center gap-1"><Brain size={10} className="text-purple-400" /> 01 / ARCHITECT</span>
+                          <span className="text-neutral-600">›</span>
+                          <span className="flex items-center gap-1"><GitCompare size={10} className="text-emerald-400" /> 02 / PATCH_DIFF</span>
+                          <span className="text-neutral-600">›</span>
                           <span className="flex items-center gap-1 text-amber-400 font-semibold"><Wrench size={10} /> 03 / AUTO_FIX</span>
                         </div>
                       </div>
@@ -409,7 +414,7 @@ export function RefinementChat({
                     type="button"
                     onClick={() => handleSuggestion(s)}
                     disabled={isRefining}
-                    className="bg-obsidian-panel hover:bg-obsidian-surface border border-obsidian-border text-norvin-silver hover:text-white font-mono text-[11px] px-3 py-1.5 rounded-lg transition-all shrink-0 cursor-pointer text-left outline-none shadow-sm"
+                    className="bg-white/5 hover:bg-indigo-500/10 border border-white/10 hover:border-indigo-500/30 text-zinc-300 hover:text-indigo-300 font-mono text-[11px] px-2.5 py-1 rounded-md transition-all shrink-0 cursor-pointer text-left border-0 outline-none"
                   >
                     {s}
                   </button>
@@ -422,11 +427,11 @@ export function RefinementChat({
 
       {/* Docked Glass Input Bar */}
       {isExpanded && (
-        <form onSubmit={handleSubmit} className="bg-obsidian-surface border-t border-obsidian-border pt-2.5 sticky bottom-0 z-10 backdrop-blur-xl">
-          <div className="h-10 flex items-center gap-2 font-mono">
-            <div className="text-[10px] font-mono px-2.5 py-1 bg-sylven/10 border border-sylven/20 text-sylven-light rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-sylven animate-pulse" />
-              <span className="hidden sm:inline">Engine:</span> Cortex Multi-Model
+        <form onSubmit={handleSubmit} className="bg-[#08080c]/90 border-t border-white/10 pt-2.5 sticky bottom-0 z-10 backdrop-blur-xl">
+          <div className="h-10 flex items-center gap-2">
+            <div className="text-[10px] font-mono px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="hidden sm:inline">Engine:</span> Kimi K2.6
             </div>
 
             <input
@@ -439,7 +444,7 @@ export function RefinementChat({
                 isRefining ? 'Refining blueprint…' : 'e.g. "Add Stripe payment webhooks with idempotency"'
               }
               maxLength={500}
-              className="bg-obsidian-bg border border-obsidian-border focus:border-sylven text-white font-mono text-xs px-3 py-2 rounded-lg flex-1 h-full focus:outline-none placeholder:text-zinc-500 outline-none transition-all"
+              className="bg-black/60 border border-white/10 focus:border-indigo-500/50 text-white font-mono text-xs px-3 py-2 rounded-lg flex-1 h-full focus:outline-none placeholder:text-zinc-600 outline-none transition-all"
             />
 
             <motion.button
@@ -447,7 +452,7 @@ export function RefinementChat({
               whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={!input.trim() || isRefining}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold px-4 h-full rounded-lg transition-all shrink-0 flex items-center justify-center border border-emerald-400/30 cursor-pointer disabled:opacity-40 gap-1.5 font-mono shadow-md shadow-emerald-500/20"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3.5 h-full rounded-lg transition-all shrink-0 flex items-center justify-center border-0 cursor-pointer disabled:opacity-40 gap-1.5"
               aria-label={isRefining ? 'Refining' : 'Send refinement'}
             >
               {isRefining ? (

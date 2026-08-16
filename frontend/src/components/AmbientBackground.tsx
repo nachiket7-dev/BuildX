@@ -4,20 +4,13 @@ import { useMediaPreferences } from '../hooks/useMediaPreferences';
 const Aurora = lazy(() => import('./Aurora').then((m) => ({ default: m.Aurora })));
 const BlobCursor = lazy(() => import('./BlobCursor').then((m) => ({ default: m.BlobCursor })));
 
-const AURORA_STOPS: [string, string, string] = ['#059669', '#10B981', '#047857'];
+const AURORA_STOPS: [string, string, string] = ['#5227FF', '#7cff67', '#5227FF'];
 
 export function AmbientBackground() {
   const { richEffects, reducedMotion } = useMediaPreferences();
 
   return (
     <div className="ambient-stack" aria-hidden>
-      {/* Top ambient emerald mesh gradient from Commit 887bd41 */}
-      <div
-        className="absolute inset-0 pointer-events-none z-0"
-        style={{
-          background: 'radial-gradient(ellipse at 50% -10%, #063826 0%, #081C14 45%, #050807 90%)',
-        }}
-      />
       <Suspense fallback={<div className="aurora-fallback" />}>
         <Aurora
           colorStops={AURORA_STOPS}

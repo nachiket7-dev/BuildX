@@ -49,24 +49,24 @@ function inferLayoutParadigm(appName?: string, files?: Record<string, string>): 
 
 const buildxSandpackTheme = {
   colors: {
-    surface1: '#13151A',
-    surface2: '#1A1D24',
-    surface3: '#262932',
+    surface1: '#13141F',
+    surface2: '#181926',
+    surface3: '#222338',
     clickable: '#94A3B8',
     base: '#E2E8F0',
     disabled: '#64748B',
     hover: '#FFFFFF',
-    accent: '#10B981',
+    accent: '#A855F7',
     error: '#EF4444',
     errorSurface: 'rgba(239, 68, 68, 0.1)',
   },
   syntax: {
     plain: '#E2E8F0',
-    comment: { color: '#52525B', fontStyle: 'italic' },
-    keyword: '#CBD5E1',
+    comment: { color: '#64748B', fontStyle: 'italic' },
+    keyword: '#EC4899',
     tag: '#38BDF8',
     punctuation: '#94A3B8',
-    definition: '#38BDF8',
+    definition: '#A78BFA',
     property: '#E2E8F0',
     static: '#F59E0B',
     string: '#34D399',
@@ -225,8 +225,8 @@ export default function App() {
               disabled={vfs.isEnhancingUi}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold border transition-all ${
                 vfs.isEnhancingUi
-                  ? 'bg-sylven/10 border-sylven/20 text-sylven-light cursor-not-allowed animate-pulse'
-                  : 'bg-sylven/10 border-sylven/30 text-sylven-light hover:bg-sylven/20 hover:border-sylven/50 hover:text-white shadow-sm shadow-emerald-500/10'
+                  ? 'bg-purple-500/10 border-purple-500/20 text-purple-400 cursor-not-allowed animate-pulse'
+                  : 'bg-purple-500/10 border-purple-500/30 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50 hover:text-white shadow-sm shadow-purple-500/10'
               }`}
               title="Upgrade this blueprint's VFS UI to a high-fidelity dark glassmorphic interface"
             >
@@ -241,15 +241,15 @@ export default function App() {
         </div>
 
         {/* Viewport Switcher */}
-        <div className="flex items-center gap-1 bg-obsidian-panel rounded-xl p-1 border border-obsidian-border">
+        <div className="flex items-center gap-1 bg-[#121216] rounded-xl p-1 border border-white/10">
           {VIEWPORTS.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setSelectedViewport(id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${
                 selectedViewport === id
-                  ? 'bg-sylven/20 text-sylven-light border border-sylven/40 font-semibold'
-                  : 'text-norvin-muted hover:text-white hover:bg-white/5'
+                  ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 font-semibold'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
               }`}
             >
               {label}
@@ -340,8 +340,8 @@ export default function App() {
                 />
               </div>
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center p-6 text-norvin-muted font-mono text-xs bg-obsidian-bg">
-                <Loader2 size={24} className="text-sylven-light animate-spin" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center p-6 text-zinc-400 font-mono text-xs bg-[#09090b]">
+                <Loader2 size={24} className="text-indigo-400 animate-spin" />
                 <p className="animate-pulse">Initializing preview workspace...</p>
               </div>
             )}
