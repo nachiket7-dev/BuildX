@@ -487,6 +487,7 @@ export function AgentPage() {
               layoutParadigm={blueprint?.layoutParadigm}
               productArchetype={blueprint?.productArchetype}
               primaryLandingScreenId={blueprint?.primaryLandingScreenId}
+              blueprint={blueprint}
               key={previewKey}
             />
           </div>
