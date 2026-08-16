@@ -477,6 +477,29 @@ export function LivePreview({
     }
 
     const fileKeys = Object.keys(files);
+    // 1. Standard app root entry points (App.tsx executes the complete AI-generated application)
+    const priorityPaths = [
+      'frontend/src/App.tsx',
+      'src/App.tsx',
+      'App.tsx',
+      'frontend/src/App.jsx',
+      'src/App.jsx',
+      'App.jsx',
+      'frontend/src/components/Dashboard.tsx',
+      'src/components/Dashboard.tsx',
+    ];
+
+    for (const path of priorityPaths) {
+      if (files[path] && files[path].trim().length > 0) {
+        return { path, code: files[path] };
+      }
+    }
+
+    // 2. Currently active selected file in editor if it's TSX/JSX
+    if (activeFilePath && files[activeFilePath] && (activeFilePath.endsWith('.tsx') || activeFilePath.endsWith('.jsx'))) {
+      return { path: activeFilePath, code: files[activeFilePath] };
+    }
+
     let targetLandingId = primaryLandingScreenId || blueprint?.primaryLandingScreenId;
 
     // Auto-infer primary landing screen from blueprint screens/uiScreens if missing on older blueprints
@@ -497,7 +520,7 @@ export function LivePreview({
       }
     }
 
-    // 1. If explicit or inferred targetLandingId is specified, search for matching file
+    // 3. If explicit or inferred targetLandingId is specified, search for matching file
     if (targetLandingId) {
       const cleanTarget = targetLandingId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       const matchedKey = fileKeys.find(key => {
@@ -509,7 +532,7 @@ export function LivePreview({
       }
     }
 
-    // 2. High-priority landing keywords in file paths (excluding Auth/Onboarding)
+    // 4. High-priority landing keywords in file paths (excluding Auth/Onboarding)
     const landingKeywords = ['discovery', 'home', 'explore', 'feed', 'catalog', 'dashboard', 'pipeline', 'deals', 'overview', 'console', 'storefront'];
     const authKeywords = ['login', 'signup', 'sign-up', 'register', 'auth', 'onboarding', 'forgotpassword'];
 
@@ -526,29 +549,6 @@ export function LivePreview({
       if (match) {
         return { path: match, code: files[match] };
       }
-    }
-
-    // 3. Standard app entry points (if not purely auth)
-    const priorityPaths = [
-      'frontend/src/App.tsx',
-      'src/App.tsx',
-      'App.tsx',
-      'frontend/src/App.jsx',
-      'src/App.jsx',
-      'App.jsx',
-      'frontend/src/components/Dashboard.tsx',
-      'src/components/Dashboard.tsx',
-    ];
-
-    for (const path of priorityPaths) {
-      if (files[path] && files[path].trim().length > 0) {
-        return { path, code: files[path] };
-      }
-    }
-
-    // 4. Currently active selected file if it's TSX/JSX
-    if (activeFilePath && files[activeFilePath] && (activeFilePath.endsWith('.tsx') || activeFilePath.endsWith('.jsx'))) {
-      return { path: activeFilePath, code: files[activeFilePath] };
     }
 
     // 5. First non-auth TSX/JSX file found in files map
