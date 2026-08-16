@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
+import CodeMirrorMerge from 'react-codemirror-merge';
+import { javascript } from '@codemirror/lang-javascript';
+import { html } from '@codemirror/lang-html';
+import { css } from '@codemirror/lang-css';
+import { json } from '@codemirror/lang-json';
+import { sql } from '@codemirror/lang-sql';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { EditorView } from '@codemirror/view';
+import { EditorSelection } from '@codemirror/state';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { fetchBlueprintFilesWithContent, fetchBlueprint, fetchMyBlueprints } from '../lib/api';
@@ -26,8 +36,37 @@ import {
   Settings,
   Zap,
   GitCompare,
+  CheckCircle2,
+  XCircle,
   Wrench,
 } from 'lucide-react';
+
+const Original = CodeMirrorMerge.Original;
+const Modified = CodeMirrorMerge.Modified;
+
+function getLanguageExtension(filename: string) {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'tsx':
+      return [javascript({ jsx: true, typescript: true })];
+    case 'ts':
+      return [javascript({ typescript: true })];
+    case 'jsx':
+      return [javascript({ jsx: true })];
+    case 'js':
+      return [javascript()];
+    case 'json':
+      return [json()];
+    case 'html':
+      return [html()];
+    case 'css':
+      return [css()];
+    case 'sql':
+      return [sql()];
+    default:
+      return [javascript({ jsx: true, typescript: true })];
+  }
+}
 
 interface VfsFile {
   path: string;
@@ -61,6 +100,15 @@ export function AgentPage() {
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [selectedFile, setSelectedFile] = useState<VfsFile | null>(null);
   const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor');
+
+  // AI Diff Review State
+  const [pendingDiff, setPendingDiff] = useState<{
+    original: string;
+    modified: string;
+    filePath?: string;
+  } | null>(null);
+  const [patchFlash, setPatchFlash] = useState(false);
+  const editorViewRef = useRef<EditorView | null>(null);
 
   // Agent states
   const [prompt, setPrompt] = useState('');
@@ -307,6 +355,105 @@ export function AgentPage() {
     }
   }
 
+  // ─── Bidirectional Element-to-Code Selection Message Listener ──────────────
+  useEffect(() => {
+    const handlePreviewMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'buildx:preview-element-click' && event.data.element) {
+        const el = event.data.element;
+        const view = editorViewRef.current;
+        if (!view) return;
+
+        const doc = view.state.doc.toString();
+        const candidates = [
+          el.textContent,
+          el.placeholder,
+          el.ariaLabel,
+          el.title,
+          el.id ? `id="${el.id}"` : '',
+          el.id ? `id='${el.id}'` : '',
+          el.id,
+          el.className ? el.className.split(' ').filter((c: string) => c.length > 3)[0] : '',
+        ].filter(Boolean);
+
+        let matchPos = -1;
+        let matchLen = 0;
+
+        for (const cand of candidates) {
+          if (!cand || cand.length < 2) continue;
+          const idx = doc.indexOf(cand);
+          if (idx !== -1) {
+            matchPos = idx;
+            matchLen = cand.length;
+            break;
+          }
+        }
+
+        if (matchPos !== -1) {
+          view.dispatch({
+            selection: EditorSelection.single(matchPos, matchPos + matchLen),
+            scrollIntoView: true,
+          });
+          view.focus();
+          toast(`Inspected element: "${candidates[0]}"`, 'info');
+        }
+      }
+    };
+
+    window.addEventListener('message', handlePreviewMessage);
+    return () => window.removeEventListener('message', handlePreviewMessage);
+  }, [toast]);
+
+  // ─── Diff Accept/Reject Handlers & Shortcuts (⌘Enter / Esc) ────────────────
+  const handleAcceptDiff = useCallback(async () => {
+    if (!pendingDiff || !selectedFile || !id) return;
+    const targetPath = pendingDiff.filePath || selectedFile.path;
+    const targetContent = pendingDiff.modified;
+
+    try {
+      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+      await fetch(`${BASE_URL}/api/blueprints/${id}/vfs/file`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ path: targetPath, content: targetContent }),
+      });
+
+      setFiles((prev) =>
+        prev.map((f) => (f.path === targetPath ? { ...f, content: targetContent } : f))
+      );
+      setSelectedFile((prev) => (prev ? { ...prev, content: targetContent } : null));
+      setPatchFlash(true);
+      setTimeout(() => setPatchFlash(false), 600);
+      setPendingDiff(null);
+      setPreviewKey((k) => k + 1);
+      toast('AI changes accepted and applied to workspace!', 'success');
+    } catch (err: any) {
+      toast(err.message || 'Failed to apply changes', 'error');
+    }
+  }, [pendingDiff, selectedFile, id, token, toast]);
+
+  const handleRejectDiff = useCallback(() => {
+    setPendingDiff(null);
+    toast('Proposed AI changes discarded', 'info');
+  }, [toast]);
+
+  useEffect(() => {
+    if (!pendingDiff) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleAcceptDiff();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleRejectDiff();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingDiff, handleAcceptDiff, handleRejectDiff]);
+
   const visibleFiles = files.filter(f => f.path !== 'preview.html');
 
   // ── Workspace selector ────────────────────────────────────────────────────
@@ -462,17 +609,118 @@ export function AgentPage() {
 
           {/* Code Editor */}
           <div className={`absolute inset-0 flex flex-col overflow-hidden ${activeTab === 'editor' ? '' : 'hidden'}`}>
+            <AnimatePresence>
+              {patchFlash && (
+                <motion.div
+                  key="patch-flash-agent"
+                  initial={{ opacity: 0.6 }}
+                  animate={{ opacity: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.55, ease: 'easeOut' }}
+                  className="absolute inset-0 z-30 pointer-events-none rounded-xl"
+                  style={{
+                    background:
+                      'radial-gradient(ellipse at center, rgba(16,185,129,0.3) 0%, transparent 70%)',
+                  }}
+                />
+              )}
+            </AnimatePresence>
+
             {visibleFiles.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-xs p-6 text-center max-w-sm mx-auto">
                 <Terminal size={24} className="opacity-30 mb-2" />
                 <span>Initialize the VFS workspace files first to edit or view code.</span>
               </div>
+            ) : pendingDiff !== null && selectedFile ? (
+              <div className="h-full flex flex-col min-h-0 relative">
+                {/* Floating Diff Review Action Bar */}
+                <div className="z-20 flex items-center justify-between px-4 py-2 bg-indigo-950/60 backdrop-blur-md border-b border-indigo-500/30 text-indigo-300 text-xs shrink-0 shadow-lg">
+                  <div className="flex items-center gap-2 font-mono">
+                    <GitCompare size={14} className="text-indigo-400 shrink-0" />
+                    <span>
+                      AI Diff Review Mode — <strong className="text-white">{selectedFile.path}</strong>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleAcceptDiff}
+                      className="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-emerald-500/20"
+                      title="Accept Changes (⌘+Enter)"
+                    >
+                      <CheckCircle2 size={13} />
+                      <span>Accept Changes (⌘Enter)</span>
+                    </button>
+                    <button
+                      onClick={handleRejectDiff}
+                      className="px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-red-500/20"
+                      title="Reject (Esc)"
+                    >
+                      <XCircle size={13} />
+                      <span>Reject (Esc)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* CodeMirror Merge Container */}
+                <div className="flex-1 overflow-auto min-h-0 p-2 font-mono text-xs">
+                  <CodeMirrorMerge
+                    theme={oneDark}
+                    className="h-full rounded-xl overflow-hidden border border-white/10"
+                  >
+                    <Original
+                      value={pendingDiff.original}
+                      extensions={[...getLanguageExtension(selectedFile.path), EditorView.lineWrapping]}
+                    />
+                    <Modified
+                      value={pendingDiff.modified}
+                      extensions={[...getLanguageExtension(selectedFile.path), EditorView.lineWrapping]}
+                    />
+                  </CodeMirrorMerge>
+                </div>
+              </div>
             ) : selectedFile ? (
-              <pre className="flex-1 overflow-auto p-4 text-xs font-mono-custom text-gray-300 bg-[#08080a] leading-relaxed whitespace-pre select-text selection:bg-purple-500/20 min-w-0">
-                {selectedFile.content}
-              </pre>
+              <div className="h-full flex-1 min-h-0 overflow-hidden relative">
+                <CodeMirror
+                  value={selectedFile.content}
+                  height="100%"
+                  theme={oneDark}
+                  extensions={[
+                    ...getLanguageExtension(selectedFile.path),
+                    EditorView.lineWrapping,
+                    EditorView.theme({
+                      '&': { height: '100%', backgroundColor: '#08080c' },
+                      '.cm-scroller': { overflow: 'auto', fontFamily: 'monospace' },
+                      '.cm-gutters': {
+                        backgroundColor: '#09090d',
+                        borderRight: '1px solid rgba(255,255,255,0.06)',
+                      },
+                    }),
+                  ]}
+                  onCreateEditor={(view) => {
+                    editorViewRef.current = view;
+                  }}
+                  onChange={(val) => {
+                    setSelectedFile((prev) => (prev ? { ...prev, content: val } : null));
+                    setFiles((prev) =>
+                      prev.map((f) => (f.path === selectedFile.path ? { ...f, content: val } : f))
+                    );
+                    if (id) {
+                      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+                      fetch(`${BASE_URL}/api/blueprints/${id}/vfs/file`, {
+                        method: 'PUT',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({ path: selectedFile.path, content: val }),
+                      }).catch(() => {});
+                    }
+                  }}
+                  className="h-full text-xs font-mono"
+                />
+              </div>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-xs gap-2">
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-xs gap-2 font-mono">
                 <FileCode size={24} className="opacity-30" />
                 <span>Select a file from the left sidebar or Overview.</span>
               </div>
