@@ -151,7 +151,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         {/* Header */}
         <div className="sidebar-panel__header">
           <div className="flex items-center justify-between mb-3">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-neutral-500">
+            <span className="font-mono text-xs uppercase tracking-widest text-neutral-500">
               Your work
             </span>
           </div>
@@ -161,10 +161,10 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
               navigate('/create?new=1');
               if (window.innerWidth < 768) onToggle();
             }}
-            className="sidebar-new-btn btn-shiny w-full"
+            className="sidebar-new-btn btn-shiny w-full font-sans"
           >
             <Plus size={15} strokeWidth={2.5} />
-            <span className="font-mono text-xs font-medium">New Blueprint</span>
+            <span className="font-sans text-xs font-semibold">New Blueprint</span>
           </button>
         </div>
 
@@ -290,7 +290,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
           ) : (
             <button
               onClick={() => navigate('/login')}
-              className="w-full py-2 px-3 rounded-lg border border-purple-500/20 bg-purple-500/10 text-purple-300 text-xs font-medium hover:bg-purple-500/20 hover:text-white transition-colors"
+              className="w-full py-2 px-3 rounded-lg border border-purple-500/20 bg-purple-500/10 text-purple-300 text-xs font-medium font-sans hover:bg-purple-500/20 hover:text-white transition-colors"
             >
               Sign In
             </button>

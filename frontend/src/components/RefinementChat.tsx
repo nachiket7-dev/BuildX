@@ -260,7 +260,7 @@ export function RefinementChat({
                 type="button"
                 onClick={() => triggerAutoFix(sandboxError)}
                 disabled={isAutoFixing || isRefining}
-                className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[10px] flex items-center gap-1 transition-all"
+                className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-sans font-semibold text-xs flex items-center gap-1 transition-all"
               >
                 <Wrench size={11} />
                 <span>Auto-Fix with Kimi K2.6</span>
@@ -302,7 +302,7 @@ export function RefinementChat({
 
           <div className="flex items-center gap-2 shrink-0">
             {messages.length > 0 && (
-              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">
+              <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium tracking-tight">
                 {messages.length} message{messages.length !== 1 ? 's' : ''}
               </span>
             )}
@@ -414,7 +414,7 @@ export function RefinementChat({
                     type="button"
                     onClick={() => handleSuggestion(s)}
                     disabled={isRefining}
-                    className="bg-white/5 hover:bg-indigo-500/10 border border-white/10 hover:border-indigo-500/30 text-zinc-300 hover:text-indigo-300 font-mono text-[11px] px-2.5 py-1 rounded-md transition-all shrink-0 cursor-pointer text-left border-0 outline-none"
+                    className="bg-white/5 hover:bg-indigo-500/10 border border-white/10 hover:border-indigo-500/30 text-zinc-300 hover:text-indigo-300 font-mono text-xs px-2.5 py-1 rounded-md transition-all shrink-0 cursor-pointer text-left border-0 outline-none tracking-tight"
                   >
                     {s}
                   </button>
@@ -429,7 +429,7 @@ export function RefinementChat({
       {isExpanded && (
         <form onSubmit={handleSubmit} className="bg-[#08080c]/90 border-t border-white/10 pt-2.5 sticky bottom-0 z-10 backdrop-blur-xl">
           <div className="h-10 flex items-center gap-2">
-            <div className="text-[10px] font-mono px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full">
+            <div className="text-xs font-mono px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full tracking-tight">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="hidden sm:inline">Engine:</span> Kimi K2.6
             </div>
@@ -452,7 +452,7 @@ export function RefinementChat({
               whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={!input.trim() || isRefining}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3.5 h-full rounded-lg transition-all shrink-0 flex items-center justify-center border-0 cursor-pointer disabled:opacity-40 gap-1.5"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-sans text-xs font-semibold px-3.5 h-full rounded-lg transition-all shrink-0 flex items-center justify-center border-0 cursor-pointer disabled:opacity-40 gap-1.5"
               aria-label={isRefining ? 'Refining' : 'Send refinement'}
             >
               {isRefining ? (

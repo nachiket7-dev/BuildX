@@ -248,16 +248,16 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
               {/* Header Rail */}
               <div className="relative flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.07]">
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+                  <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">
                     00 / DEPLOYMENT CENTER
                   </span>
-                  <h2 className="text-base font-bold text-white tracking-tight">
+                  <h2 className="text-base font-bold text-white tracking-tight font-sans">
                     Choose Deployment Target
                   </h2>
                 </div>
                 <button
                   onClick={handleClose}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-white transition-all"
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-white transition-all font-sans"
                   aria-label="Close modal"
                 >
                   <X size={14} />
@@ -265,7 +265,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
               </div>
 
               {/* Body */}
-              <div className="relative p-6 space-y-3">
+              <div className="relative p-6 space-y-3 font-sans">
 
                 {/* Success state */}
                 <AnimatePresence mode="wait">
@@ -281,8 +281,8 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                         <Check className="text-emerald-400" size={24} />
                       </div>
                       <div>
-                        <p className="text-white font-semibold text-sm">Deployment successful!</p>
-                        <p className="text-zinc-400 text-xs mt-1">
+                        <p className="text-white font-semibold text-sm font-sans">Deployment successful!</p>
+                        <p className="text-zinc-400 text-xs mt-1 font-sans">
                           {selected === 'zip'
                             ? 'Your ZIP archive is downloading...'
                             : 'Your deployment is live and ready.'}
@@ -310,7 +310,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                       )}
                       <button
                         onClick={handleClose}
-                        className="mt-2 px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-300 hover:text-white transition-all font-medium"
+                        className="mt-2 px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-300 hover:text-white transition-all font-medium font-sans"
                       >
                         Done
                       </button>
@@ -318,14 +318,14 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                   ) : (
                     <motion.div key="options" initial={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
                       {deployError && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-400">
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-400 font-mono">
                           <AlertCircle size={15} className="shrink-0 mt-0.5" />
                           <div className="flex-1">
                             <p>{deployError}</p>
                             {requireGithubAuth && (
                               <a
                                 href={`${import.meta.env.VITE_API_URL ?? ''}/api/auth/github`}
-                                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white font-medium text-[11px] transition-colors"
+                                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white font-medium text-xs font-sans transition-colors"
                               >
                                 <LogIn size={13} />
                                 <span>Connect GitHub Account</span>
@@ -351,10 +351,10 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                               {target.icon}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className={`text-sm font-semibold transition-colors ${selected === target.id ? 'text-white' : 'text-zinc-300'}`}>
+                              <p className={`text-sm font-semibold transition-colors font-sans ${selected === target.id ? 'text-white' : 'text-zinc-300'}`}>
                                 {target.label}
                               </p>
-                              <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+                              <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed font-sans">
                                 {target.description}
                               </p>
                             </div>
@@ -386,7 +386,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                     whileTap={{ scale: selected && !isDeploying ? 0.98 : 1 }}
                     onClick={handleDeploy}
                     disabled={!selected || isDeploying}
-                    className={`w-full flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold transition-all border ${
+                    className={`w-full flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold font-sans transition-all border ${
                       selected && !isDeploying
                         ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white border-indigo-400/30 shadow-lg shadow-indigo-500/20'
                         : 'bg-white/[0.04] text-zinc-500 border-white/10 cursor-not-allowed'

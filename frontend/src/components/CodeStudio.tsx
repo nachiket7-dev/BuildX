@@ -740,13 +740,13 @@ export function CodeStudio({
       {/* File Tree Explorer (Left) */}
       <div className="w-full md:w-64 bg-[#09090c] border-b md:border-b-0 md:border-r border-white/10 flex flex-col h-48 md:h-full shrink-0">
         <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2 shrink-0">
-          <span className="font-mono text-[10px] text-zinc-400 font-bold tracking-wider uppercase truncate">
+          <span className="font-mono text-xs text-zinc-400 font-bold tracking-wider uppercase truncate">
             Workspace
           </span>
           <button
             onClick={handleDownloadAll}
             disabled={downloading}
-            className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded hover:bg-purple-500/20 hover:text-purple-300 font-mono flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50 whitespace-nowrap"
+            className="text-xs text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded hover:bg-purple-500/20 hover:text-purple-300 font-mono flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50 whitespace-nowrap tracking-tight"
           >
             {downloading ? (
               <div className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
@@ -797,7 +797,7 @@ export function CodeStudio({
                       setPendingDiff(null);
                     }
                   }}
-                  className={`relative flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-mono font-medium transition-colors z-10 ${
+                  className={`relative flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-medium transition-colors z-10 tracking-tight ${
                     isActive ? 'text-white' : 'text-neutral-500 hover:text-white'
                   }`}
                 >
@@ -820,9 +820,9 @@ export function CodeStudio({
           {/* Active file metadata badge & actions */}
           <div className="flex items-center gap-2 pr-2 ml-auto">
             {activeFile && (
-              <div className="hidden sm:flex items-center gap-2 font-mono text-[11px] text-zinc-400 truncate">
+              <div className="hidden sm:flex items-center gap-2 font-mono text-xs text-zinc-400 truncate tracking-tight">
                 <span className="text-zinc-300 truncate max-w-[200px]">{activeFile.path}</span>
-                <span className="uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px] shrink-0 font-bold">
+                <span className="uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px] shrink-0 font-bold font-mono">
                   {activeFile.language}
                 </span>
               </div>
@@ -830,7 +830,7 @@ export function CodeStudio({
             <div className="w-px h-4 bg-white/10 shrink-0" />
             <button
               onClick={handleCopyCode}
-              className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0"
+              className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium font-sans shrink-0"
               title="Copy file content"
             >
               {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}

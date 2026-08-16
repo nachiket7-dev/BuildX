@@ -307,7 +307,7 @@ CREATE TABLE users (
               </div>
               <button
                 onClick={copyCode}
-                className="px-2 py-0.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.10] border border-white/10 text-[10px] text-neutral-300 flex items-center gap-1 transition-colors font-mono"
+                className="px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.10] border border-white/10 text-xs text-neutral-300 flex items-center gap-1 transition-colors font-mono tracking-tight"
               >
                 {copied ? <Check size={10} className="text-emerald-400" /> : null}
                 {copied ? 'Copied' : 'Copy'}
@@ -319,7 +319,7 @@ CREATE TABLE users (
                 <button
                   key={tab}
                   onClick={() => setActiveFileTab(tab)}
-                  className={`px-2.5 py-1 rounded-md text-[10px] font-mono transition-colors ${
+                  className={`px-2.5 py-1 rounded-md text-xs font-mono transition-colors tracking-tight ${
                     activeFileTab === tab
                       ? 'bg-blue-500/15 text-blue-300 border border-blue-500/25'
                       : 'text-neutral-500 hover:text-neutral-300'
@@ -339,7 +339,7 @@ CREATE TABLE users (
                 transition={{ duration: 0.18 }}
                 className="bg-[#060608] rounded-xl p-3.5 font-mono text-[10.5px] text-neutral-300 overflow-x-auto border border-white/[0.07] shadow-inner flex-1"
               >
-                <pre className="leading-relaxed">{fileContents[activeFileTab]}</pre>
+                <pre className="leading-relaxed font-mono">{fileContents[activeFileTab]}</pre>
               </motion.div>
             </AnimatePresence>
           </SpotlightCard>
@@ -360,7 +360,7 @@ CREATE TABLE users (
                 <div className="text-[10px] text-neutral-500 font-mono mt-0.5">Browser-native runtime</div>
               </div>
             </div>
-            <p className="text-xs text-neutral-400 leading-relaxed">
+            <p className="text-xs text-neutral-400 leading-relaxed font-sans">
               Generated screens rendered live in-browser via Babel transpilation — no local setup required.
             </p>
             <div className="mt-auto">
@@ -390,21 +390,21 @@ CREATE TABLE users (
                 </div>
                 <span className="text-sm font-semibold text-white font-display leading-none">GitHub Sync &amp; ZIP Export</span>
               </div>
-              <p className="text-xs text-neutral-400 max-w-md leading-relaxed">
+              <p className="text-xs text-neutral-400 max-w-md leading-relaxed font-sans">
                 Push production repos directly to GitHub or download a self-contained ZIP archive ready for{' '}
-                <code className="text-indigo-300 bg-indigo-500/10 px-1 rounded text-[10px]">npm install</code>.
+                <code className="text-indigo-300 bg-indigo-500/10 px-1 rounded text-[10px] font-mono">npm install</code>.
               </p>
               <div className="flex items-center gap-2 pt-1">
-                <span className="bento-badge bento-badge--emerald"><Check size={10} /> OAuth 2.0</span>
-                <span className="bento-badge bento-badge--indigo">20+ files</span>
-                <span className="bento-badge bento-badge--amber">JWT secured</span>
+                <span className="bento-badge bento-badge--emerald font-mono text-xs"><Check size={10} /> OAuth 2.0</span>
+                <span className="bento-badge bento-badge--indigo font-mono text-xs">20+ files</span>
+                <span className="bento-badge bento-badge--amber font-mono text-xs">JWT secured</span>
               </div>
             </div>
             <div className="flex items-center gap-3 w-full md:w-auto flex-shrink-0">
               <motion.button
                 whileHover={{ scale: 1.03, y: -1 }}
                 whileTap={{ scale: 0.97 }}
-                className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-white hover:bg-neutral-200 text-black text-xs font-semibold leading-none transition-colors"
+                className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-white hover:bg-neutral-200 text-black text-xs font-semibold font-sans leading-none transition-colors"
               >
                 <Github size={13} className="flex-shrink-0" />
                 <span className="leading-none">Push to GitHub</span>
@@ -412,7 +412,7 @@ CREATE TABLE users (
               <motion.button
                 whileHover={{ scale: 1.03, y: -1 }}
                 whileTap={{ scale: 0.97 }}
-                className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/[0.15] border border-white/10 text-white text-xs font-medium leading-none transition-colors"
+                className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/[0.15] border border-white/10 text-white text-xs font-medium font-sans leading-none transition-colors"
               >
                 <Download size={13} className="flex-shrink-0" />
                 <span className="leading-none">Download ZIP</span>
