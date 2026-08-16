@@ -25,14 +25,14 @@
     --ring: 158 64% 52%;
     --radius: 0.75rem;
 
-    /* Obsidian x Norvin/Sylven Unified Palette */
-    --bg: #0B0C0E;
-    --surface: #13151A;
-    --surface2: #1A1D24;
-    --surface3: #262932;
+    /* Obsidian x Norvin/Sylven Unified Palette from Commit 887bd41 */
+    --bg: #050807;
+    --surface: #090D0B;
+    --surface2: #0C2720;
+    --surface3: #13151A;
 
-    --border-rgba: rgba(255, 255, 255, 0.08);
-    --border2: rgba(255, 255, 255, 0.12);
+    --border-rgba: rgba(16, 185, 129, 0.2);
+    --border2: rgba(16, 185, 129, 0.3);
 
     --accent-hex: #10B981;
     --accent2: #34D399;
@@ -55,9 +55,9 @@
     --text3: #64748B;
 
     /* Shell (header + sidebar) */
-    --shell-bg: rgba(11, 12, 14, 0.85);
-    --shell-bg-solid: #13151A;
-    --shell-border: rgba(255, 255, 255, 0.08);
+    --shell-bg: rgba(9, 32, 23, 0.5);
+    --shell-bg-solid: #090D0B;
+    --shell-border: rgba(16, 185, 129, 0.3);
     --shell-border-subtle: rgba(255, 255, 255, 0.05);
     --shell-inset-glow: rgba(16, 185, 129, 0.06);
     --nav-active-bg: var(--accent-glow);
@@ -75,7 +75,8 @@
   }
 
   html, body, #root {
-    background-color: #0B0C0E !important;
+    background-color: #050807 !important;
+    background-image: radial-gradient(circle at 50% 0%, rgba(6, 78, 54, 0.45) 0%, rgba(5, 8, 7, 0.95) 70%) !important;
     color: #F8FAFC;
     min-height: 100vh;
     margin: 0;

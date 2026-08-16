@@ -11,6 +11,13 @@ export function AmbientBackground() {
 
   return (
     <div className="ambient-stack" aria-hidden>
+      {/* Top ambient emerald mesh gradient from Commit 887bd41 */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{
+          background: 'radial-gradient(ellipse at 50% -10%, #063826 0%, #081C14 45%, #050807 90%)',
+        }}
+      />
       <Suspense fallback={<div className="aurora-fallback" />}>
         <Aurora
           colorStops={AURORA_STOPS}

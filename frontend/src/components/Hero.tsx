@@ -162,11 +162,11 @@ function HeroPipelineWidget() {
       </div>
 
       {/* Live log stream */}
-      <div className="bg-obsidian-bg rounded-2xl border border-obsidian-border p-3.5 min-h-[160px] font-mono text-[10.5px] overflow-hidden relative shadow-inner">
-        <div className="flex items-center gap-2 mb-2.5 border-b border-obsidian-borderSubtle pb-2">
-          <Activity size={11} className="text-sylven-light" />
+      <div className="bg-[#040605] rounded-2xl border border-zinc-800/80 p-3.5 min-h-[160px] font-mono text-[10.5px] overflow-hidden relative shadow-inner">
+        <div className="flex items-center gap-2 mb-2.5 border-b border-zinc-800/60 pb-2">
+          <Activity size={11} className="text-emerald-400" />
           <span className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">SSE Stream</span>
-          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-sylven animate-pulse" />
+          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
         </div>
         <div className="space-y-1.5">
           <AnimatePresence initial={false}>
@@ -194,17 +194,17 @@ function HeroPipelineWidget() {
           )}
         </div>
         {/* Fading bottom gradient */}
-        <div className="absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-obsidian-bg to-transparent pointer-events-none rounded-b-2xl" />
+        <div className="absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-[#040605] to-transparent pointer-events-none rounded-b-2xl" />
       </div>
 
       {/* Footer stats */}
       <div className="grid grid-cols-3 gap-2 pt-1 font-mono">
         {[
-          { v: '24 files', l: 'Generated', c: 'text-sylven-light' },
-          { v: '< 30 sec', l: 'Runtime',   c: 'text-norvin-silver' },
+          { v: '24 files', l: 'Generated', c: 'text-emerald-400' },
+          { v: '< 30 sec', l: 'Runtime',   c: 'text-zinc-200' },
           { v: '4 Models', l: 'Pipeline',  c: 'text-cyan-300' },
         ].map(({ v, l, c }) => (
-          <div key={l} className="text-center p-2 rounded-xl bg-obsidian-surface border border-obsidian-border">
+          <div key={l} className="text-center p-2 rounded-xl bg-[#070A09] border border-zinc-800">
             <div className={`text-xs font-bold ${c}`}>{v}</div>
             <div className="text-[9px] text-zinc-500">{l}</div>
           </div>
@@ -283,16 +283,16 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             {/* Live Stack Selector Pills */}
             <motion.div
               variants={itemVariants}
-              className="p-3 rounded-2xl bg-obsidian-surface border border-obsidian-border space-y-3 max-w-xl backdrop-blur-md"
+              className="p-3 rounded-2xl bg-[#090D0B] border border-emerald-500/20 space-y-3 max-w-xl backdrop-blur-md"
             >
               <div className="flex items-center justify-between text-xs text-norvin-muted font-mono">
                 <span>Select Target Stack Specs</span>
-                <span className="text-sylven-light font-semibold">Customized Monorepo</span>
+                <span className="text-emerald-400 font-semibold">Customized Monorepo</span>
               </div>
               <div className="flex flex-wrap gap-2 text-xs font-mono">
                 {/* Framework Selector */}
-                <div className="flex items-center gap-1 bg-obsidian-bg p-1 rounded-xl border border-obsidian-borderSubtle">
-                  <Server size={12} className="text-sylven-light ml-1.5" />
+                <div className="flex items-center gap-1 bg-[#070A09] p-1 rounded-xl border border-zinc-800">
+                  <Server size={12} className="text-emerald-400 ml-1.5" />
                   {(['next', 'express', 'fastify'] as const).map((fw) => (
                     <motion.button
                       key={fw}
@@ -301,7 +301,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       whileTap={{ scale: 0.93 }}
                       whileHover={{ scale: 1.03 }}
                       className={`px-2.5 py-1 rounded-lg transition-colors ${
-                        framework === fw ? 'bg-sylven/20 text-sylven-light border border-sylven/40 font-semibold' : 'text-norvin-muted hover:text-white'
+                        framework === fw ? 'bg-[#0C2720] border border-cyan-500/40 text-cyan-300 font-mono text-xs font-semibold' : 'bg-[#070A09] border border-transparent text-zinc-400 font-mono text-xs hover:text-white'
                       }`}
                     >
                       {fw === 'next' ? 'Next.js' : fw === 'express' ? 'Express' : 'Fastify'}
@@ -310,8 +310,8 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                 </div>
 
                 {/* DB Selector */}
-                <div className="flex items-center gap-1 bg-obsidian-bg p-1 rounded-xl border border-obsidian-borderSubtle">
-                  <Database size={12} className="text-sylven-light ml-1.5" />
+                <div className="flex items-center gap-1 bg-[#070A09] p-1 rounded-xl border border-zinc-800">
+                  <Database size={12} className="text-emerald-400 ml-1.5" />
                   {(['postgres', 'supabase', 'mongo'] as const).map((d) => (
                     <motion.button
                       key={d}
@@ -320,7 +320,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       whileTap={{ scale: 0.93 }}
                       whileHover={{ scale: 1.03 }}
                       className={`px-2.5 py-1 rounded-lg transition-colors ${
-                        db === d ? 'bg-sylven/20 text-sylven-light border border-sylven/40 font-semibold' : 'text-norvin-muted hover:text-white'
+                        db === d ? 'bg-[#0C2720] border border-cyan-500/40 text-cyan-300 font-mono text-xs font-semibold' : 'bg-[#070A09] border border-transparent text-zinc-400 font-mono text-xs hover:text-white'
                       }`}
                     >
                       {d === 'postgres' ? 'Postgres' : d === 'supabase' ? 'Supabase' : 'MongoDB'}
@@ -329,7 +329,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                 </div>
 
                 {/* Auth Selector */}
-                <div className="flex items-center gap-1 bg-obsidian-bg p-1 rounded-xl border border-obsidian-borderSubtle">
+                <div className="flex items-center gap-1 bg-[#070A09] p-1 rounded-xl border border-zinc-800">
                   <ShieldCheck size={12} className="text-cyan-400 ml-1.5" />
                   {(['jwt', 'clerk', 'nextauth'] as const).map((a) => (
                     <motion.button
@@ -339,7 +339,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       whileTap={{ scale: 0.93 }}
                       whileHover={{ scale: 1.03 }}
                       className={`px-2.5 py-1 rounded-lg transition-colors ${
-                        auth === a ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold' : 'text-norvin-muted hover:text-white'
+                        auth === a ? 'bg-[#0C2720] border border-cyan-500/40 text-cyan-300 font-mono text-xs font-semibold' : 'bg-[#070A09] border border-transparent text-zinc-400 font-mono text-xs hover:text-white'
                       }`}
                     >
                       {a === 'jwt' ? 'JWT' : a === 'clerk' ? 'Clerk' : 'NextAuth'}
@@ -358,15 +358,15 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               <SpotlightCard
                 spotlightColor={isFocused ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)'}
                 className={`p-4 rounded-t-2xl border transition-all duration-300 ${
-                  isFocused ? 'border-sylven/60 shadow-2xl shadow-emerald-500/10 bg-obsidian-surface' : 'border-obsidian-border bg-obsidian-surface'
+                  isFocused ? 'border-emerald-500/50 shadow-2xl shadow-emerald-500/10 bg-[#040605]' : 'border-zinc-800/80 bg-[#040605]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 text-xs text-norvin-muted font-mono">
-                    <Terminal size={14} className="text-sylven" />
+                  <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono">
+                    <Terminal size={14} className="text-emerald-400" />
                     <span>Prompt Command Console</span>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sylven/15 text-sylven-light border border-sylven/25">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#0C2720] text-emerald-300 border border-emerald-500/30">
                     VFS MONOREPO
                   </span>
                 </div>
@@ -388,9 +388,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               </SpotlightCard>
 
               {/* Bottom action bar */}
-              <div className="relative flex items-center justify-between px-4 py-2.5 bg-obsidian-surface border border-obsidian-border border-t border-t-white/5 rounded-b-2xl backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-xs text-norvin-muted font-mono">
-                  <span className={charCount >= MIN_CHARS ? 'text-sylven-light font-semibold' : 'text-zinc-500'}>
+              <div className="relative flex items-center justify-between px-4 py-2.5 bg-[#040605] border border-zinc-800/80 border-t border-t-zinc-800/40 rounded-b-2xl backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono">
+                  <span className={charCount >= MIN_CHARS ? 'text-emerald-400 font-semibold' : 'text-zinc-500'}>
                     {charCount}/{MIN_CHARS}
                   </span>
                   <span className="opacity-60 hidden sm:inline">· <kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px]">⌘</kbd><kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px] ml-0.5">↵</kbd></span>
@@ -398,8 +398,8 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
 
                 <div className="flex items-center gap-3">
                   {/* Pipeline Status Indicator */}
-                  <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-norvin-muted">
-                    <span className="w-1.5 h-1.5 rounded-full bg-sylven animate-pulse" />
+                  <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-zinc-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
                     <span>Autonomous Multi-Model Pipeline</span>
                   </div>
 
@@ -408,11 +408,11 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                     disabled={!canSubmit}
                     whileHover={canSubmit ? { scale: 1.04 } : {}}
                     whileTap={canSubmit ? { scale: 0.96 } : {}}
-                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs flex items-center gap-2 transition-all disabled:opacity-40 shadow-lg shadow-emerald-500/20 border border-emerald-400/30 font-mono"
+                    className="px-5 py-2 rounded-xl bg-[#10B981] hover:bg-[#34D399] text-[#04120C] font-semibold text-xs flex items-center gap-2 transition-all disabled:opacity-40 shadow-lg shadow-emerald-500/25 border border-emerald-400/40 font-mono"
                   >
                     {isLoading ? (
                       <>
-                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span className="w-3.5 h-3.5 border-2 border-[#04120C]/30 border-t-[#04120C] rounded-full animate-spin" />
                         <span>Architecting…</span>
                       </>
                     ) : (
@@ -444,7 +444,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                     variants={itemVariants}
                     whileHover={{ scale: 1.05, y: -1 }}
                     whileTap={{ scale: 0.96 }}
-                    className="px-3 py-1 rounded-full bg-obsidian-surface hover:bg-obsidian-panel border border-obsidian-border text-xs text-norvin-silver font-mono transition-colors shadow-sm"
+                    className="px-3 py-1 rounded-full bg-[#090D0B] hover:bg-[#0C2720] border border-emerald-500/20 text-xs text-zinc-300 font-mono transition-colors shadow-sm"
                   >
                     {label}
                   </motion.button>
@@ -460,16 +460,16 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             initial="hidden"
             animate="show"
           >
-            <SpotlightCard spotlightColor="rgba(16, 185, 129, 0.18)" className="p-5 rounded-3xl border border-obsidian-border bg-obsidian-surface shadow-2xl backdrop-blur-xl">
+            <SpotlightCard spotlightColor="rgba(16, 185, 129, 0.18)" className="p-5 rounded-3xl border border-emerald-500/20 bg-[#090D0B] shadow-2xl backdrop-blur-xl">
               {/* Header */}
-              <div className="flex items-center justify-between mb-5 border-b border-obsidian-borderSubtle pb-3.5">
-                <div className="flex items-center gap-2 font-mono text-xs text-norvin-silver">
-                  <Activity size={14} className="text-sylven" />
+              <div className="flex items-center justify-between mb-5 border-b border-white/[0.06] pb-3.5">
+                <div className="flex items-center gap-2 font-mono text-xs text-zinc-300">
+                  <Activity size={14} className="text-emerald-400" />
                   <span className="font-semibold text-white">Multi-Model Pipeline</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-sylven animate-pulse" />
-                  <span className="text-[10px] font-mono text-sylven-light">SSE Streaming</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+                  <span className="text-[10px] font-mono text-emerald-300">SSE Streaming</span>
                 </div>
               </div>
 
