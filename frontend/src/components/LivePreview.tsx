@@ -415,13 +415,73 @@ function buildSrcDocPayload(
         \`;
       }
     } catch (err) {
+      console.error('[LivePreview Runtime Error]', err);
+      const errMsg = err ? (err.message || String(err)) : 'Unknown render error';
+      const errStack = err && err.stack ? err.stack : '';
+      
+      window.parent.postMessage({
+        type: 'buildx:runtime-error',
+        error: { message: errMsg, stack: errStack }
+      }, '*');
+
       document.getElementById('root').innerHTML = \`
-        <div style="padding: 24px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; margin: 24px; color: #f87171; font-family: monospace; font-size: 12px;">
-          <strong style="display: block; margin-bottom: 8px; font-size: 14px;">Runtime Render Error:</strong>
-          <pre style="white-space: pre-wrap; margin: 0;">\${err.message}</pre>
+        <div style="min-h-screen; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #09090b; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">
+          <div style="max-width: 680px; width: 100%; background: #121218; border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 16px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 10px #ef4444;"></span>
+                <span style="font-size: 13px; font-weight: 700; color: #f87171; text-transform: uppercase; letter-spacing: 0.05em;">Live Preview Runtime Error</span>
+              </div>
+              <button id="autofix-btn" style="padding: 6px 14px; background: linear-gradient(135deg, #7c3aed, #4f46e5); border: 1px solid rgba(167, 139, 250, 0.4); border-radius: 8px; color: #fff; font-size: 11px; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);">
+                <span>⚡ Auto-Fix with Cortex</span>
+              </button>
+            </div>
+            
+            <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 14px; overflow-x: auto;">
+              <div style="color: #fca5a5; font-weight: 600; font-size: 12px; margin-bottom: 8px;">\${errMsg}</div>
+              <pre style="color: #9ca3af; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap;">\${errStack || 'No stack trace available'}</pre>
+            </div>
+          </div>
         </div>
       \`;
+
+      var btn = document.getElementById('autofix-btn');
+      if (btn) {
+        btn.onclick = function() {
+          window.parent.postMessage({
+            type: 'buildx:trigger-autofix',
+            error: { message: errMsg, stack: errStack }
+          }, '*');
+        };
+      }
     }
+  </script>
+
+  <!-- Global Error & Promise Rejection Handlers -->
+  <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+      window.parent.postMessage({
+        type: 'buildx:runtime-error',
+        error: {
+          message: message ? String(message) : 'Runtime Error',
+          stack: error && error.stack ? error.stack : String(message || ''),
+          source: source,
+          lineno: lineno,
+          colno: colno
+        }
+      }, '*');
+    };
+
+    window.onunhandledrejection = function(event) {
+      var reason = event.reason || {};
+      window.parent.postMessage({
+        type: 'buildx:runtime-error',
+        error: {
+          message: reason.message || String(reason) || 'Unhandled Promise Rejection',
+          stack: reason.stack || String(reason)
+        }
+      }, '*');
+    };
   </script>
 
   <!-- Bidirectional Element-to-Code Selection Inspector -->

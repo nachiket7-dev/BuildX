@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import {
   X, Rocket, Github, Archive, ExternalLink, Check,
   Loader2, Globe, Copy, AlertCircle, LogIn,
@@ -9,6 +11,7 @@ import {
   downloadBlueprintZip,
   getBlueprintPreviewUrl,
 } from '../lib/api';
+import { useVFS } from '../context/VFSContext';
 import type { Blueprint } from '../lib/types';
 
 interface DeployModalProps {
@@ -57,7 +60,7 @@ const TARGETS: TargetConfig[] = [
     id: 'zip',
     icon: <Archive size={18} />,
     label: 'Download Monorepo ZIP',
-    description: 'Export complete source code with Docker compose, SQL migrations & CI/CD scripts.',
+    description: 'Export complete source code with zero-config Vite + React workspace.',
     cta: 'Download ZIP',
     accentColor: 'text-purple-400',
     bgColor: 'bg-purple-500/10 hover:bg-purple-500/15',
@@ -66,6 +69,7 @@ const TARGETS: TargetConfig[] = [
 ];
 
 export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }: DeployModalProps) {
+  const vfs = useVFS();
   const [selected, setSelected] = useState<DeployTarget | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploySuccess, setDeploySuccess] = useState(false);
@@ -105,8 +109,79 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
         setDeploymentUrl(result.repoUrl);
         setDeploySuccess(true);
       } else if (selected === 'zip') {
-        await downloadBlueprintZip(blueprintId, blueprint);
-        setDeploySuccess(true);
+        const vfsFiles = vfs.files || {};
+        const vfsEntries = Object.entries(vfsFiles).filter(([p]) => p !== 'preview.html');
+
+        if (vfsEntries.length > 0) {
+          const zip = new JSZip();
+          const cleanAppName = (appName || blueprint?.appName || 'buildx-app')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+
+          // Add all VFS files to the zip
+          for (const [filePath, content] of vfsEntries) {
+            zip.file(filePath, content);
+          }
+
+          // Ensure root package.json exists if not in VFS
+          const hasPackageJson = vfsEntries.some(([p]) => p === 'package.json' || p === 'frontend/package.json');
+          if (!hasPackageJson) {
+            zip.file('package.json', JSON.stringify({
+              name: cleanAppName,
+              private: true,
+              version: '1.0.0',
+              type: 'module',
+              scripts: {
+                dev: 'vite',
+                build: 'tsc && vite build',
+                preview: 'vite preview',
+              },
+              dependencies: {
+                react: '^18.2.0',
+                'react-dom': '^18.2.0',
+                'lucide-react': '^0.294.0',
+                'framer-motion': '^12.43.0',
+                clsx: '^2.1.1',
+                'tailwind-merge': '^3.6.0',
+              },
+              devDependencies: {
+                '@types/react': '^18.2.43',
+                '@types/react-dom': '^18.2.17',
+                '@vitejs/plugin-react': '^4.2.1',
+                autoprefixer: '^10.4.16',
+                postcss: '^8.4.32',
+                tailwindcss: '^3.3.6',
+                typescript: '^5.3.2',
+                vite: '^5.0.0',
+              },
+            }, null, 2));
+          }
+
+          // Ensure vite.config.ts exists
+          const hasViteConfig = vfsEntries.some(([p]) => p === 'vite.config.ts' || p === 'frontend/vite.config.ts');
+          if (!hasViteConfig) {
+            zip.file('vite.config.ts', `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()],\n});\n`);
+          }
+
+          // Ensure index.html exists
+          const hasIndexHtml = vfsEntries.some(([p]) => p === 'index.html' || p === 'frontend/index.html');
+          if (!hasIndexHtml) {
+            zip.file('index.html', `<!DOCTYPE html>\n<html lang="en" class="dark">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <title>${appName || blueprint?.appName || 'App'}</title>\n  </head>\n  <body class="bg-[#09090b] text-zinc-100 min-h-screen">\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`);
+          }
+
+          // Ensure README.md exists
+          if (!vfsFiles['README.md']) {
+            zip.file('README.md', `# ${appName || blueprint?.appName || 'BuildX Application'}\n\nGenerated with BuildX AI Development Platform.\n\n## Getting Started\n\n\`\`\`bash\nnpm install\nnpm run dev\n\`\`\`\n`);
+          }
+
+          const blob = await zip.generateAsync({ type: 'blob' });
+          saveAs(blob, `${cleanAppName}.zip`);
+          setDeploySuccess(true);
+        } else {
+          await downloadBlueprintZip(blueprintId, blueprint);
+          setDeploySuccess(true);
+        }
       }
     } catch (err: any) {
       console.error('[DeployModal] Deploy error:', err);
