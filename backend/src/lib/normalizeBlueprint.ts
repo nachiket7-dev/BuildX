@@ -61,12 +61,12 @@ export function deriveLayoutParadigm(partial: Record<string, unknown>): Blueprin
   const explicit = safeParadigm(partial.layoutParadigm);
   if (explicit) return explicit;
 
-  const text = `${partial.appName ?? ''} ${partial.title ?? ''} ${partial.description ?? ''} ${partial.idea ?? ''} ${partial.targetUsers ?? ''}`.toLowerCase();
+  const text = `${partial.appName ?? ''} ${partial.name ?? ''} ${partial.title ?? ''} ${partial.description ?? ''} ${partial.idea ?? ''} ${partial.targetUsers ?? ''}`.toLowerCase();
 
-  if (/(food|delivery|store|e-commerce|ecommerce|shopping|biteswift|foodhub|restaurant|market|grocery|cart|menu|dish|order)/i.test(text)) {
+  if (/(food|swift|delivery|store|shop|ecom|social|fit|restaurant|market|grocery|cart|menu|dish|order|biteswift|foodhub)/i.test(text)) {
     return 'TOP_NAV_STOREFRONT';
   }
-  if (/(mobile|social|fitness|fitpal|workout|feed|chat|photo|pal|media|story|reel|social)/i.test(text)) {
+  if (/(mobile|app|ios|android|fitness|fitpal|workout|feed|chat|photo|pal|media|story|reel)/i.test(text)) {
     return 'MOBILE_EMULATOR_SHELL';
   }
   if (/(dev|console|api|infra|terminal|cluster|codepro|devconnect|telemetry|monitor)/i.test(text)) {
@@ -96,16 +96,28 @@ export function deriveLandingScreenId(
   if (typeof partial.primaryLandingScreenId === 'string' && partial.primaryLandingScreenId.trim()) {
     return partial.primaryLandingScreenId.trim();
   }
-  const landingKeywords = ['discovery', 'catalog', 'feed', 'pipeline', 'deals', 'dashboard', 'home', 'explore', 'overview', 'console', 'storefront'];
-  const authKeywords = ['login', 'signup', 'register', 'auth', 'onboarding'];
+
+  const allScreens = (screens && screens.length > 0)
+    ? screens
+    : Array.isArray(partial.uiScreens)
+    ? (partial.uiScreens as any[]).map(s => ({
+        name: String(s.name || s.title || s.label || 'Screen'),
+        icon: String(s.icon || 'layout'),
+        components: String(s.components || ''),
+      }))
+    : [];
+
+  const landingKeywords = ['discovery', 'home', 'explore', 'feed', 'catalog', 'dashboard', 'pipeline', 'deals', 'overview', 'console', 'storefront'];
+  const authKeywords = ['login', 'signup', 'sign-up', 'register', 'auth', 'onboarding', 'forgotpassword'];
+
   for (const kw of landingKeywords) {
-    const found = screens.find(
+    const found = allScreens.find(
       s => s.name.toLowerCase().includes(kw) && !authKeywords.some(a => s.name.toLowerCase().includes(a))
     );
     if (found) return found.name;
   }
-  const firstNonAuth = screens.find(s => !authKeywords.some(a => s.name.toLowerCase().includes(a)));
-  return firstNonAuth?.name || screens[0]?.name;
+  const firstNonAuth = allScreens.find(s => !authKeywords.some(a => s.name.toLowerCase().includes(a)));
+  return firstNonAuth?.name || allScreens[0]?.name;
 }
 
 function unescapeString(str: string): string {
@@ -268,20 +280,24 @@ export function applyBlueprintFallbacks(
     sqlCode = '-- No SQL generated';
   }
 
-  const normalizedScreens: Blueprint['screens'] = Array.isArray(partial.screens)
-    ? (partial.screens as Blueprint['screens']).map((screen) => ({
-        name: String(screen.name ?? 'Screen'),
-        icon: String(screen.icon ?? 'layout'),
-        components: String(screen.components ?? ''),
-      }))
+  const rawScreens = Array.isArray(partial.screens)
+    ? partial.screens
+    : Array.isArray(partial.uiScreens)
+    ? partial.uiScreens
     : [];
+
+  const normalizedScreens: Blueprint['screens'] = rawScreens.map((screen: any) => ({
+    name: String(screen.name ?? screen.title ?? screen.label ?? 'Screen'),
+    icon: String(screen.icon ?? 'layout'),
+    components: String(screen.components ?? ''),
+  }));
 
   const layoutParadigm = deriveLayoutParadigm(partial);
   const productArchetype = deriveProductArchetype(partial, layoutParadigm);
   const primaryLandingScreenId = deriveLandingScreenId(partial, normalizedScreens);
 
   const blueprint: Blueprint = {
-    appName: unescapeString(String(partial.appName ?? 'Untitled App').trim() || 'Untitled App'),
+    appName: unescapeString(String(partial.appName ?? partial.name ?? partial.title ?? 'Untitled App').trim() || 'Untitled App'),
     description: unescapeString(String(partial.description ?? 'No description provided.').trim() || 'No description provided.'),
     targetUsers: unescapeString(String(partial.targetUsers ?? 'General users').trim() || 'General users'),
     complexity: safeComplexity(partial.complexity),

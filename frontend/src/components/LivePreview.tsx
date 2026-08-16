@@ -29,10 +29,10 @@ const VIEWPORTS = [
 function inferLayoutParadigm(appName?: string, files?: Record<string, string>): LayoutParadigm {
   const text = `${appName || ''} ${Object.keys(files || {}).join(' ')}`.toLowerCase();
 
-  if (/(food|delivery|restaurant|shop|store|biteswift|foodhub|market|ecom|grocery|cart|menu|dish)/i.test(text)) {
+  if (/(food|swift|delivery|store|shop|ecom|social|fit|restaurant|market|grocery|cart|menu|dish)/i.test(text)) {
     return 'TOP_NAV_STOREFRONT';
   }
-  if (/(social|mobile|fitpal|fitness|feed|chat|workout|media|photo|story|reel|pal)/i.test(text)) {
+  if (/(mobile|app|ios|android|fitness|fitpal|workout|feed|chat|photo|pal|media|story|reel)/i.test(text)) {
     return 'MOBILE_EMULATOR_SHELL';
   }
   if (/(dev|console|api|infra|terminal|cluster|codepro|devconnect|telemetry|monitor|database|query)/i.test(text)) {
@@ -469,9 +469,27 @@ export function LivePreview({
     }
 
     const fileKeys = Object.keys(files);
-    const targetLandingId = primaryLandingScreenId || blueprint?.primaryLandingScreenId;
+    let targetLandingId = primaryLandingScreenId || blueprint?.primaryLandingScreenId;
 
-    // 1. If explicit primaryLandingScreenId is specified, search for matching file
+    // Auto-infer primary landing screen from blueprint screens/uiScreens if missing on older blueprints
+    if (!targetLandingId && blueprint) {
+      const blueprintScreens = ((blueprint as any).screens || (blueprint as any).uiScreens || []) as Array<{ name?: string; title?: string; label?: string }>;
+      const targetKeywords = ['discovery', 'home', 'explore', 'feed', 'catalog', 'dashboard', 'pipeline', 'deals', 'overview', 'console', 'storefront'];
+      const authKeywords = ['login', 'signup', 'sign-up', 'register', 'auth', 'onboarding', 'forgotpassword'];
+
+      for (const kw of targetKeywords) {
+        const found = blueprintScreens.find(s => {
+          const name = (s.name || s.title || s.label || '').toLowerCase();
+          return name.includes(kw) && !authKeywords.some(a => name.includes(a));
+        });
+        if (found) {
+          targetLandingId = found.name || found.title || found.label;
+          break;
+        }
+      }
+    }
+
+    // 1. If explicit or inferred targetLandingId is specified, search for matching file
     if (targetLandingId) {
       const cleanTarget = targetLandingId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       const matchedKey = fileKeys.find(key => {
@@ -483,8 +501,8 @@ export function LivePreview({
       }
     }
 
-    // 2. High-priority landing keywords (excluding Auth/Onboarding)
-    const landingKeywords = ['discovery', 'catalog', 'feed', 'pipeline', 'deals', 'dashboard', 'home', 'explore', 'overview', 'console', 'storefront'];
+    // 2. High-priority landing keywords in file paths (excluding Auth/Onboarding)
+    const landingKeywords = ['discovery', 'home', 'explore', 'feed', 'catalog', 'dashboard', 'pipeline', 'deals', 'overview', 'console', 'storefront'];
     const authKeywords = ['login', 'signup', 'sign-up', 'register', 'auth', 'onboarding', 'forgotpassword'];
 
     const isAuthFile = (path: string) => authKeywords.some(k => path.toLowerCase().includes(k));
