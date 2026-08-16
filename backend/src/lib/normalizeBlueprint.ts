@@ -26,6 +26,37 @@ function safeComplexity(c: unknown): 'Low' | 'Medium' | 'High' {
   return 'Medium';
 }
 
+const VALID_ARCHETYPES = [
+  'B2C_STOREFRONT',
+  'B2C_MOBILE_FEED',
+  'B2B_SAAS_WORKSPACE',
+  'DEVTOOL_CONSOLE',
+  'TWO_SIDED_MARKETPLACE',
+  'CREATOR_PORTAL',
+] as const;
+
+function safeArchetype(a: unknown): Blueprint['productArchetype'] {
+  if (typeof a === 'string' && VALID_ARCHETYPES.includes(a as any)) {
+    return a as Blueprint['productArchetype'];
+  }
+  return undefined;
+}
+
+const VALID_PARADIGMS = [
+  'TOP_NAV_STOREFRONT',
+  'LEFT_SIDEBAR_DASHBOARD',
+  'MOBILE_EMULATOR_SHELL',
+  'FULLSCREEN_CANVAS',
+  'SPLIT_CONSOLE',
+] as const;
+
+function safeParadigm(p: unknown): Blueprint['layoutParadigm'] {
+  if (typeof p === 'string' && VALID_PARADIGMS.includes(p as any)) {
+    return p as Blueprint['layoutParadigm'];
+  }
+  return undefined;
+}
+
 function unescapeString(str: string): string {
   return str
     .replace(/\\n/g, '\n')
@@ -211,6 +242,11 @@ export function applyBlueprintFallbacks(
           components: String(screen.components ?? ''),
         }))
       : [],
+    ...(safeArchetype(partial.productArchetype) ? { productArchetype: safeArchetype(partial.productArchetype) } : {}),
+    ...(safeParadigm(partial.layoutParadigm) ? { layoutParadigm: safeParadigm(partial.layoutParadigm) } : {}),
+    ...(typeof partial.primaryLandingScreenId === 'string' && partial.primaryLandingScreenId.trim()
+      ? { primaryLandingScreenId: partial.primaryLandingScreenId.trim() }
+      : {}),
     architecture: {
       frontend: String(a.frontend ?? 'React + TypeScript'),
       backend: String(a.backend ?? 'Node.js + Express'),

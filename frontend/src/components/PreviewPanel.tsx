@@ -15,6 +15,7 @@ import { useModel } from '../hooks/useModel';
 import { useToast } from '../hooks/useToast';
 import { useVFS } from '../context/VFSContext';
 import { LivePreview } from './LivePreview';
+import type { LayoutParadigm, ProductArchetype } from '../lib/types';
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
 type PreviewSource = 'deterministic' | 'ai' | 'framework' | null;
@@ -36,9 +37,18 @@ const VIEWPORTS: ViewportConfig[] = [
 interface PreviewPanelProps {
   blueprintId: string;
   appName?: string;
+  layoutParadigm?: LayoutParadigm;
+  productArchetype?: ProductArchetype;
+  primaryLandingScreenId?: string;
 }
 
-export function PreviewPanel({ blueprintId, appName }: PreviewPanelProps) {
+export function PreviewPanel({
+  blueprintId,
+  appName,
+  layoutParadigm,
+  productArchetype,
+  primaryLandingScreenId,
+}: PreviewPanelProps) {
   const [viewport, setViewport] = useState<Viewport>('desktop');
   const [isLoading, setIsLoading] = useState(true);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -62,6 +72,9 @@ export function PreviewPanel({ blueprintId, appName }: PreviewPanelProps) {
         viewport={viewport}
         files={vfs.files}
         activeFilePath={vfs.activeFilePath}
+        layoutParadigm={layoutParadigm}
+        productArchetype={productArchetype}
+        primaryLandingScreenId={primaryLandingScreenId}
       />
     );
   }
