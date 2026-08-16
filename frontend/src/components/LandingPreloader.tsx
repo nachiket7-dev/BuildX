@@ -104,7 +104,7 @@ export function LandingPreloader({ onComplete }: LandingPreloaderProps) {
           initial={{ y: 0 }}
           exit={{ y: '-100%' }}
           transition={{ duration: 0.85, ease: [0.87, 0, 0.13, 1] as [number, number, number, number] }}
-          className="fixed inset-0 z-[9999] bg-[#08080c] text-white flex flex-col justify-between p-8 md:p-16 overflow-hidden pointer-events-none"
+          className="fixed inset-0 z-[9999] bg-obsidian-bg text-white flex flex-col justify-between p-8 md:p-16 overflow-hidden pointer-events-none"
         >
           {/* ── Corner Crosshairs (+) ── */}
           <div className="absolute top-4 left-4 text-zinc-600 font-mono text-xs z-20 select-none">+</div>

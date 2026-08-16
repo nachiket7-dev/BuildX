@@ -57,7 +57,7 @@ export function GalleryPage() {
   }, [items, searchQuery, complexityFilter]);
 
   return (
-    <div className="min-h-screen bg-[#08080a] text-white">
+    <div className="min-h-screen bg-obsidian-bg text-white">
       <PageHead
         title={isPersonal ? 'My Blueprints — BuildX' : 'Architecture Library — BuildX'}
         description={

@@ -133,7 +133,7 @@ function parseComponents(components: string): string[] {
 
 /** Pick an accent color from app name */
 function pickAccent(appName: string): string {
-  const palettes = ['#7c3aed', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6', '#ef4444'];
+  const palettes = ['#10b981', '#0ea5e9', '#34d399', '#f59e0b', '#38bdf8', '#14b8a6', '#059669', '#e2e8f0'];
   const h = hashSeed(appName || 'App');
   return palettes[h % palettes.length];
 }

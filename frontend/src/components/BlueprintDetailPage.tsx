@@ -138,7 +138,7 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
 
   if (fetchError || !blueprintData) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-[#08080c] text-white p-6">
+      <div className="w-full h-full flex flex-col items-center justify-center bg-obsidian-bg text-white p-6">
         <PageHead title="Blueprint Not Found — BuildX" description="The requested blueprint could not be found." />
         <div className="max-w-md w-full p-8 rounded-2xl bg-zinc-900/80 border border-white/10 text-center space-y-4 shadow-2xl backdrop-blur-xl">
           <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto text-red-400 font-mono text-lg font-bold">
