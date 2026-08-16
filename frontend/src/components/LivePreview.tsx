@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { useVFS } from '../context/VFSContext';
 import { AlertCircle, Loader2, Wand2 } from 'lucide-react';
-import type { LayoutParadigm, ProductArchetype } from '../lib/types';
+import type { LayoutParadigm, ProductArchetype, Blueprint } from '../lib/types';
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
 
@@ -14,6 +14,7 @@ interface LivePreviewProps {
   layoutParadigm?: LayoutParadigm;
   productArchetype?: ProductArchetype;
   primaryLandingScreenId?: string;
+  blueprint?: Partial<Blueprint> | null;
 }
 
 const VIEWPORTS = [
@@ -425,17 +426,22 @@ export function LivePreview({
   appName,
   viewport: initialViewport = 'desktop',
   layoutParadigm: propLayoutParadigm,
-  productArchetype: _propProductArchetype,
+  productArchetype: propProductArchetype,
   primaryLandingScreenId,
+  blueprint,
 }: LivePreviewProps) {
   const vfs = useVFS();
   const files = propFiles || vfs.files || {};
   const activeFilePath = propActiveFilePath || vfs.activeFilePath;
 
-  // Resolve layout paradigm (explicit prop or inferred)
+  // Resolve layout paradigm (explicit prop, blueprint property, or inferred)
   const layoutParadigm = useMemo(() => {
-    return propLayoutParadigm || inferLayoutParadigm(appName, files);
-  }, [propLayoutParadigm, appName, files]);
+    return (
+      propLayoutParadigm ||
+      blueprint?.layoutParadigm ||
+      inferLayoutParadigm(appName || blueprint?.appName || blueprint?.title, files)
+    );
+  }, [propLayoutParadigm, blueprint, appName, files]);
 
   const [selectedViewport, setSelectedViewport] = useState<Viewport>(() => {
     if (layoutParadigm === 'MOBILE_EMULATOR_SHELL') return 'mobile';
@@ -457,22 +463,23 @@ export function LivePreview({
   }, [blueprintId, vfs]);
 
   // Determine active primary source code from VFS file map using Intelligent Screen Router
-  const activeSourceCode = useMemo(() => {
+  const activeScreenInfo = useMemo(() => {
     if (!files || Object.keys(files).length === 0) {
-      return '';
+      return { path: '', code: '' };
     }
 
     const fileKeys = Object.keys(files);
+    const targetLandingId = primaryLandingScreenId || blueprint?.primaryLandingScreenId;
 
     // 1. If explicit primaryLandingScreenId is specified, search for matching file
-    if (primaryLandingScreenId) {
-      const cleanTarget = primaryLandingScreenId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    if (targetLandingId) {
+      const cleanTarget = targetLandingId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
       const matchedKey = fileKeys.find(key => {
         const cleanKey = key.split('/').pop()?.replace(/\.(tsx|jsx|ts|js)$/, '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || '';
         return cleanKey.includes(cleanTarget) || cleanTarget.includes(cleanKey);
       });
       if (matchedKey && files[matchedKey]?.trim()) {
-        return files[matchedKey];
+        return { path: matchedKey, code: files[matchedKey] };
       }
     }
 
@@ -491,7 +498,7 @@ export function LivePreview({
           files[key]?.trim().length > 0
       );
       if (match) {
-        return files[match];
+        return { path: match, code: files[match] };
       }
     }
 
@@ -509,13 +516,13 @@ export function LivePreview({
 
     for (const path of priorityPaths) {
       if (files[path] && files[path].trim().length > 0) {
-        return files[path];
+        return { path, code: files[path] };
       }
     }
 
     // 4. Currently active selected file if it's TSX/JSX
     if (activeFilePath && files[activeFilePath] && (activeFilePath.endsWith('.tsx') || activeFilePath.endsWith('.jsx'))) {
-      return files[activeFilePath];
+      return { path: activeFilePath, code: files[activeFilePath] };
     }
 
     // 5. First non-auth TSX/JSX file found in files map
@@ -523,7 +530,7 @@ export function LivePreview({
       key => (key.endsWith('.tsx') || key.endsWith('.jsx')) && !isAuthFile(key) && files[key].trim().length > 0
     );
     if (firstNonAuthTsx) {
-      return files[firstNonAuthTsx];
+      return { path: firstNonAuthTsx, code: files[firstNonAuthTsx] };
     }
 
     // 6. First TSX/JSX file found
@@ -531,16 +538,27 @@ export function LivePreview({
       key => (key.endsWith('.tsx') || key.endsWith('.jsx')) && files[key].trim().length > 0
     );
     if (firstTsxKey) {
-      return files[firstTsxKey];
+      return { path: firstTsxKey, code: files[firstTsxKey] };
     }
 
     // 7. Fallback to index.html
-    if (files['index.html'] || files['frontend/index.html']) {
-      return files['index.html'] || files['frontend/index.html'];
+    const htmlKey = files['index.html'] ? 'index.html' : files['frontend/index.html'] ? 'frontend/index.html' : '';
+    if (htmlKey) {
+      return { path: htmlKey, code: files[htmlKey] };
     }
 
-    return '';
-  }, [files, activeFilePath, primaryLandingScreenId]);
+    return { path: '', code: '' };
+  }, [files, activeFilePath, primaryLandingScreenId, blueprint]);
+
+  const activeSourceCode = activeScreenInfo.code;
+  const activeScreenId = activeScreenInfo.path || primaryLandingScreenId || blueprint?.primaryLandingScreenId || 'default';
+
+  // Pipeline debug logging requested in task
+  console.log('[LivePreview Render]', {
+    title: blueprint?.title || blueprint?.appName || appName,
+    layoutParadigm: blueprint?.layoutParadigm || layoutParadigm,
+    activeScreenId,
+  });
 
   // Construct iframe srcDoc dynamically
   const srcDocPayload = useMemo(() => {
@@ -549,12 +567,12 @@ export function LivePreview({
     }
     try {
       setCompileError(null);
-      return buildSrcDocPayload(activeSourceCode, appName || 'BuildX', layoutParadigm);
+      return buildSrcDocPayload(activeSourceCode, appName || blueprint?.appName || blueprint?.title || 'BuildX', layoutParadigm);
     } catch (err: any) {
       setCompileError(err.message || 'Failed to compile VFS code for preview.');
       return '';
     }
-  }, [activeSourceCode, appName, layoutParadigm]);
+  }, [activeSourceCode, appName, blueprint, layoutParadigm]);
 
   const activeViewport = VIEWPORTS.find(v => v.id === selectedViewport) || VIEWPORTS[0];
 
