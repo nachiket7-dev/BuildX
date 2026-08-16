@@ -111,7 +111,7 @@ export function StreamingView({
           Strict Dedicated Multi-Model Pipeline
         </div>
 
-        <h2 className="font-display font-extrabold text-2xl sm:text-3xl bg-gradient-to-r from-emerald-300 via-teal-200 to-white bg-clip-text text-transparent mb-3">
+        <h2 className="font-display font-extrabold text-2xl sm:text-3xl bg-gradient-to-r from-emerald-300 via-teal-200 to-sylven-light bg-clip-text text-transparent mb-3">
           {partialBlueprint.appName
             ? `Architecting ${partialBlueprint.appName}`
             : 'Compiling Workspace Specifications…'}

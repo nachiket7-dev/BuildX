@@ -115,7 +115,7 @@ export function LoginPage() {
 
         <div className="my-auto py-8">
           <h1 className="font-display font-extrabold text-3xl xl:text-4xl text-white leading-tight tracking-tight mb-3">
-            Turn ideas into <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-white font-normal italic">full-stack</span> blueprints
+            Turn ideas into <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-sylven-light font-normal italic">full-stack</span> blueprints
           </h1>
           <p className="text-sm text-norvin-muted leading-relaxed max-w-md mb-8 font-sans">
             AI-driven monorepo scaffolding with production PostgreSQL schemas, Express API endpoints, Sandpack previews, and GitHub export.

@@ -4,7 +4,7 @@ import { useMediaPreferences } from '../hooks/useMediaPreferences';
 const Aurora = lazy(() => import('./Aurora').then((m) => ({ default: m.Aurora })));
 const BlobCursor = lazy(() => import('./BlobCursor').then((m) => ({ default: m.BlobCursor })));
 
-const AURORA_STOPS: [string, string, string] = ['#5227FF', '#7cff67', '#5227FF'];
+const AURORA_STOPS: [string, string, string] = ['#059669', '#10B981', '#047857'];
 
 export function AmbientBackground() {
   const { richEffects, reducedMotion } = useMediaPreferences();
