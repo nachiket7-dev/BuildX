@@ -46,18 +46,18 @@ const Modified = CodeMirrorMerge.Modified;
 
 function getFileIcon(name: string, size = 14) {
   if (name.endsWith('.sql') || name === 'schema.js' || name === 'mongoose.ts') {
-    return <Database size={size} className="text-purple-400" />;
+    return <Database size={size} className="text-sylven-light" />;
   }
   if (name.endsWith('.tsx') || name.endsWith('.ts')) {
-    return <FileCode size={size} className="text-blue-400" />;
+    return <FileCode size={size} className="text-cyan-400" />;
   }
   if (name.endsWith('.json')) {
     return <FileJson size={size} className="text-amber-400" />;
   }
   if (name.endsWith('.md')) {
-    return <FileText size={size} className="text-emerald-400" />;
+    return <FileText size={size} className="text-norvin-silver" />;
   }
-  return <FileCode size={size} className="text-gray-400" />;
+  return <FileCode size={size} className="text-zinc-400" />;
 }
 
 // ─── Language Extension Helper for CodeMirror ─────────────────────────────────
@@ -539,7 +539,7 @@ export function CodeStudio({
             <button
               onClick={() => toggleFolder(node.path)}
               style={{ paddingLeft: `${indent + 8}px` }}
-              className="w-full text-left py-1.5 text-zinc-400 hover:bg-white/5 hover:text-white rounded-lg flex items-center gap-1.5 transition-colors font-semibold font-mono text-xs"
+              className="w-full text-left py-1.5 text-norvin-muted hover:bg-white/5 hover:text-white rounded-lg flex items-center gap-1.5 transition-colors font-semibold font-mono text-xs"
             >
               {isCollapsed ? (
                 <ChevronRight size={12} className="text-zinc-500 shrink-0" />
@@ -547,9 +547,9 @@ export function CodeStudio({
                 <ChevronDown size={12} className="text-zinc-500 shrink-0" />
               )}
               {isCollapsed ? (
-                <Folder size={14} className="text-purple-400/80 shrink-0" />
+                <Folder size={14} className="text-norvin-muted shrink-0" />
               ) : (
-                <FolderOpen size={14} className="text-purple-400/80 shrink-0" />
+                <FolderOpen size={14} className="text-sylven-light shrink-0" />
               )}
               <span className="truncate">{node.name}</span>
             </button>
@@ -567,8 +567,8 @@ export function CodeStudio({
             style={{ paddingLeft: `${indent + 24}px` }}
             className={`w-full text-left py-1.5 rounded-lg flex items-center gap-2 transition-colors font-mono text-xs ${
               isSelected
-                ? 'bg-purple-500/15 text-purple-300 font-semibold border-l-2 border-purple-500 rounded-l-none'
-                : 'text-zinc-400 hover:bg-white/5 hover:text-white'
+                ? 'bg-sylven/15 text-sylven-light font-semibold border-l-2 border-sylven rounded-l-none'
+                : 'text-norvin-muted hover:bg-white/5 hover:text-white'
             }`}
           >
             {getFileIcon(node.name, 14)}
@@ -639,27 +639,27 @@ export function CodeStudio({
 
   if (codegenProgress.status === 'loading' && !hasGeneratedCode && !isGenerating) {
     return (
-      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-[#09090b] text-center py-20 min-h-[480px]">
-        <div className="w-12 h-12 rounded-full border-2 border-purple-500/30 border-t-purple-400 animate-spin mb-4" />
-        <p className="text-zinc-400 text-sm">Loading workspace files…</p>
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-obsidian-border bg-obsidian-bg text-center py-20 min-h-[480px]">
+        <div className="w-12 h-12 rounded-full border-2 border-sylven/30 border-t-sylven-light animate-spin mb-4" />
+        <p className="text-norvin-muted text-sm font-mono">Loading workspace files…</p>
       </div>
     );
   }
 
   if (codegenProgress.status === 'error' && !hasGeneratedCode && !isGenerating) {
     return (
-      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-red-500/20 bg-[#09090b] text-center py-20 min-h-[480px]">
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-red-500/20 bg-obsidian-bg text-center py-20 min-h-[480px]">
         <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20 mb-6 shrink-0">
           <X size={32} />
         </div>
         <h2 className="font-bold text-xl text-white mb-3">Code Generation Failed</h2>
-        <p className="text-zinc-400 text-sm max-w-lg mb-8 leading-relaxed">
+        <p className="text-norvin-muted text-sm max-w-lg mb-8 leading-relaxed font-sans">
           {codegenProgress.error || 'Something went wrong while generating or loading code.'}
         </p>
         {blueprintId && user && (
           <button
             onClick={() => generateCode(blueprintId)}
-            className="px-6 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-xl text-sm font-semibold border border-purple-500/30 transition-colors"
+            className="px-6 py-3 bg-sylven/20 hover:bg-sylven/30 text-sylven-light rounded-xl text-sm font-semibold border border-sylven/30 transition-colors font-mono"
           >
             Try Again
           </button>
@@ -670,35 +670,35 @@ export function CodeStudio({
 
   if (!hasGeneratedCode && !isGenerating && files.length === 0) {
     return (
-      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-[#09090b] text-center py-20 min-h-[480px]">
-        <div className="w-16 h-16 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20 mb-6 shrink-0 shadow-lg shadow-purple-500/5">
-          <Sparkles size={32} className="animate-pulse text-purple-400" />
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-obsidian-border bg-obsidian-bg text-center py-20 min-h-[480px]">
+        <div className="w-16 h-16 rounded-2xl bg-sylven/10 text-sylven-light flex items-center justify-center border border-sylven/20 mb-6 shrink-0 shadow-lg shadow-emerald-500/5">
+          <Sparkles size={32} className="animate-pulse text-sylven-light" />
         </div>
-        <h2 className="font-bold text-xl sm:text-2xl text-white mb-3">
+        <h2 className="font-bold text-xl sm:text-2xl text-white mb-3 font-display">
           Generate Full Application Codebase
         </h2>
-        <p className="text-zinc-400 text-sm max-w-lg mb-8 leading-relaxed">
+        <p className="text-norvin-muted text-sm max-w-lg mb-8 leading-relaxed font-sans">
           Transform your architecture blueprint specifications into complete, functional source code files with CodeMirror 6 live editing and AI diff reviews.
         </p>
 
         {blueprintId ? (
           user ? (
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-4 font-mono">
               <button
                 onClick={() => generateCode(blueprintId)}
-                className="px-8 py-3.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-purple-500/20"
+                className="px-8 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-emerald-500/20 border border-emerald-400/30"
               >
                 <Play size={16} fill="currentColor" />
                 Start Code Generation
               </button>
             </div>
           ) : (
-            <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/25 rounded-xl max-w-sm text-amber-400/90 text-xs font-medium">
+            <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/25 rounded-xl max-w-sm text-amber-400/90 text-xs font-medium font-mono">
               Sign in to generate a full application codebase from this blueprint.
             </div>
           )
         ) : (
-          <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/25 rounded-xl max-w-sm text-amber-400/90 text-xs font-medium">
+          <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/25 rounded-xl max-w-sm text-amber-400/90 text-xs font-medium font-mono">
             ⚠️ Save this blueprint to unlock the codebase generator and preview sandbox.
           </div>
         )}
@@ -712,16 +712,16 @@ export function CodeStudio({
         ? Math.round((codegenProgress.currentFileIndex / codegenProgress.totalFiles) * 100)
         : 0;
     return (
-      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-[#09090b] text-center py-20 min-h-[480px]">
-        <div className="w-16 h-16 rounded-full border-4 border-purple-500 border-t-transparent animate-spin mb-8 flex items-center justify-center shrink-0" />
-        <h3 className="font-bold text-lg text-white mb-2">Generating Application Files...</h3>
-        <p className="text-xs text-purple-400 font-mono mb-6">
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-obsidian-border bg-obsidian-bg text-center py-20 min-h-[480px]">
+        <div className="w-16 h-16 rounded-full border-4 border-sylven border-t-transparent animate-spin mb-8 flex items-center justify-center shrink-0" />
+        <h3 className="font-bold text-lg text-white mb-2 font-display">Generating Application Files...</h3>
+        <p className="text-xs text-sylven-light font-mono mb-6">
           {codegenProgress.currentFilePath || 'Connecting to Multi-Model Pipeline...'}
         </p>
 
-        <div className="w-full max-w-xs bg-white/5 rounded-full h-1.5 overflow-hidden mb-3">
+        <div className="w-full max-w-xs bg-obsidian-panel rounded-full h-1.5 overflow-hidden mb-3">
           <div
-            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-300"
+            className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300"
             style={{ width: `${percent}%` }}
           />
         </div>
@@ -736,17 +736,17 @@ export function CodeStudio({
   const languageExts = activeFile ? getLanguageExtension(activeFile.name) : [javascript({ jsx: true, typescript: true })];
 
   return (
-    <div className="flex flex-col md:flex-row rounded-xl border border-white/10 bg-[#0e0e14] overflow-hidden h-full w-full select-none">
+    <div className="flex flex-col md:flex-row rounded-2xl border border-obsidian-border bg-obsidian-surface overflow-hidden h-full w-full select-none font-sans">
       {/* File Tree Explorer (Left) */}
-      <div className="w-full md:w-64 bg-[#09090c] border-b md:border-b-0 md:border-r border-white/10 flex flex-col h-48 md:h-full shrink-0">
-        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2 shrink-0">
-          <span className="font-mono text-[10px] text-zinc-400 font-bold tracking-wider uppercase truncate">
+      <div className="w-full md:w-64 bg-obsidian-bg border-b md:border-b-0 md:border-r border-obsidian-border flex flex-col h-48 md:h-full shrink-0">
+        <div className="px-4 py-3 border-b border-obsidian-border flex items-center justify-between gap-2 shrink-0">
+          <span className="font-mono text-[10px] text-norvin-muted font-bold tracking-wider uppercase truncate">
             Workspace
           </span>
           <button
             onClick={handleDownloadAll}
             disabled={downloading}
-            className="text-[10px] text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded hover:bg-purple-500/20 hover:text-purple-300 font-mono flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50 whitespace-nowrap"
+            className="text-[10px] text-sylven-light bg-sylven/10 border border-sylven/20 px-2 py-1 rounded hover:bg-sylven/20 hover:text-white font-mono flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50 whitespace-nowrap"
           >
             {downloading ? (
               <div className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
@@ -798,13 +798,13 @@ export function CodeStudio({
                     }
                   }}
                   className={`relative flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-mono font-medium transition-colors z-10 ${
-                    isActive ? 'text-white' : 'text-neutral-500 hover:text-white'
+                    isActive ? 'text-white' : 'text-norvin-muted hover:text-white'
                   }`}
                 >
                   {isActive && (
                     <motion.div
                       layoutId="codeStudioTab"
-                      className="absolute inset-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30"
+                      className="absolute inset-0 rounded-lg bg-sylven/20 border border-sylven/30"
                       transition={{ type: 'spring', stiffness: 400, damping: 35 }}
                     />
                   )}
@@ -820,27 +820,27 @@ export function CodeStudio({
           {/* Active file metadata badge & actions */}
           <div className="flex items-center gap-2 pr-2 ml-auto">
             {activeFile && (
-              <div className="hidden sm:flex items-center gap-2 font-mono text-[11px] text-zinc-400 truncate">
+              <div className="hidden sm:flex items-center gap-2 font-mono text-[11px] text-norvin-muted truncate">
                 <span className="text-zinc-300 truncate max-w-[200px]">{activeFile.path}</span>
-                <span className="uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px] shrink-0 font-bold">
+                <span className="uppercase text-sylven-light bg-sylven/10 border border-sylven/20 px-1.5 py-0.5 rounded text-[9px] shrink-0 font-bold">
                   {activeFile.language}
                 </span>
               </div>
             )}
-            <div className="w-px h-4 bg-white/10 shrink-0" />
+            <div className="w-px h-4 bg-obsidian-border shrink-0" />
             <button
               onClick={handleCopyCode}
-              className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0"
+              className="p-1.5 text-norvin-muted hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-1 transition-colors text-xs font-medium shrink-0 font-mono"
               title="Copy file content"
             >
-              {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+              {copied ? <Check size={14} className="text-sylven-light" /> : <Copy size={14} />}
               <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
         </div>
 
         {/* Editor View / CodeMirror 6 Engine / AI Diff Review Overlay */}
-        <div className="flex-1 overflow-hidden relative min-h-0 bg-[#08080c] flex flex-col">
+        <div className="flex-1 overflow-hidden relative min-h-0 bg-obsidian-bg flex flex-col">
           {/* Patch apply flash effect */}
           <AnimatePresence>
             {patchFlash && (
@@ -862,14 +862,14 @@ export function CodeStudio({
           {(isDiffMode || currentPendingDiff !== null) && activeFile ? (
             <div className="h-full flex flex-col min-h-0 relative">
               {/* Floating Action Header Bar */}
-              <div className="z-20 flex items-center justify-between px-4 py-2 bg-indigo-950/60 backdrop-blur-md border-b border-indigo-500/30 text-indigo-300 text-xs shrink-0 shadow-lg">
+              <div className="z-20 flex items-center justify-between px-4 py-2 bg-emerald-950/60 backdrop-blur-md border-b border-emerald-500/30 text-emerald-300 text-xs shrink-0 shadow-lg">
                 <div className="flex items-center gap-2">
-                  <GitCompare size={14} className="text-indigo-400 shrink-0" />
+                  <GitCompare size={14} className="text-sylven-light shrink-0" />
                   <span className="font-mono text-xs">
                     AI Diff Review Mode — <strong className="text-white">{activeFile.name}</strong>
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 font-mono">
                   <button
                     onClick={handleAcceptDiff}
                     className="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-emerald-500/20"
@@ -893,7 +893,7 @@ export function CodeStudio({
               <div className="flex-1 overflow-auto min-h-0 p-2 font-mono text-xs">
                 <CodeMirrorMerge
                   theme={buildxEditorTheme}
-                  className="h-full rounded-xl overflow-hidden border border-white/10"
+                  className="h-full rounded-xl overflow-hidden border border-obsidian-border"
                 >
                   <Original
                     value={currentPendingDiff ? currentPendingDiff.original : activeContent}
@@ -941,10 +941,10 @@ export function CodeStudio({
         {onRefineMessage && (
           <form
             onSubmit={handleSubmitRefine}
-            className="p-3 bg-[#0d0d12] border-t border-white/10 flex items-center gap-2 shrink-0 select-none"
+            className="p-3 bg-obsidian-panel border-t border-obsidian-border flex items-center gap-2 shrink-0 select-none font-mono"
           >
-            <div className="w-6 h-6 rounded-md flex items-center justify-center bg-purple-500/10 text-purple-400 shrink-0 border border-purple-500/20">
-              <Sparkles size={13} className="text-purple-400 animate-pulse" />
+            <div className="w-6 h-6 rounded-md flex items-center justify-center bg-sylven/10 text-sylven-light shrink-0 border border-sylven/20">
+              <Sparkles size={13} className="text-sylven-light animate-pulse" />
             </div>
             <input
               type="text"
@@ -957,7 +957,7 @@ export function CodeStudio({
             <button
               type="submit"
               disabled={!refineInput.trim() || isAiModifying || propIsRefining}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 disabled:opacity-30 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-purple-500/10 shrink-0"
+              className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-30 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-500/10 border border-emerald-400/30 shrink-0 font-mono"
             >
               {isAiModifying || propIsRefining ? (
                 <>

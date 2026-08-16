@@ -150,7 +150,7 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
           </p>
           <Link
             to="/blueprints"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-all shadow-lg shadow-indigo-500/20"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sylven hover:bg-sylven-light text-obsidian-bg font-semibold text-xs transition-all shadow-lg shadow-emerald-500/20 font-mono"
           >
             <ArrowLeft size={14} />
             <span>Return to Blueprint Library</span>
@@ -163,20 +163,20 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
   const bp = blueprintData;
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden bg-brand-bg text-white relative font-sans">
+    <div className="w-full h-full flex flex-col overflow-hidden bg-obsidian-bg text-white relative font-sans">
       <PageHead
         title={`${bp.appName} Architecture — BuildX`}
         description={bp.description}
       />
 
       {/* Top Ambient Radial Lights */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-purple-500/10 blur-[140px] pointer-events-none rounded-full" />
-      <div className="absolute top-36 right-10 w-[500px] h-[300px] bg-indigo-600/15 blur-[160px] pointer-events-none rounded-full" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-sylven/10 blur-[140px] pointer-events-none rounded-full" />
+      <div className="absolute top-36 right-10 w-[500px] h-[300px] bg-emerald-500/10 blur-[160px] pointer-events-none rounded-full" />
 
       {/* Lower Split Container: Independent Panel Scrolling */}
       <div className="flex-1 flex min-h-0 w-full overflow-hidden relative z-10">
         {/* Left Sidebar Section Navigator */}
-        <aside className="w-64 h-full border-r border-brand-border bg-brand-surface p-4 flex flex-col justify-between shrink-0 font-mono text-xs hidden md:flex">
+        <aside className="w-64 h-full border-r border-obsidian-border bg-obsidian-surface p-4 flex flex-col justify-between shrink-0 font-mono text-xs hidden md:flex">
           <div className="space-y-1">
             <div className="text-[11px] font-semibold text-zinc-500 px-3 py-2 uppercase tracking-wider">
               Sections
@@ -195,8 +195,8 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
                 onClick={() => setActiveTab(s.id as TabId)}
                 className={`w-full text-left px-3 py-2 rounded-xl transition-all ${
                   activeTab === s.id
-                    ? 'bg-purple-600/20 text-brand-glow border border-purple-500/30 font-semibold shadow-sm shadow-purple-500/10'
-                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                    ? 'bg-sylven/20 text-sylven-light border border-sylven/40 font-semibold shadow-sm shadow-emerald-500/10'
+                    : 'text-norvin-muted hover:text-white hover:bg-white/5'
                 }`}
               >
                 {s.label}
@@ -205,28 +205,28 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
           </div>
         </aside>
 
-        <main className="flex-1 h-full min-h-0 overflow-y-auto custom-scrollbar p-6 relative space-y-6 bg-brand-bg">
+        <main className="flex-1 h-full min-h-0 overflow-y-auto custom-scrollbar p-6 relative space-y-6 bg-obsidian-bg">
 
-        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 font-mono text-xs relative overflow-hidden shadow-2xl space-y-4">
+        <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-6 font-mono text-xs relative overflow-hidden shadow-2xl space-y-4">
           <div className="absolute right-6 top-6 text-[10px] text-zinc-500 select-none font-bold">
             COMMIT: {id.substring(0, 7)}
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0 text-brand-glow font-bold text-[11px]">
+            <div className="w-6 h-6 rounded-full bg-sylven/20 border border-sylven/30 flex items-center justify-center shrink-0 text-sylven-light font-bold text-[11px]">
               λ
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-bold text-brand-glow leading-snug">
+              <h1 className="text-base sm:text-lg font-bold text-sylven-light leading-snug">
                 feat({bp.appName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}): initialize project architecture specification
               </h1>
-              <div className="text-zinc-400 text-[11px] mt-1">
-                committed by <span className="text-white font-semibold">BuildX Agentic Pipeline</span> via <span className="text-brand-green font-semibold">Cortex Architecture Engine</span>
+              <div className="text-norvin-muted text-[11px] mt-1 font-mono">
+                committed by <span className="text-white font-semibold">BuildX Agentic Pipeline</span> via <span className="text-sylven-light font-semibold">Cortex Architecture Engine</span>
               </div>
             </div>
           </div>
 
-          <p className="text-zinc-300 leading-relaxed font-sans text-xs pt-2 border-t border-brand-borderSubtle">
+          <p className="text-zinc-300 leading-relaxed font-sans text-xs pt-2 border-t border-obsidian-borderSubtle">
             {bp.description}
           </p>
 
@@ -249,34 +249,34 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
           </div>
         </div>
 
-        <div className="w-full bg-brand-surface border border-brand-border rounded-2xl p-6 md:p-8 flex flex-col justify-between gap-5 relative overflow-hidden backdrop-blur-xl">
+        <div className="w-full bg-obsidian-surface border border-obsidian-border rounded-2xl p-6 md:p-8 flex flex-col justify-between gap-5 relative overflow-hidden backdrop-blur-xl">
           <div>
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 inline-flex items-center justify-center shrink-0 text-brand-glow">
+              <div className="w-8 h-8 rounded-xl bg-sylven/10 border border-sylven/20 inline-flex items-center justify-center shrink-0 text-sylven-light">
                 <Github size={16} />
               </div>
               <h3 className="text-base font-bold text-white tracking-tight font-mono">
                 GitHub Sync &amp; ZIP Export
               </h3>
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed max-w-xl mt-2.5 font-sans">
+            <p className="text-xs text-norvin-muted leading-relaxed max-w-xl mt-2.5 font-sans">
               Push production monorepos directly to GitHub or export a self-contained ZIP archive ready for immediate deployment.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 my-3 font-mono">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-brand-green text-[11px]">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sylven-glow border border-sylven/20 text-sylven-light text-[11px]">
               <Check size={11} /> OAuth 2.0
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-brand-glow text-[11px]">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sylven/10 border border-sylven/20 text-sylven-light text-[11px]">
               20+ files
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-brand-cyan text-[11px]">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[11px]">
               JWT secured
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-brand-borderSubtle mt-1 font-mono">
+          <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-obsidian-borderSubtle mt-1 font-mono">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -289,7 +289,7 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-brand-surface2 hover:bg-brand-surface3 border border-brand-border text-white font-medium text-xs transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-obsidian-panel hover:bg-obsidian-surface border border-obsidian-border text-white font-medium text-xs transition-colors"
             >
               <Download size={14} />
               <span>Download ZIP</span>
@@ -301,9 +301,9 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
           <TabBar activeTab={activeTab} onChange={setActiveTab} />
         </div>
 
-        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 space-y-6 shadow-xl">
-          <div className="flex items-center justify-between pb-4 border-b border-brand-borderSubtle font-mono text-xs">
-            <span className="text-brand-glow font-semibold">01 / FEATURE BREAKDOWN</span>
+        <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-6 space-y-6 shadow-xl">
+          <div className="flex items-center justify-between pb-4 border-b border-obsidian-borderSubtle font-mono text-xs">
+            <span className="text-sylven-light font-semibold">01 / FEATURE BREAKDOWN</span>
             <span className="text-zinc-500 uppercase">{activeTab} VIEW</span>
           </div>
 
@@ -316,13 +316,13 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
           {activeTab === 'diagrams' && <DiagramsPanel blueprint={bp} />}
         </div>
 
-        <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-brand-borderSubtle font-mono text-xs">
-            <span className="text-brand-green font-semibold">02 / CORTEX TIMELINE FEED</span>
+        <div className="bg-obsidian-surface border border-obsidian-border rounded-2xl p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-obsidian-borderSubtle font-mono text-xs">
+            <span className="text-sylven-light font-semibold">02 / CORTEX TIMELINE FEED</span>
             <span className="text-zinc-500">{messages.length} TURNS</span>
           </div>
 
-          <div className="space-y-4 font-mono text-xs border-l border-white/10 ml-3 pl-4">
+          <div className="space-y-4 font-mono text-xs border-l border-obsidian-border ml-3 pl-4">
             {messages.map((m, idx) => (
               <div key={idx} className="space-y-1">
                 <span className="text-[10px] text-zinc-500 font-semibold">
@@ -330,8 +330,8 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
                 </span>
                 <div className={`p-3 rounded-xl border leading-relaxed ${
                   m.role === 'user'
-                    ? 'bg-indigo-950/40 border-indigo-500/30 text-indigo-200'
-                    : 'bg-zinc-900 border-white/10 text-zinc-300'
+                    ? 'bg-sylven/20 border-sylven/40 text-white'
+                    : 'bg-obsidian-panel border-obsidian-border text-zinc-300'
                 }`}>
                   {m.content}
                 </div>
@@ -348,15 +348,15 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
       </div>
 
       {/* Collapsible Cortex Refinement Bottom Dock — outside overflow-hidden so sticky and animations work */}
-      <div className="shrink-0 z-30 bg-[#08080c]/95 backdrop-blur-xl border-t border-white/10 shadow-2xl">
+      <div className="shrink-0 z-30 bg-obsidian-bg/95 backdrop-blur-xl border-t border-obsidian-border shadow-2xl">
         <div className="max-w-5xl mx-auto p-3 sm:p-4">
           {/* Collapsible Header Rail */}
           <div
             onClick={() => setIsExpanded(!isExpanded)}
-            className="cursor-pointer flex items-center justify-between p-3.5 bg-[#121216] border border-white/10 rounded-2xl hover:border-indigo-500/50 transition-all group select-none"
+            className="cursor-pointer flex items-center justify-between p-3.5 bg-obsidian-surface border border-obsidian-border rounded-2xl hover:border-sylven/50 transition-all group select-none"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-xl bg-sylven/10 border border-sylven/20 flex items-center justify-center text-sylven-light shrink-0 group-hover:scale-105 transition-transform">
                 <Cpu size={16} />
               </div>
               <div className="min-w-0 flex flex-col">
@@ -365,7 +365,7 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
                 </span>
                 <h4 className="text-xs font-bold text-white tracking-tight truncate flex items-center gap-2">
                   <span>Cortex Agent Refinement</span>
-                  <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full font-normal">
+                  <span className="text-[10px] font-mono text-sylven-light bg-sylven/10 border border-sylven/20 px-2 py-0.5 rounded-full font-normal">
                     {messages.length} messages
                   </span>
                 </h4>
@@ -373,13 +373,13 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono text-sylven-light bg-sylven-glow border border-sylven/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-sylven animate-pulse" />
                 <span>{isRefining ? 'Thinking…' : 'Cortex (Nemotron 550B)'}</span>
               </div>
               <button
                 type="button"
-                className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 text-zinc-400 group-hover:text-white transition-colors"
+                className="p-1.5 rounded-lg bg-obsidian-panel group-hover:bg-obsidian-surface text-norvin-muted group-hover:text-white transition-colors"
                 aria-label={isExpanded ? 'Collapse refinement dock' : 'Expand refinement dock'}
               >
                 {isExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
@@ -395,17 +395,17 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ type: 'spring', stiffness: 350, damping: 32 }}
-                className="overflow-hidden pt-3 space-y-3"
+                className="overflow-hidden pt-3 space-y-3 font-mono"
               >
                 {/* Conversation Stream Log */}
-                <div className="max-h-60 overflow-y-auto p-3 space-y-2.5 bg-black/40 border border-white/5 rounded-2xl custom-scrollbar font-mono text-xs">
+                <div className="max-h-60 overflow-y-auto p-3 space-y-2.5 bg-obsidian-bg border border-obsidian-border rounded-2xl custom-scrollbar font-mono text-xs">
                   {messages.map((msg, idx) => (
                     <div
                       key={idx}
                       className={`p-3 rounded-xl max-w-[90%] leading-relaxed ${
                         msg.role === 'user'
-                          ? 'ml-auto bg-purple-500/15 border border-purple-500/30 text-purple-200 self-end'
-                          : 'bg-white/[0.04] border border-white/10 text-zinc-300'
+                          ? 'ml-auto bg-sylven/20 border border-sylven/40 text-white self-end'
+                          : 'bg-obsidian-panel border border-obsidian-border text-zinc-300'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 mb-1 font-mono uppercase">
@@ -415,8 +415,8 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
                     </div>
                   ))}
                   {isRefining && (
-                    <div className="flex items-center gap-2 p-3 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-zinc-400 animate-pulse font-mono">
-                      <Loader2 size={14} className="animate-spin text-indigo-400" />
+                    <div className="flex items-center gap-2 p-3 bg-obsidian-panel border border-obsidian-border rounded-xl text-xs text-sylven-light animate-pulse font-mono">
+                      <Loader2 size={14} className="animate-spin text-sylven-light" />
                       <span>Refining architecture specifications &amp; generating DDL diffs...</span>
                     </div>
                   )}
@@ -432,7 +432,7 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
                         key={chip.label}
                         type="button"
                         onClick={() => setRefinePrompt(prev => prev ? `${prev}, ${chip.text}` : chip.text)}
-                        className="px-3 py-1 rounded-full text-[10px] font-mono font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-indigo-500/40 text-zinc-400 hover:text-indigo-300 transition-all"
+                        className="px-3 py-1 rounded-full text-[10px] font-mono font-medium bg-obsidian-panel hover:bg-obsidian-surface border border-obsidian-border hover:border-sylven/40 text-norvin-muted hover:text-sylven-light transition-all"
                       >
                         {chip.label}
                       </button>
@@ -450,11 +450,11 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
                     onKeyDown={e => {
                       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSendRefinement(e as any);
                     }}
-                    className="w-full resize-none bg-zinc-950/90 border border-white/10 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 text-xs text-white placeholder-zinc-500 rounded-xl px-4 py-3 font-mono outline-none transition-all leading-relaxed"
+                    className="w-full resize-none bg-obsidian-bg border border-obsidian-border focus:border-sylven focus:ring-1 focus:ring-sylven/30 text-xs text-white placeholder-zinc-500 rounded-xl px-4 py-3 font-mono outline-none transition-all leading-relaxed"
                   />
 
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[10px] text-zinc-600 font-mono">
+                  <div className="flex items-center justify-between gap-3 font-mono">
+                    <span className="text-[10px] text-zinc-500 font-mono">
                       {refinePrompt.length}/500 chars · ⌘+Enter to send
                     </span>
                     <motion.button
@@ -462,7 +462,7 @@ export function BlueprintDetailPage({ blueprint: inputBp, blueprintId: inputId }
                       whileTap={{ scale: isRefining ? 1 : 0.97 }}
                       type="submit"
                       disabled={!refinePrompt.trim() || isRefining}
-                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-40 text-white font-semibold text-xs flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20 border border-indigo-400/30 shrink-0"
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-semibold text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/20 border border-emerald-400/30 shrink-0 font-mono"
                     >
                       {isRefining ? (
                         <><Loader2 size={13} className="animate-spin" /><span>Refining…</span></>

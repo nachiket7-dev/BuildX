@@ -120,9 +120,9 @@ const FEATURE_CATS = [
     key: 'authentication' as const,
     label: 'Authentication',
     icon: Lock,
-    iconColor: 'text-indigo-400',
-    iconBg: 'bg-indigo-500/10 border border-indigo-500/20',
-    labelColor: 'text-indigo-300',
+    iconColor: 'text-cyan-400',
+    iconBg: 'bg-cyan-500/10 border border-cyan-500/20',
+    labelColor: 'text-cyan-300',
   },
   {
     key: 'core' as const,
@@ -144,9 +144,9 @@ const FEATURE_CATS = [
     key: 'optional' as const,
     label: 'Enhancements',
     icon: Sparkles,
-    iconColor: 'text-purple-400',
-    iconBg: 'bg-purple-500/10 border border-purple-500/20',
-    labelColor: 'text-purple-300',
+    iconColor: 'text-sylven-light',
+    iconBg: 'bg-sylven/10 border border-sylven/20',
+    labelColor: 'text-sylven-light',
   },
 ] as const;
 
@@ -369,13 +369,13 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
                 >
                   <div
                     className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'var(--purple-dim)', border: '1px solid rgba(94,234,212,0.2)' }}
+                    style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)' }}
                   >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="var(--purple)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="#34D399">
                       <path d="M3 5a2 2 0 012-2h14a2 2 0 012 2v2H3V5zm0 4h18v2H3V9zm0 4h18v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6z" />
                     </svg>
                   </div>
-                  <span className="font-mono-custom text-sm font-medium" style={{ color: 'var(--purple)' }}>
+                  <span className="font-mono-custom text-sm font-medium text-emerald-400">
                     {table.table}
                   </span>
                   {isMongo && (
@@ -609,7 +609,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
                 className="font-mono-custom text-xs font-semibold flex items-center gap-1.5"
                 style={{ color: 'var(--text)' }}
               >
-                <Terminal size={13} className="text-purple-400" />
+                <Terminal size={13} className="text-sylven-light" />
                 Sandbox REST Client
               </span>
               <span className="text-[9px] font-mono-custom text-green-400 bg-green-500/10 border border-green-500/25 px-1.5 py-0.5 rounded">
@@ -635,7 +635,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
                 onClick={() => setConsoleTab('headers')}
                 className={`pb-1.5 px-3 border-b-2 transition-all ${
                   consoleTab === 'headers'
-                    ? 'border-purple-500 text-purple-300'
+                    ? 'border-sylven text-sylven-light'
                     : 'border-transparent'
                 }`}
                 style={consoleTab !== 'headers' ? { color: 'var(--text2)' } : undefined}
@@ -647,7 +647,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
                 onClick={() => setConsoleTab('body')}
                 className={`pb-1.5 px-3 border-b-2 transition-all ${
                   consoleTab === 'body'
-                    ? 'border-purple-500 text-purple-300'
+                    ? 'border-sylven text-sylven-light'
                     : 'border-transparent'
                 }`}
                 style={consoleTab !== 'body' ? { color: 'var(--text2)' } : undefined}
@@ -675,7 +675,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
                   )}
                 </div>
               ) : (
-                <pre className="p-2.5 rounded-lg bg-black/50 border border-white/10 text-purple-200 overflow-x-auto text-[11px] leading-normal max-h-[120px] scrollbar-none">
+                <pre className="p-2.5 rounded-lg bg-black/50 border border-white/10 text-emerald-200 overflow-x-auto text-[11px] leading-normal max-h-[120px] scrollbar-none">
                   {getMockRequestBody(selectedEndpoint.method, selectedEndpoint.path)}
                 </pre>
               )}
@@ -684,11 +684,11 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
               <button
                 onClick={() => triggerSandboxTest(selectedEndpoint.method, selectedEndpoint.path)}
                 disabled={sandboxLoading}
-                className="w-full py-2.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-40 text-white rounded-lg font-display text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-purple-400/20"
+                className="w-full py-2.5 bg-sylven hover:bg-sylven-light disabled:opacity-40 text-obsidian-bg rounded-lg font-display text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-emerald-400/20 shadow-md shadow-emerald-500/20"
               >
                 {sandboxLoading ? (
                   <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin-slow" />
+                    <div className="w-3.5 h-3.5 border-2 border-obsidian-bg border-t-transparent rounded-full animate-spin-slow" />
                     Executing Request...
                   </>
                 ) : (
@@ -731,7 +731,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
             className="api-sandbox-card flex h-[420px] flex-col items-center justify-center p-8 text-center"
             spotlightColor="rgba(20, 184, 166, 0.05)"
           >
-            <Terminal size={28} className="mb-3 text-purple-400/80" />
+            <Terminal size={28} className="mb-3 text-sylven-light/80" />
             <p className="text-sm leading-relaxed max-w-[16rem]" style={{ color: 'var(--text2)' }}>
               Select an endpoint from the routes list on the left to run mock API sandbox tests and inspect
               response JSON objects.
@@ -893,7 +893,7 @@ export function EffortPanel({ blueprint }: { blueprint: Blueprint }) {
   const effort = blueprint.effort || {};
   const complexity = blueprint.complexity || 'Medium';
   const cards = [
-    { label: 'Timeline', value: effort.time || '3-4 weeks', icon: Calendar, color: 'text-purple-400' },
+    { label: 'Timeline', value: effort.time || '3-4 weeks', icon: Calendar, color: 'text-cyan-400' },
     { label: 'Complexity', value: effort.complexity || 'Medium', icon: Zap, color: 'text-amber-400' },
     { label: 'Est. Cost', value: effort.cost || 'N/A', icon: DollarSign, color: 'text-green-400' },
     { label: 'Team Size', value: effort.team || '1-2 developers', icon: Users, color: 'text-blue-400' },
@@ -986,7 +986,7 @@ export function EffortPanel({ blueprint }: { blueprint: Blueprint }) {
                     isDone
                       ? 'bg-green-500 border-green-400 text-white shadow-lg shadow-green-500/20'
                       : isCurrent
-                      ? 'bg-purple-500 border-purple-400 text-white animate-pulse shadow-lg shadow-purple-500/20'
+                      ? 'bg-sylven border-sylven-light text-obsidian-bg animate-pulse shadow-lg shadow-emerald-500/20 font-bold'
                       : 'bg-bg-surface border-white/20 text-muted-foreground'
                   }`}
                 >

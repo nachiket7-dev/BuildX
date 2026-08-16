@@ -8,25 +8,25 @@ export function Footer() {
   const navigate = useNavigate();
 
   return (
-    <footer className="w-full bg-[#040406] border-t border-white/10 relative overflow-hidden">
+    <footer className="w-full bg-obsidian-bg border-t border-obsidian-border relative overflow-hidden font-sans">
       {/* Background ambient lighting */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-indigo-500/10 blur-[100px] pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-sylven/10 blur-[100px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-6 py-20 relative z-10">
 
         {/* Top Monolithic Display Banner */}
         <ScrollReveal direction="up" delay={0.05}>
           <div className="text-center max-w-4xl mx-auto mb-16 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/[0.04] border border-white/10">
-              <Terminal size={13} className="text-emerald-400" />
-              <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">00 / PRODUCTION SCAFFOLD GENERATOR</span>
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-obsidian-surface border border-obsidian-border">
+              <Terminal size={13} className="text-sylven-light" />
+              <span className="font-mono text-xs text-norvin-muted uppercase tracking-wider">00 / PRODUCTION SCAFFOLD GENERATOR</span>
             </div>
 
-            <h2 className="text-4xl md:text-6xl font-bold tracking-tight text-white text-center max-w-4xl mx-auto">
+            <h2 className="text-4xl md:text-6xl font-bold tracking-tight text-white text-center max-w-4xl mx-auto font-display">
               Build at the speed of thought.
             </h2>
 
-            <p className="text-sm sm:text-base text-neutral-400 max-w-xl mx-auto leading-relaxed">
+            <p className="text-sm sm:text-base text-norvin-muted max-w-xl mx-auto leading-relaxed">
               Transform plain-English product specifications into complete, running monorepos with PostgreSQL DDL, REST APIs, and React UI screens.
             </p>
 
@@ -35,7 +35,7 @@ export function Footer() {
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => navigate('/create')}
-                className="landing-btn landing-btn--primary px-8 py-3.5 text-sm sm:text-base font-bold shadow-2xl shadow-indigo-500/30"
+                className="landing-btn landing-btn--primary px-8 py-3.5 text-sm sm:text-base font-bold shadow-2xl shadow-emerald-500/25"
               >
                 <span>Launch Studio IDE</span>
                 <ArrowRight size={18} className="landing-btn__icon" />

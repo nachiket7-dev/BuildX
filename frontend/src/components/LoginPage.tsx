@@ -89,7 +89,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-bg text-white relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 selection:bg-purple-500 selection:text-white font-sans">
+    <div className="min-h-screen bg-obsidian-bg text-white relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 selection:bg-sylven selection:text-black font-sans">
       <PageHead
         title={tab === 'login' ? 'Sign in — BuildX' : 'Create account — BuildX'}
         description="Sign in to BuildX to generate and manage AI product blueprints."
@@ -97,27 +97,27 @@ export function LoginPage() {
       <AmbientBackground />
 
       {/* Ambient Mesh Lighting */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-purple-500/15 blur-[140px] pointer-events-none rounded-full" />
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/20 blur-[160px] pointer-events-none rounded-full" />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-purple-600/15 blur-[150px] pointer-events-none rounded-full" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-sylven/10 blur-[140px] pointer-events-none rounded-full" />
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-500/10 blur-[160px] pointer-events-none rounded-full" />
+      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-sylven/10 blur-[150px] pointer-events-none rounded-full" />
 
       {/* Left Column (5 Cols): Brand & Showcase */}
-      <aside className="hidden lg:flex lg:col-span-5 flex-col justify-between p-12 bg-brand-surface/70 backdrop-blur-md relative z-10 border-r border-brand-border">
+      <aside className="hidden lg:flex lg:col-span-5 flex-col justify-between p-12 bg-obsidian-surface/70 backdrop-blur-md relative z-10 border-r border-obsidian-border">
         <div className="flex items-center justify-between">
           <Link to="/" className="inline-block focus-visible:outline-none">
             <Logo size="lg" />
           </Link>
-          <span className="inline-flex items-center gap-2 font-mono text-xs text-brand-green border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
+          <span className="inline-flex items-center gap-2 font-mono text-xs text-sylven-light border border-sylven/20 bg-sylven-glow px-3 py-1 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-sylven animate-pulse" />
             00 / AUTHENTICATION
           </span>
         </div>
 
         <div className="my-auto py-8">
           <h1 className="font-display font-extrabold text-3xl xl:text-4xl text-white leading-tight tracking-tight mb-3">
-            Turn ideas into <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-300 to-emerald-300 font-normal italic">full-stack</span> blueprints
+            Turn ideas into <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-white font-normal italic">full-stack</span> blueprints
           </h1>
-          <p className="text-sm text-zinc-400 leading-relaxed max-w-md mb-8 font-sans">
+          <p className="text-sm text-norvin-muted leading-relaxed max-w-md mb-8 font-sans">
             AI-driven monorepo scaffolding with production PostgreSQL schemas, Express API endpoints, Sandpack previews, and GitHub export.
           </p>
 
@@ -125,8 +125,8 @@ export function LoginPage() {
             {PERKS.map((perk, i) => {
               const Icon = perk.icon;
               return (
-                <div key={perk.title} className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-brand-surface2 border border-brand-border">
-                  <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/25 flex items-center justify-center shrink-0 text-brand-glow">
+                <div key={perk.title} className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-obsidian-panel border border-obsidian-border">
+                  <div className="w-8 h-8 rounded-xl bg-sylven/15 border border-sylven/25 flex items-center justify-center shrink-0 text-sylven-light">
                     <Icon size={16} />
                   </div>
                   <div>
@@ -134,7 +134,7 @@ export function LoginPage() {
                       <span className="text-[10px] text-zinc-500">0{i + 1} /</span>
                       {perk.title}
                     </div>
-                    <div className="text-xs text-zinc-400 mt-0.5 leading-relaxed font-sans">
+                    <div className="text-xs text-norvin-muted mt-0.5 leading-relaxed font-sans">
                       {perk.description}
                     </div>
                   </div>
@@ -155,7 +155,7 @@ export function LoginPage() {
         <div className="flex items-center justify-between">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-brand-surface border border-brand-border hover:border-brand-accent/40 text-xs font-mono text-zinc-400 hover:text-white transition-all shadow-sm"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-obsidian-surface border border-obsidian-border hover:border-sylven/40 text-xs font-mono text-norvin-muted hover:text-white transition-all shadow-sm"
           >
             <ArrowLeft size={13} />
             <span>Back to home</span>
@@ -183,7 +183,7 @@ export function LoginPage() {
           </div>
 
           {/* Tab Slider */}
-          <div className="flex items-center p-1 rounded-xl bg-brand-surface border border-brand-border mb-6 relative font-mono text-xs" role="tablist">
+          <div className="flex items-center p-1 rounded-xl bg-obsidian-surface border border-obsidian-border mb-6 relative font-mono text-xs" role="tablist">
             {(['login', 'signup'] as AuthTab[]).map((t, idx) => {
               const num = String(idx + 1).padStart(2, '0');
               const label = t === 'login' ? 'Sign in' : 'Sign up';
@@ -202,7 +202,7 @@ export function LoginPage() {
                   {isActive && (
                     <motion.div
                       layoutId="authTabIndicator"
-                      className="absolute inset-0 rounded-lg bg-purple-600/30 border border-purple-500/40 shadow-sm"
+                      className="absolute inset-0 rounded-lg bg-sylven/20 border border-sylven/40 shadow-sm"
                       transition={{ type: 'spring', stiffness: 400, damping: 35 }}
                     />
                   )}
@@ -254,7 +254,7 @@ export function LoginPage() {
                       required
                       minLength={2}
                       autoComplete="name"
-                      className="w-full bg-brand-surface2 border border-brand-border focus:border-brand-accent focus:ring-1 focus:ring-purple-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-mono"
+                      className="w-full bg-obsidian-panel border border-obsidian-border focus:border-sylven focus:ring-1 focus:ring-sylven/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-mono"
                     />
                   </div>
                 </motion.div>
@@ -273,7 +273,7 @@ export function LoginPage() {
                 placeholder="you@company.com"
                 required
                 autoComplete="email"
-                className="w-full bg-brand-surface2 border border-brand-border focus:border-brand-accent focus:ring-1 focus:ring-purple-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-mono"
+                className="w-full bg-obsidian-panel border border-obsidian-border focus:border-sylven focus:ring-1 focus:ring-sylven/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-mono"
               />
             </div>
 
@@ -291,7 +291,7 @@ export function LoginPage() {
                   required
                   minLength={6}
                   autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-                  className="w-full bg-brand-surface2 border border-brand-border focus:border-brand-accent focus:ring-1 focus:ring-purple-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none transition-all font-mono"
+                  className="w-full bg-obsidian-panel border border-obsidian-border focus:border-sylven focus:ring-1 focus:ring-sylven/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none transition-all font-mono"
                 />
                 <button
                   type="button"
@@ -310,7 +310,7 @@ export function LoginPage() {
               whileTap={{ scale: 0.99 }}
               type="submit"
               disabled={isLoading || !authReady}
-              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium py-3 rounded-xl text-sm transition-all shadow-lg shadow-purple-500/25 border border-purple-400/30 flex items-center justify-center gap-2 mt-2 disabled:opacity-40 disabled:cursor-not-allowed font-mono"
+              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-medium py-3 rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/25 border border-emerald-400/30 flex items-center justify-center gap-2 mt-2 disabled:opacity-40 disabled:cursor-not-allowed font-mono"
             >
               {isLoading ? (
                 <span className="font-mono text-xs">Please wait…</span>
@@ -325,9 +325,9 @@ export function LoginPage() {
 
           {/* Divider */}
           <div className="my-5 flex items-center gap-3 font-mono">
-            <span className="h-px flex-1 bg-brand-borderSubtle" />
+            <span className="h-px flex-1 bg-obsidian-borderSubtle" />
             <span className="text-[10px] uppercase tracking-widest text-zinc-500">or</span>
-            <span className="h-px flex-1 bg-brand-borderSubtle" />
+            <span className="h-px flex-1 bg-obsidian-borderSubtle" />
           </div>
 
           {/* Secondary GitHub OAuth Button */}
@@ -336,7 +336,7 @@ export function LoginPage() {
             whileTap={{ scale: 0.99 }}
             type="button"
             onClick={handleGithubOAuth}
-            className="w-full bg-brand-surface2 border border-brand-border hover:border-brand-accent/40 text-white rounded-xl py-3 text-sm font-medium transition-all flex items-center justify-center gap-2.5 font-mono shadow-sm"
+            className="w-full bg-obsidian-panel border border-obsidian-border hover:border-sylven/40 text-white rounded-xl py-3 text-sm font-medium transition-all flex items-center justify-center gap-2.5 font-mono shadow-sm"
           >
             <GithubIcon />
             <span>Continue with GitHub</span>

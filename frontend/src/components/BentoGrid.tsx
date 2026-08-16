@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Code2, Play, Github, Download, Check, Sparkles, Layers, Zap, Bot, FileCode2, GitBranch, Shield } from 'lucide-react';
+import { FileCode2, Download, Check, Sparkles, Layers, Zap, Bot, GitBranch, Shield, Play, Github } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SpotlightCard } from './SpotlightCard';
 import { StaggerGridContainer, StaggerGridItem } from './animations/StaggerGrid';
@@ -9,9 +9,9 @@ import { TextReveal } from './animations/TextReveal';
 // ─── Live Pipeline Simulation Widget ────────────────────────────────────────
 
 const PIPELINE_STAGES = [
-  { id: 'plan',  label: 'Nemotron 550B',  role: 'Planning',    color: 'indigo',  icon: Bot },
-  { id: 'ingest',label: 'Gemini Flash',   role: 'Ingestion',   color: 'blue',    icon: Zap },
-  { id: 'diff',  label: 'GLM-5.2',        role: 'Diff Patch',  color: 'purple',  icon: GitBranch },
+  { id: 'plan',  label: 'Nemotron 550B',  role: 'Planning',    color: 'emerald', icon: Bot },
+  { id: 'ingest',label: 'Gemini Flash',   role: 'Ingestion',   color: 'cyan',    icon: Zap },
+  { id: 'diff',  label: 'GLM-5.2',        role: 'Diff Patch',  color: 'silver',  icon: GitBranch },
   { id: 'fix',   label: 'Kimi K2.6',      role: 'Auto-Fix',    color: 'emerald', icon: Shield },
 ] as const;
 
@@ -63,14 +63,13 @@ function PipelineWidget() {
   }, [running, tokenIndex]);
 
   const colorMap = {
-    indigo: { dot: 'bg-indigo-500/20 border-indigo-500/60', text: 'text-indigo-300', badge: 'bento-badge--indigo' },
-    blue:   { dot: 'bg-blue-500/20 border-blue-500/60',     text: 'text-blue-300',   badge: 'bento-badge--blue'   },
-    purple: { dot: 'bg-purple-500/20 border-purple-500/60', text: 'text-purple-300', badge: 'bento-badge--indigo' },
-    emerald:{ dot: 'bg-emerald-500/20 border-emerald-500/60',text:'text-emerald-300',badge: 'bento-badge--emerald'},
+    emerald: { dot: 'bg-emerald-500/20 border-emerald-500/60', text: 'text-sylven-light', badge: 'bento-badge--emerald' },
+    cyan:    { dot: 'bg-cyan-500/20 border-cyan-500/60',       text: 'text-cyan-300',     badge: 'bento-badge--blue'   },
+    silver:  { dot: 'bg-slate-400/20 border-slate-400/60',     text: 'text-norvin-silver', badge: 'bento-badge--silver' },
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 font-mono">
       {/* Stage Track */}
       <div className="flex items-center gap-1.5">
         {PIPELINE_STAGES.map((stage, i) => {
@@ -85,15 +84,15 @@ function PipelineWidget() {
                   animate={isActive ? { scale: 1.12, opacity: 1 } : isDone ? { scale: 1, opacity: 0.7 } : { scale: 0.95, opacity: 0.4 }}
                   transition={{ type: 'spring', stiffness: 320, damping: 28 }}
                   className={`w-8 h-8 rounded-full border flex items-center justify-center
-                    ${isActive ? `${c.dot} animate-node-glow` : isDone ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-white/[0.03] border-white/10'}`}
+                    ${isActive ? `${c.dot} shadow-[0_0_12px_rgba(16,185,129,0.2)]` : isDone ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-obsidian-panel border-obsidian-border'}`}
                 >
                   {isDone
-                    ? <Check size={13} className="text-emerald-400" />
-                    : <Icon size={13} className={isActive ? c.text : 'text-neutral-500'} />
+                    ? <Check size={13} className="text-sylven-light" />
+                    : <Icon size={13} className={isActive ? c.text : 'text-zinc-500'} />
                   }
                 </motion.div>
                 <span className={`text-[9px] font-mono font-semibold truncate max-w-[4.5rem] text-center leading-tight
-                  ${isActive ? c.text : isDone ? 'text-emerald-400' : 'text-neutral-600'}`}>
+                  ${isActive ? c.text : isDone ? 'text-sylven-light' : 'text-zinc-500'}`}>
                   {stage.label}
                 </span>
               </div>
@@ -114,16 +113,16 @@ function PipelineWidget() {
 
       {/* Active Stage Badge */}
       <div className="flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-        <span className="text-[10px] font-mono text-neutral-400">
-          <span className="text-indigo-300 font-semibold">{PIPELINE_STAGES[activeStage].role}</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-sylven animate-pulse" />
+        <span className="text-[10px] font-mono text-norvin-muted">
+          <span className="text-sylven-light font-semibold">{PIPELINE_STAGES[activeStage].role}</span>
           {' '}— {PIPELINE_STAGES[activeStage].label} responding…
         </span>
       </div>
 
       {/* Token Stream */}
-      <div className="bg-[#060608] rounded-xl p-3.5 border border-white/[0.07] font-mono text-[11px] text-emerald-300 min-h-[80px] leading-relaxed overflow-hidden">
-        <span className="text-indigo-400 select-none">// Streaming output{'\n'}</span>
+      <div className="bg-obsidian-bg rounded-xl p-3.5 border border-obsidian-border font-mono text-[11px] text-sylven-light min-h-[80px] leading-relaxed overflow-hidden shadow-inner">
+        <span className="text-norvin-muted select-none">// Streaming output{'\n'}</span>
         <AnimatePresence mode="wait">
           <motion.span
             key={activeStage + '-' + tokenIndex}
@@ -136,7 +135,7 @@ function PipelineWidget() {
         <motion.span
           animate={{ opacity: [1, 0] }}
           transition={{ repeat: Infinity, duration: 0.65 }}
-          className="inline-block w-px h-3.5 bg-indigo-400 ml-0.5 align-middle"
+          className="inline-block w-px h-3.5 bg-sylven ml-0.5 align-middle"
         />
       </div>
     </div>
@@ -163,7 +162,7 @@ function AgenticWorkflowWidget() {
   }, []);
 
   return (
-    <div className="space-y-2.5 mt-1">
+    <div className="space-y-2.5 mt-1 font-mono">
       {WORKFLOW_STEPS.map((step, i) => {
         const isActive  = i === activeStep;
         const isDone    = i < activeStep;
@@ -171,19 +170,19 @@ function AgenticWorkflowWidget() {
           <motion.div
             key={step.label}
             animate={isActive ? { x: 0, opacity: 1 } : { opacity: isDone ? 0.7 : 0.45 }}
-            className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs font-mono transition-colors
-              ${isActive  ? 'bg-indigo-500/10 border-indigo-500/25 text-indigo-300'
-              : isDone   ? 'bg-emerald-500/[0.07] border-emerald-500/15 text-emerald-400'
-              :             'bg-white/[0.02] border-white/[0.06] text-neutral-500'}`}
+            className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs transition-colors
+              ${isActive  ? 'bg-sylven/10 border-sylven/30 text-sylven-light'
+              : isDone   ? 'bg-emerald-500/[0.07] border-emerald-500/15 text-sylven-light'
+              :             'bg-obsidian-panel border-obsidian-border text-zinc-500'}`}
           >
             {isDone
-              ? <Check size={11} className="text-emerald-400 flex-shrink-0" />
+              ? <Check size={11} className="text-sylven-light flex-shrink-0" />
               : isActive
-              ? <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse flex-shrink-0" />
-              : <span className="w-1.5 h-1.5 rounded-full bg-neutral-700 flex-shrink-0" />
+              ? <span className="w-1.5 h-1.5 rounded-full bg-sylven animate-pulse flex-shrink-0" />
+              : <span className="w-1.5 h-1.5 rounded-full bg-zinc-700 flex-shrink-0" />
             }
             <span className="truncate">
-              <span className="text-neutral-500 mr-1.5">0{i + 1}.</span>
+              <span className="text-zinc-500 mr-1.5">0{i + 1}.</span>
               {step.label}
             </span>
           </motion.div>
@@ -232,14 +231,14 @@ CREATE TABLE users (
     <section className="w-full max-w-6xl mx-auto px-4 py-16 font-sans">
       <ScrollReveal direction="up" delay={0.05}>
         <div className="text-center max-w-2xl mx-auto mb-14 space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/25 text-xs font-medium text-brand-glow font-mono">
-            <Layers size={13} className="text-brand-accent" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-obsidian-surface border border-obsidian-border text-xs font-medium text-norvin-silver font-mono shadow-sm">
+            <Layers size={13} className="text-sylven" />
             <span>Platform Architecture</span>
           </div>
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white font-display">
             <TextReveal text="Production-ready from idea to deployment" className="justify-center" />
           </h2>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-norvin-muted">
             Every blueprint generated by BuildX includes full-stack backend routers, database schemas, and frontend interfaces.
           </p>
         </div>
@@ -250,21 +249,21 @@ CREATE TABLE users (
         {/* Card 1: Live Multi-Model Pipeline (spans 2 cols) */}
         <StaggerGridItem className="md:col-span-2">
           <SpotlightCard
-            className="h-full p-6 flex flex-col gap-5 bg-brand-surface border border-brand-border rounded-2xl"
-            spotlightColor="rgba(168, 85, 247, 0.18)"
+            className="h-full p-6 flex flex-col gap-5 bg-obsidian-surface border border-obsidian-border rounded-2xl"
+            spotlightColor="rgba(16, 185, 129, 0.15)"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-purple-500/15 border border-purple-500/25 flex items-center justify-center">
-                  <Zap size={14} className="text-brand-glow" />
+                <div className="w-7 h-7 rounded-lg bg-sylven/15 border border-sylven/30 flex items-center justify-center">
+                  <Zap size={14} className="text-sylven-light" />
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-white font-display">Live Multi-Model Pipeline</div>
-                  <div className="text-[10px] text-zinc-400 font-mono mt-0.5">4-stage autonomous routing</div>
+                  <div className="text-[10px] text-norvin-muted font-mono mt-0.5">4-stage autonomous routing</div>
                 </div>
               </div>
-              <span className="bento-badge bento-badge--indigo font-mono">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-accent animate-pulse" />
+              <span className="bento-badge bento-badge--emerald font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-sylven animate-pulse" />
                 LIVE
               </span>
             </div>
@@ -275,19 +274,19 @@ CREATE TABLE users (
         {/* Card 2: Agentic Workflow */}
         <StaggerGridItem>
           <SpotlightCard
-            className="h-full p-6 flex flex-col gap-4 bg-brand-surface border border-brand-border rounded-2xl"
-            spotlightColor="rgba(52, 211, 153, 0.15)"
+            className="h-full p-6 flex flex-col gap-4 bg-obsidian-surface border border-obsidian-border rounded-2xl"
+            spotlightColor="rgba(16, 185, 129, 0.15)"
           >
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
-                <Sparkles size={14} className="text-brand-green" />
+              <div className="w-7 h-7 rounded-lg bg-sylven/15 border border-sylven/30 flex items-center justify-center">
+                <Sparkles size={14} className="text-sylven-light" />
               </div>
               <div>
                 <div className="text-sm font-semibold text-white font-display">Agentic Workflow</div>
-                <div className="text-[10px] text-zinc-400 font-mono mt-0.5">Real-time step tracing</div>
+                <div className="text-[10px] text-norvin-muted font-mono mt-0.5">Real-time step tracing</div>
               </div>
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed font-sans">
+            <p className="text-xs text-norvin-muted leading-relaxed font-sans">
               Multi-step execution traced from prompt evaluation to database migrations.
             </p>
             <AgenticWorkflowWidget />
@@ -297,31 +296,31 @@ CREATE TABLE users (
         {/* Card 3: Codebase Explorer */}
         <StaggerGridItem>
           <SpotlightCard
-            className="h-full p-6 flex flex-col gap-4 bg-brand-surface border border-brand-border rounded-2xl"
+            className="h-full p-6 flex flex-col gap-4 bg-obsidian-surface border border-obsidian-border rounded-2xl"
             spotlightColor="rgba(56, 189, 248, 0.15)"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <FileCode2 size={16} className="text-brand-cyan" />
+                <FileCode2 size={16} className="text-cyan-400" />
                 <span className="text-sm font-semibold text-white font-display">Codebase Explorer</span>
               </div>
               <button
                 onClick={copyCode}
-                className="px-2 py-0.5 rounded-lg bg-brand-surface2 hover:bg-brand-surface3 border border-brand-border text-[10px] text-zinc-300 flex items-center gap-1 transition-colors font-mono"
+                className="px-2 py-0.5 rounded-lg bg-obsidian-panel hover:bg-obsidian-surface border border-obsidian-border text-[10px] text-norvin-silver flex items-center gap-1 transition-colors font-mono"
               >
-                {copied ? <Check size={10} className="text-brand-green" /> : null}
+                {copied ? <Check size={10} className="text-sylven-light" /> : null}
                 {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
 
-            <div className="flex items-center gap-1 border-b border-brand-borderSubtle pb-2">
+            <div className="flex items-center gap-1 border-b border-obsidian-borderSubtle pb-2">
               {(['app', 'client', 'schema'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveFileTab(tab)}
                   className={`px-2.5 py-1 rounded-md text-[10px] font-mono transition-colors ${
                     activeFileTab === tab
-                      ? 'bg-cyan-500/15 text-brand-cyan border border-cyan-500/30 font-semibold'
+                      ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold'
                       : 'text-zinc-500 hover:text-zinc-300'
                   }`}
                 >
@@ -337,7 +336,7 @@ CREATE TABLE users (
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.18 }}
-                className="bg-brand-bg rounded-xl p-3.5 font-mono text-[10.5px] text-zinc-300 overflow-x-auto border border-brand-borderSubtle shadow-inner flex-1"
+                className="bg-obsidian-bg rounded-xl p-3.5 font-mono text-[10.5px] text-zinc-300 overflow-x-auto border border-obsidian-borderSubtle shadow-inner flex-1"
               >
                 <pre className="leading-relaxed">{fileContents[activeFileTab]}</pre>
               </motion.div>
@@ -348,23 +347,23 @@ CREATE TABLE users (
         {/* Card 4: Instant Sandbox */}
         <StaggerGridItem>
           <SpotlightCard
-            className="h-full p-6 flex flex-col gap-4 bg-brand-surface border border-brand-border rounded-2xl"
-            spotlightColor="rgba(168, 85, 247, 0.15)"
+            className="h-full p-6 flex flex-col gap-4 bg-obsidian-surface border border-obsidian-border rounded-2xl"
+            spotlightColor="rgba(16, 185, 129, 0.15)"
           >
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-purple-500/15 border border-purple-500/25 flex items-center justify-center">
-                <Play size={14} className="text-brand-glow" />
+              <div className="w-7 h-7 rounded-lg bg-sylven/15 border border-sylven/30 flex items-center justify-center">
+                <Play size={14} className="text-sylven-light" />
               </div>
               <div>
                 <div className="text-sm font-semibold text-white font-display">Instant Sandbox</div>
-                <div className="text-[10px] text-zinc-400 font-mono mt-0.5">Browser-native runtime</div>
+                <div className="text-[10px] text-norvin-muted font-mono mt-0.5">Browser-native runtime</div>
               </div>
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed font-sans">
+            <p className="text-xs text-norvin-muted leading-relaxed font-sans">
               Generated screens rendered live in-browser via Sandpack transpilation — no local setup required.
             </p>
             <div className="mt-auto">
-              <div className="rounded-xl border border-brand-borderSubtle bg-brand-bg p-3 space-y-2">
+              <div className="rounded-xl border border-obsidian-borderSubtle bg-obsidian-bg p-3 space-y-2">
                 {['React 18', 'TypeScript', 'Tailwind CSS'].map((lib) => (
                   <div key={lib} className="flex items-center justify-between text-[10px] font-mono">
                     <span className="text-zinc-400">{lib}</span>
@@ -379,23 +378,23 @@ CREATE TABLE users (
         {/* Card 5: GitHub Sync & Export (spans 2 cols) */}
         <StaggerGridItem className="md:col-span-2">
           <SpotlightCard
-            className="h-full p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-brand-surface border border-brand-border rounded-2xl"
-            spotlightColor="rgba(168, 85, 247, 0.18)"
+            className="h-full p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-obsidian-surface border border-obsidian-border rounded-2xl"
+            spotlightColor="rgba(16, 185, 129, 0.15)"
           >
             <div className="space-y-2 flex-1">
               <div className="flex items-center gap-2.5 mb-1">
-                <div className="w-7 h-7 rounded-lg bg-white/[0.06] border border-brand-border inline-flex items-center justify-center flex-shrink-0">
+                <div className="w-7 h-7 rounded-lg bg-white/[0.06] border border-obsidian-border inline-flex items-center justify-center flex-shrink-0">
                   <Github size={14} className="text-white" />
                 </div>
                 <span className="text-sm font-semibold text-white font-display leading-none">GitHub Sync &amp; ZIP Export</span>
               </div>
-              <p className="text-xs text-zinc-400 max-w-md leading-relaxed font-sans">
+              <p className="text-xs text-norvin-muted max-w-md leading-relaxed font-sans">
                 Push production repos directly to GitHub or download a self-contained ZIP archive ready for{' '}
-                <code className="text-brand-glow bg-purple-500/10 px-1 rounded text-[10px] font-mono">npm install</code>.
+                <code className="text-sylven-light bg-sylven-glow px-1 rounded text-[10px] font-mono">npm install</code>.
               </p>
               <div className="flex items-center gap-2 pt-1 font-mono">
                 <span className="bento-badge bento-badge--emerald"><Check size={10} /> OAuth 2.0</span>
-                <span className="bento-badge bento-badge--indigo">20+ files</span>
+                <span className="bento-badge bento-badge--blue">20+ files</span>
                 <span className="bento-badge bento-badge--amber">JWT secured</span>
               </div>
             </div>
@@ -411,7 +410,7 @@ CREATE TABLE users (
               <motion.button
                 whileHover={{ scale: 1.03, y: -1 }}
                 whileTap={{ scale: 0.97 }}
-                className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-brand-surface2 hover:bg-brand-surface3 border border-brand-border text-white text-xs font-medium leading-none transition-colors"
+                className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-obsidian-panel hover:bg-obsidian-surface border border-obsidian-border text-white text-xs font-medium leading-none transition-colors"
               >
                 <Download size={13} className="flex-shrink-0" />
                 <span className="leading-none">Download ZIP</span>
