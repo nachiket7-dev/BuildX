@@ -31,7 +31,7 @@ export const buildxEditorTheme = EditorView.theme(
     },
     '.cm-gutters': {
       backgroundColor: '#13151A',
-      color: '#475569',
+      color: '#52525B',
       borderRight: '1px solid rgba(255, 255, 255, 0.06)',
       paddingRight: '4px',
     },

@@ -764,9 +764,9 @@ export function CodeStudio({
       </div>
 
       {/* Editor & View Area (Center) */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#08080c] min-h-0 md:h-full relative select-text">
+      <div className="flex-1 flex flex-col min-w-0 bg-obsidian-bg min-h-0 md:h-full relative select-text">
         {/* Editor Tabs & Controls */}
-        <div className="h-11 bg-[#0d0d12] border-b border-white/10 px-3 flex items-center justify-between select-none shrink-0">
+        <div className="h-11 bg-obsidian-surface border-b border-obsidian-border px-3 flex items-center justify-between select-none shrink-0">
           <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06] relative" role="tablist">
             {[
               { id: 'code', label: '01 CODE', icon: <FileCode size={12} /> },

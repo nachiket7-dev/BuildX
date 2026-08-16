@@ -573,10 +573,10 @@ export function AgentPage() {
         </aside>
 
         {/* ── 2. Center Code Editor (w-0 flex-1 — absorbs all remaining space) ── */}
-        <main className="flex-1 w-0 min-w-0 h-full relative overflow-hidden bg-[#08080c] flex flex-col">
+        <main className="flex-1 w-0 min-w-0 h-full relative overflow-hidden bg-obsidian-bg flex flex-col">
 
         {/* Tab Bar Header */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-3 h-11 shrink-0 bg-white/[0.02]">
+        <div className="flex items-center justify-between border-b border-obsidian-border px-3 h-11 shrink-0 bg-obsidian-surface">
           <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06] relative">
             {(
               [
