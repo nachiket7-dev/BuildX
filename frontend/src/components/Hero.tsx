@@ -411,7 +411,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                     disabled={!canSubmit}
                     whileHover={canSubmit ? { scale: 1.04 } : {}}
                     whileTap={canSubmit ? { scale: 0.96 } : {}}
-                    className="px-5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-2 transition-all disabled:opacity-40"
+                    className="px-5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans text-xs flex items-center gap-2 transition-all disabled:opacity-40"
                   >
                     {isLoading ? (
                       <>
