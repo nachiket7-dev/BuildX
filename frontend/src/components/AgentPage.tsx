@@ -482,14 +482,14 @@ export function AgentPage() {
         {loadingWorkspaces ? (
           <div className="flex flex-col items-center gap-2 py-12">
             <Loader2 className="animate-spin text-indigo-400" size={24} />
-            <span className="text-xs text-gray-500 font-mono-custom">Loading workspaces…</span>
+            <span className="text-xs text-gray-500 font-mono tracking-tight">Loading workspaces…</span>
           </div>
         ) : workspaces.length === 0 ? (
           <div className="text-center py-12 border border-white/5 bg-white/[0.02] rounded-2xl px-8 max-w-md w-full">
-            <p className="text-sm text-gray-400 mb-4">You don't have any blueprints yet.</p>
+            <p className="text-sm text-gray-400 mb-4 font-sans">You don't have any blueprints yet.</p>
             <button
               onClick={() => navigate('/create')}
-              className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold rounded-xl transition-all"
+              className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold rounded-xl transition-all font-sans"
             >
               Build your first app
             </button>
@@ -513,13 +513,13 @@ export function AgentPage() {
                 whileTap={{ scale: 0.98 }}
                 className="flex items-start text-left p-5 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-indigo-500/20 rounded-2xl transition-colors group"
               >
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-lg font-bold text-indigo-400 shrink-0 mr-4 group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-lg font-bold text-indigo-400 shrink-0 mr-4 group-hover:scale-105 transition-transform font-mono">
                   {w.appName?.[0]?.toUpperCase() || 'A'}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-white truncate">{w.appName}</h3>
-                  <p className="text-xs text-gray-400 truncate mt-1">{w.idea}</p>
-                  <span className="inline-block mt-3 text-[10px] font-mono-custom text-indigo-400 border border-indigo-500/10 px-2 py-0.5 rounded">
+                  <h3 className="text-sm font-semibold text-white truncate font-sans">{w.appName}</h3>
+                  <p className="text-xs text-gray-400 truncate mt-1 font-sans">{w.idea}</p>
+                  <span className="inline-block mt-3 text-[10px] font-mono text-indigo-400 border border-indigo-500/10 px-2 py-0.5 rounded tracking-tight">
                     Open IDE Studio →
                   </span>
                 </div>
@@ -538,7 +538,7 @@ export function AgentPage() {
   };
 
   return (
-    <div className="w-full h-full overflow-hidden flex flex-col bg-[#08080c] text-white relative selection:bg-purple-500 selection:text-white">
+    <div className="w-full h-full overflow-hidden flex flex-col bg-[#08080c] text-white relative selection:bg-purple-500 selection:text-white font-sans">
       {/* Top Ambient Mesh Light */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[250px] bg-emerald-500/10 blur-[150px] pointer-events-none rounded-full" />
 
@@ -551,9 +551,9 @@ export function AgentPage() {
           <div className="p-3 border-b border-white/5 flex items-center justify-between shrink-0 bg-white/[0.02]">
             <div className="flex items-center gap-2">
               <Folder size={14} className="text-purple-400" />
-              <span className="text-xs font-bold text-white font-mono-custom">Workspace Files</span>
+              <span className="text-xs font-bold text-white font-mono tracking-tight">Workspace Files</span>
             </div>
-            <span className="text-[10px] font-mono-custom text-gray-500 bg-white/5 px-2 py-0.5 rounded">
+            <span className="text-[10px] font-mono text-gray-500 bg-white/5 px-2 py-0.5 rounded tracking-tight">
               {visibleFiles.length} files
             </span>
           </div>
@@ -604,9 +604,9 @@ export function AgentPage() {
           </div>
 
           {selectedFile && activeTab === 'editor' && (
-            <div className="flex items-center gap-2 font-mono-custom text-[11px] text-gray-400 truncate min-w-0">
+            <div className="flex items-center gap-2 font-mono text-[11px] text-gray-400 truncate min-w-0 tracking-tight">
               <span className="text-gray-300 truncate">{selectedFile.path}</span>
-              <span className="uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px] shrink-0">
+              <span className="uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px] shrink-0 font-mono">
                 {selectedFile.language}
               </span>
             </div>
@@ -762,14 +762,14 @@ export function AgentPage() {
               <span className="text-xs font-bold text-white">Cortex Agent</span>
             </div>
 
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono-custom shrink-0 transition-all ${isThinking ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
+            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono shrink-0 transition-all tracking-tight ${isThinking ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
               {isThinking && <Loader2 className="animate-spin text-emerald-400" size={10} />}
               <span>{isThinking ? 'Thinking…' : 'Idle'}</span>
             </div>
           </div>
 
           {/* Multi-Model Telemetry Badges */}
-          <div className="flex flex-col gap-1 p-2 rounded-lg bg-indigo-950/30 border border-indigo-500/20 text-[10px] font-mono-custom text-indigo-300">
+          <div className="flex flex-col gap-1 p-2 rounded-lg bg-indigo-950/30 border border-indigo-500/20 text-[10px] font-mono text-indigo-300 tracking-tight">
             <div className="flex items-center justify-between font-semibold">
               <span>Pipeline Stage Telemetry</span>
               <span className="flex items-center gap-1 text-emerald-400">
@@ -777,7 +777,7 @@ export function AgentPage() {
                 Active
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] text-gray-400 pt-1 border-t border-indigo-500/10">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] text-gray-400 pt-1 border-t border-indigo-500/10 font-mono">
               <div className="flex items-center gap-1">
                 <Brain size={9} className="text-purple-400 shrink-0" />
                 <span>PLAN: <span className="text-purple-300">Nemotron</span></span>
@@ -810,11 +810,11 @@ export function AgentPage() {
               className="overflow-hidden border-b border-white/5 bg-emerald-500/[0.02] shrink-0"
             >
               <div className="p-2.5">
-                <div className="flex items-center gap-1.5 text-[10px] font-mono-custom text-emerald-400 uppercase tracking-widest font-semibold mb-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 uppercase tracking-widest font-semibold mb-1">
                   <CheckSquare size={11} />
                   <span>Task Checklist</span>
                 </div>
-                <pre className="text-[11px] text-gray-400 font-mono-custom whitespace-pre-wrap max-h-20 overflow-y-auto leading-relaxed">
+                <pre className="text-[11px] text-gray-400 font-mono whitespace-pre-wrap max-h-20 overflow-y-auto leading-relaxed">
                   {plan}
                 </pre>
               </div>
@@ -825,12 +825,12 @@ export function AgentPage() {
         {/* Conversation Stream */}
         <div
           ref={chatScrollRef}
-          className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 font-mono-custom text-xs chat-scroll-area scroll-smooth"
+          className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 font-mono text-xs chat-scroll-area scroll-smooth"
         >
           {messages.length === 0 && !isThinking && (
             <div className="text-center py-10 px-3">
               <Sparkles className="mx-auto text-indigo-400/40 mb-2 animate-pulse" size={20} />
-              <p className="text-[11px] text-gray-400 leading-relaxed">
+              <p className="text-[11px] text-gray-400 leading-relaxed font-sans">
                 Describe code edits or features to build. The multi-model pipeline plans, generates diff patches, and applies fixes live.
               </p>
             </div>
@@ -857,7 +857,7 @@ export function AgentPage() {
                         onClick={() =>
                           setExpandedThinking(prev => ({ ...prev, [i]: !prev[i] }))
                         }
-                        className="flex items-center gap-1.5 text-[10px] font-mono-custom text-gray-500 hover:text-emerald-400 transition-colors w-full text-left"
+                        className="flex items-center gap-1.5 text-[10px] font-mono text-gray-500 hover:text-emerald-400 transition-colors w-full text-left tracking-tight"
                       >
                         <Brain size={10} className="text-emerald-500/60 shrink-0" />
                         <span className="uppercase tracking-widest font-semibold">
@@ -866,7 +866,7 @@ export function AgentPage() {
                         {expandedThinking[i] ? <ChevronDown size={10} className="ml-auto" /> : <ChevronRight size={10} className="ml-auto" />}
                       </button>
                       {expandedThinking[i] && (
-                        <div className="mt-2 space-y-1 max-h-40 overflow-y-auto pr-1 font-mono-custom">
+                        <div className="mt-2 space-y-1 max-h-40 overflow-y-auto pr-1 font-mono">
                           {msg.thinkingSteps.map((step, si) => (
                             <div key={si} className="text-[10px] text-gray-400 leading-relaxed border-l-2 border-emerald-500/20 pl-2 py-0.5">
                               {step}
@@ -878,25 +878,25 @@ export function AgentPage() {
                   )}
 
                   <div className="p-2.5">
-                    <span className="text-[9px] font-mono-custom uppercase tracking-wider text-emerald-400/70 mb-1 block">
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400/70 mb-1 block font-semibold">
                       {msg.model ? `Pipeline · ${msg.model}` : 'Pipeline · Cortex'}
                     </span>
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div className="whitespace-pre-wrap font-sans text-xs">{msg.content}</div>
                   </div>
                 </>
               ) : (
-                <div className="whitespace-pre-wrap">{msg.content}</div>
+                <div className="whitespace-pre-wrap font-sans text-xs">{msg.content}</div>
               )}
             </motion.div>
           ))}
 
           {isThinking && (
             <div className="self-start flex flex-col max-w-[92%] bg-white/[0.03] border border-white/5 rounded-xl p-2.5 text-[11px]">
-              <div className="flex items-center gap-1.5 mb-1.5 text-emerald-400 font-semibold">
+              <div className="flex items-center gap-1.5 mb-1.5 text-emerald-400 font-semibold font-mono">
                 <Loader2 className="animate-spin" size={12} />
                 <span>Executing Pipeline…</span>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 font-mono">
                 {liveThinkingSteps.map((step, idx) => (
                   <div key={idx} className="text-[10px] text-gray-400 border-l-2 border-emerald-500/30 pl-2 py-0.5">
                     {step}
@@ -917,7 +917,7 @@ export function AgentPage() {
             onChange={e => setPrompt(e.target.value)}
             placeholder={isThinking ? 'Pipeline running…' : 'Ask Agent to refine code…'}
             disabled={isThinking}
-            className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-indigo-500/50 font-mono-custom"
+            className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-indigo-500/50 font-mono"
           />
           <button
             type="submit"

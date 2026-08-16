@@ -20,7 +20,7 @@ export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
         <line x1="12" y1="8" x2="12" y2="12" />
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
-      <div className="flex-1 text-sm font-mono-custom">{message}</div>
+      <div className="flex-1 text-sm font-mono leading-relaxed">{message}</div>
       <button
         onClick={onDismiss}
         className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"

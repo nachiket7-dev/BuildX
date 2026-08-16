@@ -69,7 +69,7 @@ export function LoadingScreen() {
         >
           Architecting your app...
         </h2>
-        <p className="font-mono-custom text-sm text-center mb-10" style={{ color: 'var(--text3)' }}>
+        <p className="font-mono text-sm text-center mb-10 leading-relaxed" style={{ color: 'var(--text3)' }}>
           This takes 20-40 seconds. Claude is thinking deeply.
         </p>
 
@@ -120,7 +120,7 @@ export function LoadingScreen() {
                     animation: status === 'active' ? 'pulse-dot 1s ease-in-out infinite' : 'none',
                   }}
                 />
-                <span className="font-mono-custom text-xs">{step}</span>
+                <span className="font-mono text-xs tracking-tight">{step}</span>
                 {status === 'done' && (
                   <svg
                     className="ml-auto flex-shrink-0"
