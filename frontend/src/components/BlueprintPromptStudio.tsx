@@ -79,16 +79,16 @@ export function BlueprintPromptStudio() {
   };
 
   return (
-    <div className="w-full space-y-10 pb-36">
+    <div className="w-full space-y-10 pb-36 font-sans">
       {/* Elevated Glass Console Card */}
-      <div className="bg-[#121216] border border-white/10 rounded-2xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+      <div className="bg-brand-surface border border-brand-border rounded-2xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden">
         {/* Subtle top interior glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-32 bg-indigo-500/10 blur-[50px] pointer-events-none rounded-full" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-32 bg-purple-500/10 blur-[50px] pointer-events-none rounded-full" />
 
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-white/10">
+        <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-brand-borderSubtle">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-xs font-semibold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-3 py-1 rounded-full uppercase tracking-wider">
+            <span className="font-mono text-xs font-semibold text-brand-glow bg-purple-500/10 border border-purple-500/20 px-3 py-1 rounded-full uppercase tracking-wider">
               00 / PROMPT STUDIO
             </span>
             <span className="hidden sm:inline text-xs text-zinc-500 font-mono">
@@ -98,7 +98,7 @@ export function BlueprintPromptStudio() {
 
           <Link
             to="/blueprints"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/10 text-xs font-mono text-zinc-400 hover:text-white hover:border-white/20 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-surface2 border border-brand-border text-xs font-mono text-zinc-400 hover:text-white hover:border-brand-accent/40 transition-all shadow-sm"
           >
             <ArrowLeft size={13} />
             <span>← Back to Blueprints</span>
@@ -118,7 +118,7 @@ export function BlueprintPromptStudio() {
                 value={promptText}
                 onChange={(e) => setPromptText(e.target.value)}
                 placeholder="Describe your app idea in detail... (e.g. 'Build a SaaS billing dashboard with multi-tenant PostgreSQL schema, Stripe webhooks, and React analytics widgets')"
-                className="w-full bg-zinc-950/80 border border-white/10 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 text-xs sm:text-sm text-white placeholder-zinc-500 rounded-xl p-4 font-mono outline-none transition-all leading-relaxed resize-y"
+                className="w-full bg-brand-bg border border-brand-border focus:border-brand-accent focus:ring-1 focus:ring-purple-500/30 text-xs sm:text-sm text-white placeholder-zinc-500 rounded-xl p-4 font-mono outline-none transition-all leading-relaxed resize-y"
               />
               <div className="absolute bottom-3 right-3 text-[10px] font-mono text-zinc-500">
                 {promptText.length} chars
@@ -141,8 +141,8 @@ export function BlueprintPromptStudio() {
                     onClick={() => handleSelectPreset(preset)}
                     className={`px-3 py-1.5 rounded-xl border text-xs font-mono transition-all flex items-center gap-1.5 ${
                       isSelected
-                        ? 'bg-indigo-600/30 border-indigo-500/50 text-indigo-300 font-semibold shadow-sm'
-                        : 'bg-zinc-900/90 border-white/10 text-zinc-300 hover:text-white hover:border-white/20'
+                        ? 'bg-purple-600/20 border-purple-500/40 text-brand-glow font-semibold shadow-sm'
+                        : 'bg-brand-surface2 border-brand-border text-zinc-300 hover:text-white hover:border-brand-accent/30'
                     }`}
                   >
                     <span>{preset.iconText}</span>
@@ -154,10 +154,10 @@ export function BlueprintPromptStudio() {
           </div>
 
           {/* Execution Bar: Model Selector + Generate CTA */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/10">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-brand-borderSubtle font-mono">
             {/* Model Selector Dropdown */}
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Cpu size={15} className="text-emerald-400 shrink-0" />
+              <Cpu size={15} className="text-brand-green shrink-0" />
               <select
                 value={activeModel}
                 onChange={(e) => {
@@ -165,10 +165,10 @@ export function BlueprintPromptStudio() {
                   setActiveModel(m);
                   setSelectedModel(m);
                 }}
-                className="bg-zinc-950/90 border border-white/10 text-xs font-mono text-zinc-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-indigo-500/50 transition-all cursor-pointer w-full sm:w-64"
+                className="bg-brand-bg border border-brand-border text-xs font-mono text-zinc-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-brand-accent transition-all cursor-pointer w-full sm:w-64"
               >
                 {MODELS.map((m) => (
-                  <option key={m.id} value={m.id} className="bg-zinc-900 text-white">
+                  <option key={m.id} value={m.id} className="bg-brand-surface text-white">
                     🟢 {m.name}
                   </option>
                 ))}
@@ -181,7 +181,7 @@ export function BlueprintPromptStudio() {
               whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={!promptText.trim() || isSubmitting}
-              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 border border-indigo-400/30 disabled:opacity-40"
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-500/25 border border-purple-400/30 disabled:opacity-40 font-mono"
             >
               {isSubmitting ? (
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -197,12 +197,12 @@ export function BlueprintPromptStudio() {
       </div>
 
       {/* Inspiration Template Grid (3 Columns) */}
-      <div className="space-y-4">
+      <div className="space-y-4 font-mono">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-mono uppercase text-zinc-400 tracking-wider font-semibold">
+          <h3 className="text-xs uppercase text-zinc-400 tracking-wider font-semibold">
             INSPIRATION & TEMPLATES
           </h3>
-          <span className="text-[10px] font-mono text-zinc-500">03 ARCHITECTURAL PATTERNS</span>
+          <span className="text-[10px] text-zinc-500">03 ARCHITECTURAL PATTERNS</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -231,15 +231,15 @@ export function BlueprintPromptStudio() {
               onClick={() => {
                 setPromptText(`Build a ${tpl.title}: ${tpl.desc}`);
               }}
-              className="bg-[#121216] border border-white/10 hover:border-white/25 rounded-xl p-5 cursor-pointer transition-all hover:-translate-y-1 space-y-3 group"
+              className="bg-brand-surface border border-brand-border hover:border-brand-accent/40 rounded-2xl p-5 cursor-pointer transition-all hover:-translate-y-1 space-y-3 group shadow-md"
             >
               <div className="flex items-center justify-between font-mono text-[10px]">
-                <span className="text-indigo-400 font-semibold">{tpl.num}</span>
-                <span className="text-zinc-500 bg-zinc-900 border border-white/10 px-2 py-0.5 rounded">
+                <span className="text-brand-glow font-semibold">{tpl.num}</span>
+                <span className="text-zinc-400 bg-brand-bg border border-brand-border px-2 py-0.5 rounded">
                   {tpl.badge}
                 </span>
               </div>
-              <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
+              <h4 className="text-sm font-bold text-white group-hover:text-brand-glow transition-colors font-sans">
                 {tpl.title}
               </h4>
               <p className="text-xs text-zinc-400 leading-relaxed font-sans">

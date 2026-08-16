@@ -345,18 +345,18 @@ export function RefinementChat({
               variants={timelineContainer}
               initial="hidden"
               animate="show"
-              className="timeline-feed border-l border-white/10 ml-4 pl-4 space-y-6 font-mono text-xs"
+              className="timeline-feed border-l border-brand-border ml-4 pl-4 space-y-6 font-mono text-xs"
             >
               {conversationTurns.map((turn, turnIndex) => (
                 <div key={turn.user.timestamp || turnIndex} className="space-y-4">
                   {/* User Question Node */}
                   <motion.div variants={timelineNodeSlide} className="timeline-node relative">
-                    <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400">
-                      <span className="font-mono text-[10px] text-indigo-400 font-semibold">01 / ARCHITECT</span>
+                    <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400 font-mono">
+                      <span className="text-[10px] text-brand-glow font-semibold">01 / ARCHITECT</span>
                       <span className="text-zinc-600">•</span>
                       <span>Request #{turnIndex + 1}</span>
                     </div>
-                    <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/20 text-neutral-200 leading-relaxed font-sans text-xs">
+                    <div className="p-3.5 rounded-xl bg-brand-surface2 border border-brand-border text-zinc-100 leading-relaxed font-sans text-xs shadow-sm">
                       {turn.user.content}
                     </div>
                   </motion.div>
@@ -364,33 +364,33 @@ export function RefinementChat({
                   {/* Assistant Answer Node */}
                   {turn.assistant ? (
                     <motion.div variants={timelineNodeSlide} className="timeline-node relative">
-                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400">
-                        <span className="font-mono text-[10px] text-emerald-400 font-semibold">02 / PATCH_DIFF</span>
+                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400 font-mono">
+                        <span className="text-[10px] text-brand-green font-semibold">02 / PATCH_DIFF</span>
                         <span className="text-zinc-600">•</span>
                         <span>BuildX Cortex Multi-Model Stream</span>
                       </div>
-                      <div className="p-3.5 rounded-xl bg-[#111116] border border-white/10 text-neutral-300 leading-relaxed font-sans text-xs">
+                      <div className="p-3.5 rounded-xl bg-brand-surface border border-brand-border text-zinc-200 leading-relaxed font-sans text-xs shadow-sm">
                         {turn.assistant.content}
                       </div>
                     </motion.div>
                   ) : pendingUserMessage?.timestamp === turn.user.timestamp && isRefining ? (
                     <motion.div variants={timelineNodeSlide} className="timeline-node relative">
-                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-amber-400">
-                        <span className="font-mono text-[10px] font-semibold">03 / AUTO_FIX</span>
+                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-amber-400 font-mono">
+                        <span className="text-[10px] font-semibold">03 / AUTO_FIX</span>
                         <span className="text-zinc-600">•</span>
-                        <span>Kimi K2.6 Engine Pipeline</span>
+                        <span>Cortex Engine Pipeline</span>
                       </div>
-                      <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
-                        <div className="flex items-center gap-2 text-indigo-300 font-mono text-xs">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <div className="p-3.5 rounded-xl bg-brand-surface2 border border-brand-accent/30 space-y-2">
+                        <div className="flex items-center gap-2 text-brand-glow font-mono text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
                           <span>Refining blueprint via Multi-Model Pipeline…</span>
                         </div>
-                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-indigo-300/80 pt-2 border-t border-indigo-500/20 font-mono">
-                          <span className="flex items-center gap-1"><Brain size={10} className="text-purple-400" /> 01 / ARCHITECT</span>
-                          <span className="text-neutral-600">›</span>
-                          <span className="flex items-center gap-1"><GitCompare size={10} className="text-emerald-400" /> 02 / PATCH_DIFF</span>
-                          <span className="text-neutral-600">›</span>
-                          <span className="flex items-center gap-1 text-amber-400 font-semibold"><Wrench size={10} /> 03 / AUTO_FIX</span>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-400 pt-2 border-t border-brand-borderSubtle font-mono">
+                          <span className="flex items-center gap-1"><Brain size={10} className="text-brand-glow" /> 01 / ARCHITECT</span>
+                          <span className="text-zinc-600">›</span>
+                          <span className="flex items-center gap-1"><GitCompare size={10} className="text-brand-green" /> 02 / PATCH_DIFF</span>
+                          <span className="text-zinc-600">›</span>
+                          <span className="flex items-center gap-1 text-brand-amber font-semibold"><Wrench size={10} /> 03 / AUTO_FIX</span>
                         </div>
                       </div>
                     </motion.div>
@@ -414,7 +414,7 @@ export function RefinementChat({
                     type="button"
                     onClick={() => handleSuggestion(s)}
                     disabled={isRefining}
-                    className="bg-white/5 hover:bg-indigo-500/10 border border-white/10 hover:border-indigo-500/30 text-zinc-300 hover:text-indigo-300 font-mono text-[11px] px-2.5 py-1 rounded-md transition-all shrink-0 cursor-pointer text-left border-0 outline-none"
+                    className="bg-brand-surface2 hover:bg-brand-surface3 border border-brand-border text-zinc-300 hover:text-white font-mono text-[11px] px-3 py-1.5 rounded-lg transition-all shrink-0 cursor-pointer text-left outline-none shadow-sm"
                   >
                     {s}
                   </button>
@@ -427,11 +427,11 @@ export function RefinementChat({
 
       {/* Docked Glass Input Bar */}
       {isExpanded && (
-        <form onSubmit={handleSubmit} className="bg-[#08080c]/90 border-t border-white/10 pt-2.5 sticky bottom-0 z-10 backdrop-blur-xl">
+        <form onSubmit={handleSubmit} className="bg-brand-surface border-t border-brand-border pt-2.5 sticky bottom-0 z-10 backdrop-blur-xl">
           <div className="h-10 flex items-center gap-2">
-            <div className="text-[10px] font-mono px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="hidden sm:inline">Engine:</span> Kimi K2.6
+            <div className="text-[10px] font-mono px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-brand-green rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
+              <span className="hidden sm:inline">Engine:</span> Cortex Multi-Model
             </div>
 
             <input
@@ -444,7 +444,7 @@ export function RefinementChat({
                 isRefining ? 'Refining blueprint…' : 'e.g. "Add Stripe payment webhooks with idempotency"'
               }
               maxLength={500}
-              className="bg-black/60 border border-white/10 focus:border-indigo-500/50 text-white font-mono text-xs px-3 py-2 rounded-lg flex-1 h-full focus:outline-none placeholder:text-zinc-600 outline-none transition-all"
+              className="bg-brand-bg border border-brand-border focus:border-brand-accent text-white font-mono text-xs px-3 py-2 rounded-lg flex-1 h-full focus:outline-none placeholder:text-zinc-500 outline-none transition-all"
             />
 
             <motion.button
@@ -452,7 +452,7 @@ export function RefinementChat({
               whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={!input.trim() || isRefining}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3.5 h-full rounded-lg transition-all shrink-0 flex items-center justify-center border-0 cursor-pointer disabled:opacity-40 gap-1.5"
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold px-4 h-full rounded-lg transition-all shrink-0 flex items-center justify-center border border-purple-400/30 cursor-pointer disabled:opacity-40 gap-1.5 font-mono shadow-md shadow-purple-500/20"
               aria-label={isRefining ? 'Refining' : 'Send refinement'}
             >
               {isRefining ? (

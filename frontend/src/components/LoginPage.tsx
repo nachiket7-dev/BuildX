@@ -89,52 +89,54 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#08080c] text-white relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 selection:bg-purple-500 selection:text-white">
+    <div className="min-h-screen bg-brand-bg text-white relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 selection:bg-purple-500 selection:text-white font-sans">
       <PageHead
         title={tab === 'login' ? 'Sign in — BuildX' : 'Create account — BuildX'}
         description="Sign in to BuildX to generate and manage AI product blueprints."
       />
       <AmbientBackground />
 
-      {/* ── Ambient Mesh Lighting (Emerald + Electric Purple Glows) ───── */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-emerald-500/15 blur-[140px] pointer-events-none rounded-full" />
+      {/* Ambient Mesh Lighting */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-purple-500/15 blur-[140px] pointer-events-none rounded-full" />
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/20 blur-[160px] pointer-events-none rounded-full" />
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-purple-600/15 blur-[150px] pointer-events-none rounded-full" />
 
-      {/* ── Left Column (5 Cols): Brand & Showcase ─────────────────────── */}
-      <aside className="hidden lg:flex lg:col-span-5 flex-col justify-between p-12 bg-[#08080c]/60 backdrop-blur-md relative z-10 border-r border-white/10">
+      {/* Left Column (5 Cols): Brand & Showcase */}
+      <aside className="hidden lg:flex lg:col-span-5 flex-col justify-between p-12 bg-brand-surface/70 backdrop-blur-md relative z-10 border-r border-brand-border">
         <div className="flex items-center justify-between">
           <Link to="/" className="inline-block focus-visible:outline-none">
             <Logo size="lg" />
           </Link>
-          <span className="inline-flex items-center gap-2 font-mono text-xs text-emerald-400/90 border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="inline-flex items-center gap-2 font-mono text-xs text-brand-green border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
             00 / AUTHENTICATION
           </span>
         </div>
 
         <div className="my-auto py-8">
           <h1 className="font-display font-extrabold text-3xl xl:text-4xl text-white leading-tight tracking-tight mb-3">
-            Turn ideas into <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-purple-300 to-emerald-300 font-normal italic">full-stack</span> blueprints
+            Turn ideas into <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-300 to-emerald-300 font-normal italic">full-stack</span> blueprints
           </h1>
           <p className="text-sm text-zinc-400 leading-relaxed max-w-md mb-8 font-sans">
-            Join BuildX to generate schemas, APIs, UI specs, diagrams, and downloadable code — all from a single prompt.
+            AI-driven monorepo scaffolding with production PostgreSQL schemas, Express API endpoints, Sandpack previews, and GitHub export.
           </p>
 
-          <div className="space-y-3">
-            {PERKS.map((perk, index) => {
-              const num = String(index + 1).padStart(2, '0');
+          <div className="space-y-4">
+            {PERKS.map((perk, i) => {
+              const Icon = perk.icon;
               return (
-                <div key={perk.title} className="bg-zinc-900/60 border border-white/10 rounded-xl p-4 flex gap-4 items-start backdrop-blur-md">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 mt-0.5">
-                    <perk.icon size={16} />
+                <div key={perk.title} className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-brand-surface2 border border-brand-border">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/25 flex items-center justify-center shrink-0 text-brand-glow">
+                    <Icon size={16} />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-mono text-[10px] text-zinc-500">{num} /</span>
-                      <span className="font-mono text-xs font-semibold text-zinc-200">{perk.title}</span>
+                    <div className="text-xs font-semibold text-white font-mono flex items-center gap-2">
+                      <span className="text-[10px] text-zinc-500">0{i + 1} /</span>
+                      {perk.title}
                     </div>
-                    <p className="text-xs text-zinc-400 leading-relaxed font-sans">{perk.description}</p>
+                    <div className="text-xs text-zinc-400 mt-0.5 leading-relaxed font-sans">
+                      {perk.description}
+                    </div>
                   </div>
                 </div>
               );
@@ -142,56 +144,46 @@ export function LoginPage() {
           </div>
         </div>
 
-        <div className="pt-4 border-t border-white/5">
-          <span className="inline-flex items-center gap-2 font-mono text-xs text-emerald-400/90 border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            00 / SECURE JWT AUTH · GROQ &amp; GEMINI
-          </span>
+        <div className="text-xs font-mono text-zinc-500 flex items-center justify-between">
+          <span>PLATFORM V2.4</span>
+          <span>AUTONOMOUS WORKSPACE</span>
         </div>
       </aside>
 
-      {/* ── Right Column (7 Cols): Auth Form Card Area ──────────────────── */}
-      <main className="col-span-12 lg:col-span-7 bg-[#121216]/80 backdrop-blur-xl border-l border-white/10 flex flex-col justify-between p-8 sm:p-12 md:p-16 relative z-10 min-h-screen lg:min-h-0">
-        {/* Top Header Row */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="lg:hidden">
-            <Link to="/" className="inline-block">
-              <Logo size="md" />
-            </Link>
-          </div>
-          <span className="inline-flex items-center gap-2 font-mono text-xs text-emerald-400/90 border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full hidden sm:inline-flex">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            01 / ACCESS WORKSPACE
-          </span>
+      {/* Right Column (7 Cols): Form & Auth Card */}
+      <main className="lg:col-span-7 flex flex-col justify-between p-6 sm:p-12 relative z-10">
+        <div className="flex items-center justify-between">
           <Link
             to="/"
-            className="bg-zinc-900/90 border border-white/10 hover:border-white/20 text-zinc-300 hover:text-white px-3.5 py-1.5 rounded-full text-xs font-mono flex items-center gap-1.5 transition-all ml-auto"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-brand-surface border border-brand-border hover:border-brand-accent/40 text-xs font-mono text-zinc-400 hover:text-white transition-all shadow-sm"
           >
             <ArrowLeft size={13} />
-            Back to home
+            <span>Back to home</span>
           </Link>
+          <div className="lg:hidden">
+            <Logo size="sm" />
+          </div>
         </div>
 
-        {/* Center Form Card */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="max-w-md w-full mx-auto my-auto"
+          transition={{ duration: 0.3 }}
+          className="w-full max-w-md mx-auto my-auto py-8"
         >
-          <div className="mb-6">
-            <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-white mb-2 tracking-tight">
-              {tab === 'login' ? 'Welcome back' : 'Create your account'}
+          <div className="mb-6 text-center sm:text-left">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-display tracking-tight">
+              {tab === 'login' ? 'Sign in to BuildX' : 'Create your account'}
             </h2>
-            <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed font-sans">
+            <p className="text-xs sm:text-sm text-zinc-400 font-mono mt-1">
               {tab === 'login'
-                ? 'Sign in to access your blueprint workspace and continue building.'
-                : 'Get started free — your first blueprint is only a prompt away.'}
+                ? 'Access your saved blueprints, agent workflows, and active workspaces'
+                : 'Start generating full-stack software blueprints in seconds'}
             </p>
           </div>
 
-          {/* Gliding Tab Pill Switcher */}
-          <div className="flex items-center p-1 rounded-xl bg-zinc-950/80 border border-white/10 mb-6 relative font-mono text-xs" role="tablist">
+          {/* Tab Slider */}
+          <div className="flex items-center p-1 rounded-xl bg-brand-surface border border-brand-border mb-6 relative font-mono text-xs" role="tablist">
             {(['login', 'signup'] as AuthTab[]).map((t, idx) => {
               const num = String(idx + 1).padStart(2, '0');
               const label = t === 'login' ? 'Sign in' : 'Sign up';
@@ -210,7 +202,7 @@ export function LoginPage() {
                   {isActive && (
                     <motion.div
                       layoutId="authTabIndicator"
-                      className="absolute inset-0 rounded-lg bg-indigo-600/30 border border-indigo-500/40 shadow-sm"
+                      className="absolute inset-0 rounded-lg bg-purple-600/30 border border-purple-500/40 shadow-sm"
                       transition={{ type: 'spring', stiffness: 400, damping: 35 }}
                     />
                   )}
@@ -262,7 +254,7 @@ export function LoginPage() {
                       required
                       minLength={2}
                       autoComplete="name"
-                      className="w-full bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-mono"
+                      className="w-full bg-brand-surface2 border border-brand-border focus:border-brand-accent focus:ring-1 focus:ring-purple-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-mono"
                     />
                   </div>
                 </motion.div>
@@ -281,7 +273,7 @@ export function LoginPage() {
                 placeholder="you@company.com"
                 required
                 autoComplete="email"
-                className="w-full bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-mono"
+                className="w-full bg-brand-surface2 border border-brand-border focus:border-brand-accent focus:ring-1 focus:ring-purple-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-mono"
               />
             </div>
 
@@ -299,7 +291,7 @@ export function LoginPage() {
                   required
                   minLength={6}
                   autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-                  className="w-full bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none transition-all font-mono"
+                  className="w-full bg-brand-surface2 border border-brand-border focus:border-brand-accent focus:ring-1 focus:ring-purple-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none transition-all font-mono"
                 />
                 <button
                   type="button"
@@ -312,13 +304,13 @@ export function LoginPage() {
               </div>
             </div>
 
-            {/* Signature Electric Indigo Primary CTA Button */}
+            {/* Primary CTA Button */}
             <motion.button
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
               type="submit"
               disabled={isLoading || !authReady}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium py-3 rounded-xl text-sm transition-all shadow-lg shadow-indigo-500/25 border border-indigo-400/30 flex items-center justify-center gap-2 mt-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium py-3 rounded-xl text-sm transition-all shadow-lg shadow-purple-500/25 border border-purple-400/30 flex items-center justify-center gap-2 mt-2 disabled:opacity-40 disabled:cursor-not-allowed font-mono"
             >
               {isLoading ? (
                 <span className="font-mono text-xs">Please wait…</span>
@@ -332,10 +324,10 @@ export function LoginPage() {
           </form>
 
           {/* Divider */}
-          <div className="my-5 flex items-center gap-3">
-            <span className="h-px flex-1 bg-white/10" />
-            <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600">or</span>
-            <span className="h-px flex-1 bg-white/10" />
+          <div className="my-5 flex items-center gap-3 font-mono">
+            <span className="h-px flex-1 bg-brand-borderSubtle" />
+            <span className="text-[10px] uppercase tracking-widest text-zinc-500">or</span>
+            <span className="h-px flex-1 bg-brand-borderSubtle" />
           </div>
 
           {/* Secondary GitHub OAuth Button */}
@@ -344,7 +336,7 @@ export function LoginPage() {
             whileTap={{ scale: 0.99 }}
             type="button"
             onClick={handleGithubOAuth}
-            className="w-full bg-zinc-900/90 border border-white/10 hover:border-white/25 text-white rounded-xl py-3 text-sm font-medium transition-all flex items-center justify-center gap-2.5"
+            className="w-full bg-brand-surface2 border border-brand-border hover:border-brand-accent/40 text-white rounded-xl py-3 text-sm font-medium transition-all flex items-center justify-center gap-2.5 font-mono shadow-sm"
           >
             <GithubIcon />
             <span>Continue with GitHub</span>

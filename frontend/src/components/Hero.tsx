@@ -262,9 +262,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             {/* Eyebrow Badge */}
             <motion.div
               variants={itemVariants}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-xs font-mono text-neutral-300"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-surface border border-brand-border text-xs font-mono text-zinc-300"
             >
-              <Sparkles size={13} className="text-indigo-400" />
+              <Sparkles size={13} className="text-brand-accent" />
               <span>Next-Gen Full-Stack AI Architect</span>
             </motion.div>
 
@@ -278,7 +278,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
 
             <motion.p
               variants={itemVariants}
-              className="text-sm sm:text-base text-neutral-400 max-w-xl leading-relaxed"
+              className="text-sm sm:text-base text-zinc-400 max-w-xl leading-relaxed font-sans"
             >
               Turn prompts into production-ready monorepos: PostgreSQL schemas, Express/Next.js API routes, React UI screens, Mermaid ERD diagrams, and Docker configs.
             </motion.p>
@@ -286,16 +286,16 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             {/* Live Stack Selector Pills */}
             <motion.div
               variants={itemVariants}
-              className="p-3 rounded-2xl bg-neutral-950/60 border border-white/10 space-y-3 max-w-xl"
+              className="p-3 rounded-2xl bg-brand-surface border border-brand-border space-y-3 max-w-xl backdrop-blur-md"
             >
-              <div className="flex items-center justify-between text-xs text-neutral-400 font-mono">
+              <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
                 <span>Select Target Stack Specs</span>
-                <span className="text-emerald-400">Customized Monorepo</span>
+                <span className="text-brand-green">Customized Monorepo</span>
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
                 {/* Framework Selector */}
-                <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-white/5">
-                  <Server size={12} className="text-indigo-400 ml-1.5" />
+                <div className="flex items-center gap-1 bg-brand-bg/80 p-1 rounded-xl border border-brand-borderSubtle">
+                  <Server size={12} className="text-brand-glow ml-1.5" />
                   {(['next', 'express', 'fastify'] as const).map((fw) => (
                     <motion.button
                       key={fw}
@@ -304,7 +304,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       whileTap={{ scale: 0.93 }}
                       whileHover={{ scale: 1.03 }}
                       className={`px-2.5 py-1 rounded-lg font-mono transition-colors ${
-                        framework === fw ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-neutral-400 hover:text-white'
+                        framework === fw ? 'bg-purple-500/20 text-brand-glow border border-purple-500/30' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       {fw === 'next' ? 'Next.js' : fw === 'express' ? 'Express' : 'Fastify'}
@@ -313,8 +313,8 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                 </div>
 
                 {/* DB Selector */}
-                <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-white/5">
-                  <Database size={12} className="text-emerald-400 ml-1.5" />
+                <div className="flex items-center gap-1 bg-brand-bg/80 p-1 rounded-xl border border-brand-borderSubtle">
+                  <Database size={12} className="text-brand-green ml-1.5" />
                   {(['postgres', 'supabase', 'mongo'] as const).map((d) => (
                     <motion.button
                       key={d}
@@ -323,7 +323,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       whileTap={{ scale: 0.93 }}
                       whileHover={{ scale: 1.03 }}
                       className={`px-2.5 py-1 rounded-lg font-mono transition-colors ${
-                        db === d ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-neutral-400 hover:text-white'
+                        db === d ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       {d === 'postgres' ? 'Postgres' : d === 'supabase' ? 'Supabase' : 'MongoDB'}
@@ -332,8 +332,8 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                 </div>
 
                 {/* Auth Selector */}
-                <div className="flex items-center gap-1 bg-black/60 p-1 rounded-xl border border-white/5">
-                  <ShieldCheck size={12} className="text-purple-400 ml-1.5" />
+                <div className="flex items-center gap-1 bg-brand-bg/80 p-1 rounded-xl border border-brand-borderSubtle">
+                  <ShieldCheck size={12} className="text-brand-cyan ml-1.5" />
                   {(['jwt', 'clerk', 'nextauth'] as const).map((a) => (
                     <motion.button
                       key={a}
@@ -342,7 +342,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       whileTap={{ scale: 0.93 }}
                       whileHover={{ scale: 1.03 }}
                       className={`px-2.5 py-1 rounded-lg font-mono transition-colors ${
-                        auth === a ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-neutral-400 hover:text-white'
+                        auth === a ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       {a === 'jwt' ? 'JWT' : a === 'clerk' ? 'Clerk' : 'NextAuth'}
@@ -359,17 +359,17 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               className="max-w-xl space-y-0"
             >
               <SpotlightCard
-                spotlightColor={isFocused ? 'rgba(99, 102, 241, 0.18)' : 'rgba(255, 255, 255, 0.05)'}
+                spotlightColor={isFocused ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.05)'}
                 className={`p-4 rounded-t-2xl border transition-all duration-300 ${
-                  isFocused ? 'border-indigo-500/50 shadow-2xl shadow-indigo-500/10' : 'border-white/10 bg-neutral-950/80'
+                  isFocused ? 'border-brand-accent/60 shadow-2xl shadow-purple-500/15 bg-brand-surface' : 'border-brand-border bg-brand-surface'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono">
-                    <Terminal size={14} className="text-indigo-400" />
+                  <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono">
+                    <Terminal size={14} className="text-brand-accent" />
                     <span>Prompt Command Console</span>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/15 text-brand-glow border border-purple-500/25">
                     VFS MONOREPO
                   </span>
                 </div>
@@ -383,7 +383,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                   placeholder="e.g. Build a SaaS telehealth app with doctor availability slots, video room creation, patient appointments, and Stripe payment webhooks..."
                   rows={3}
                   disabled={isLoading}
-                  className="w-full bg-transparent border-none outline-none resize-none text-sm sm:text-base leading-relaxed text-white placeholder-neutral-500"
+                  className="w-full bg-transparent border-none outline-none resize-none text-sm sm:text-base leading-relaxed text-white placeholder-zinc-500 font-sans"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(e);
                   }}
@@ -391,9 +391,9 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               </SpotlightCard>
 
               {/* Bottom action bar */}
-              <div className="relative flex items-center justify-between px-4 py-2.5 bg-neutral-950/80 border border-white/10 border-t border-t-white/5 rounded-b-2xl backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono">
-                  <span className={charCount >= MIN_CHARS ? 'text-emerald-400' : 'text-neutral-500'}>
+              <div className="relative flex items-center justify-between px-4 py-2.5 bg-brand-surface border border-brand-border border-t border-t-white/5 rounded-b-2xl backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono">
+                  <span className={charCount >= MIN_CHARS ? 'text-brand-green font-semibold' : 'text-zinc-500'}>
                     {charCount}/{MIN_CHARS}
                   </span>
                   <span className="opacity-60 hidden sm:inline">· <kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px]">⌘</kbd><kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px] ml-0.5">↵</kbd></span>
@@ -401,8 +401,8 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
 
                 <div className="flex items-center gap-3">
                   {/* Pipeline Status Indicator */}
-                  <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-indigo-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-zinc-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
                     <span>Autonomous Multi-Model Pipeline</span>
                   </div>
 
@@ -411,7 +411,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                     disabled={!canSubmit}
                     whileHover={canSubmit ? { scale: 1.04 } : {}}
                     whileTap={canSubmit ? { scale: 0.96 } : {}}
-                    className="px-5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-2 transition-all disabled:opacity-40"
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs flex items-center gap-2 transition-all disabled:opacity-40 shadow-lg shadow-purple-500/25 border border-purple-400/30 font-mono"
                   >
                     {isLoading ? (
                       <>
@@ -431,14 +431,14 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
 
             {/* Example Chips — staggered */}
             <motion.div variants={itemVariants} className="space-y-2 max-w-xl">
-              <div className="text-xs text-neutral-500 font-mono">Preset App Blueprint Templates:</div>
+              <div className="text-xs text-zinc-500 font-mono">Preset App Blueprint Templates:</div>
               <motion.div
                 className="flex flex-wrap gap-2"
                 variants={containerVariants}
                 initial="hidden"
                 animate="show"
               >
-                {EXAMPLE_IDEAS.map(({ label, idea: exampleIdea }, i) => (
+                {EXAMPLE_IDEAS.map(({ label, idea: exampleIdea }) => (
                   <motion.button
                     key={label}
                     type="button"
@@ -447,7 +447,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                     variants={itemVariants}
                     whileHover={{ scale: 1.05, y: -1 }}
                     whileTap={{ scale: 0.96 }}
-                    className="px-3 py-1 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-xs text-neutral-300 font-mono transition-colors"
+                    className="px-3 py-1 rounded-full bg-brand-surface hover:bg-brand-surface2 border border-brand-border text-xs text-zinc-300 font-mono transition-colors shadow-sm"
                   >
                     {label}
                   </motion.button>
@@ -463,16 +463,16 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             initial="hidden"
             animate="show"
           >
-            <SpotlightCard spotlightColor="rgba(99, 102, 241, 0.18)" className="p-5 rounded-3xl border border-white/10 bg-neutral-950/90 shadow-2xl backdrop-blur-xl">
+            <SpotlightCard spotlightColor="rgba(168, 85, 247, 0.2)" className="p-5 rounded-3xl border border-brand-border bg-brand-surface shadow-2xl backdrop-blur-xl">
               {/* Header */}
-              <div className="flex items-center justify-between mb-5 border-b border-white/[0.08] pb-3.5">
-                <div className="flex items-center gap-2 font-mono text-xs text-neutral-300">
-                  <Activity size={14} className="text-emerald-400" />
+              <div className="flex items-center justify-between mb-5 border-b border-brand-borderSubtle pb-3.5">
+                <div className="flex items-center gap-2 font-mono text-xs text-zinc-300">
+                  <Activity size={14} className="text-brand-green" />
                   <span className="font-semibold text-white">Multi-Model Pipeline</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[10px] font-mono text-emerald-400">SSE Streaming</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
+                  <span className="text-[10px] font-mono text-brand-green">SSE Streaming</span>
                 </div>
               </div>
 

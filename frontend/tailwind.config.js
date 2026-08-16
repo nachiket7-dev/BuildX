@@ -12,11 +12,25 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['DM Sans', 'system-ui', '-apple-system', 'sans-serif'],
-        mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
-        display: ['Bricolage Grotesque', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'Geist', 'DM Sans', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Fira Code', 'IBM Plex Mono', 'ui-monospace', 'monospace'],
+        display: ['Bricolage Grotesque', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
+        brand: {
+          bg: '#09090D',
+          surface: '#13141F',
+          surface2: '#181926',
+          surface3: '#222338',
+          border: 'rgba(255, 255, 255, 0.1)',
+          borderSubtle: 'rgba(255, 255, 255, 0.06)',
+          accent: '#A855F7',
+          glow: '#C084FC',
+          pink: '#EC4899',
+          cyan: '#38BDF8',
+          green: '#34D399',
+          amber: '#F59E0B',
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -51,10 +65,10 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
         bg: {
-          DEFAULT: '#080b0f',
-          surface: '#0c1016',
-          surface2: '#121820',
-          surface3: '#181f28',
+          DEFAULT: '#09090D',
+          surface: '#13141F',
+          surface2: '#181926',
+          surface3: '#222338',
         },
       },
       borderRadius: {

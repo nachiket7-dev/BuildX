@@ -238,26 +238,26 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-none"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-none font-sans"
           >
-            <div className="pointer-events-auto w-full max-w-lg bg-[#111116] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 backdrop-blur-xl overflow-hidden">
+            <div className="pointer-events-auto w-full max-w-lg bg-brand-surface border border-brand-border rounded-3xl shadow-2xl shadow-black/60 backdrop-blur-xl overflow-hidden relative">
 
               {/* Ambient top glow */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[120px] bg-indigo-500/10 blur-[80px] pointer-events-none rounded-full" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[120px] bg-purple-500/10 blur-[80px] pointer-events-none rounded-full" />
 
               {/* Header Rail */}
-              <div className="relative flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.07]">
+              <div className="relative flex items-center justify-between px-6 pt-5 pb-4 border-b border-brand-borderSubtle">
                 <div className="flex flex-col gap-0.5">
                   <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
                     00 / DEPLOYMENT CENTER
                   </span>
-                  <h2 className="text-base font-bold text-white tracking-tight">
+                  <h2 className="text-base font-bold text-white tracking-tight font-display">
                     Choose Deployment Target
                   </h2>
                 </div>
                 <button
                   onClick={handleClose}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-white transition-all"
+                  className="p-1.5 rounded-lg bg-brand-surface2 hover:bg-brand-surface3 border border-brand-border text-zinc-400 hover:text-white transition-all"
                   aria-label="Close modal"
                 >
                   <X size={14} />
@@ -278,25 +278,25 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                       className="flex flex-col items-center gap-4 py-6 text-center"
                     >
                       <div className="w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-                        <Check className="text-emerald-400" size={24} />
+                        <Check className="text-brand-green" size={24} />
                       </div>
                       <div>
                         <p className="text-white font-semibold text-sm">Deployment successful!</p>
-                        <p className="text-zinc-400 text-xs mt-1">
+                        <p className="text-zinc-400 text-xs mt-1 font-sans">
                           {selected === 'zip'
                             ? 'Your ZIP archive is downloading...'
                             : 'Your deployment is live and ready.'}
                         </p>
                       </div>
                       {deploymentUrl && (
-                        <div className="w-full flex items-center gap-2 px-3 py-2 bg-white/[0.04] border border-white/10 rounded-xl font-mono text-xs text-zinc-300">
+                        <div className="w-full flex items-center gap-2 px-3 py-2 bg-brand-bg border border-brand-border rounded-xl font-mono text-xs text-zinc-300">
                           <span className="flex-1 truncate">{deploymentUrl}</span>
                           <button
                             onClick={handleCopy}
                             className="shrink-0 p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
                             title="Copy URL"
                           >
-                            {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                            {copied ? <Check size={13} className="text-brand-green" /> : <Copy size={13} />}
                           </button>
                           <a
                             href={deploymentUrl}
@@ -310,7 +310,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                       )}
                       <button
                         onClick={handleClose}
-                        className="mt-2 px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-300 hover:text-white transition-all font-medium"
+                        className="mt-2 px-5 py-2 rounded-xl bg-brand-surface2 hover:bg-brand-surface3 border border-brand-border text-xs text-zinc-300 hover:text-white transition-all font-mono"
                       >
                         Done
                       </button>
@@ -318,14 +318,14 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                   ) : (
                     <motion.div key="options" initial={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
                       {deployError && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-400">
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-400 font-mono">
                           <AlertCircle size={15} className="shrink-0 mt-0.5" />
                           <div className="flex-1">
                             <p>{deployError}</p>
                             {requireGithubAuth && (
                               <a
                                 href={`${import.meta.env.VITE_API_URL ?? ''}/api/auth/github`}
-                                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white font-medium text-[11px] transition-colors"
+                                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white font-medium text-[11px] transition-colors font-mono"
                               >
                                 <LogIn size={13} />
                                 <span>Connect GitHub Account</span>
@@ -341,10 +341,10 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                           <button
                             key={target.id}
                             onClick={() => setSelected(target.id)}
-                            className={`w-full flex items-start gap-4 p-4 rounded-xl border transition-all text-left ${
+                            className={`w-full flex items-start gap-4 p-4 rounded-2xl border transition-all text-left ${
                               selected === target.id
                                 ? `${target.bgColor} ${target.borderColor}`
-                                : 'bg-white/[0.02] hover:bg-white/[0.04] border-white/[0.07] hover:border-white/15'
+                                : 'bg-brand-surface2 hover:bg-brand-surface3 border-brand-border hover:border-brand-accent/30'
                             }`}
                           >
                             <div className={`mt-0.5 shrink-0 ${selected === target.id ? target.accentColor : 'text-zinc-500'} transition-colors`}>
@@ -354,7 +354,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                               <p className={`text-sm font-semibold transition-colors ${selected === target.id ? 'text-white' : 'text-zinc-300'}`}>
                                 {target.label}
                               </p>
-                              <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+                              <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed font-sans">
                                 {target.description}
                               </p>
                             </div>
@@ -380,7 +380,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
 
               {/* Footer CTA */}
               {!deploySuccess && (
-                <div className="px-6 pb-6">
+                <div className="px-6 pb-6 font-mono">
                   <motion.button
                     whileHover={{ scale: selected && !isDeploying ? 1.01 : 1 }}
                     whileTap={{ scale: selected && !isDeploying ? 0.98 : 1 }}
@@ -388,8 +388,8 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                     disabled={!selected || isDeploying}
                     className={`w-full flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold transition-all border ${
                       selected && !isDeploying
-                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white border-indigo-400/30 shadow-lg shadow-indigo-500/20'
-                        : 'bg-white/[0.04] text-zinc-500 border-white/10 cursor-not-allowed'
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-purple-400/30 shadow-lg shadow-purple-500/20'
+                        : 'bg-brand-surface2 text-zinc-500 border-brand-border cursor-not-allowed'
                     }`}
                   >
                     {isDeploying ? (
