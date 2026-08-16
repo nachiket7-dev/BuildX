@@ -290,7 +290,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
           ) : (
             <button
               onClick={() => navigate('/login')}
-              className="w-full py-2 px-3 rounded-lg border border-sylven/30 bg-sylven/10 text-sylven-light text-xs font-medium hover:bg-sylven/20 hover:text-white transition-colors font-mono"
+              className="w-full py-2 px-3 rounded-lg border border-purple-500/20 bg-purple-500/10 text-purple-300 text-xs font-medium hover:bg-purple-500/20 hover:text-white transition-colors"
             >
               Sign In
             </button>

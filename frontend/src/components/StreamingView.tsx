@@ -15,8 +15,8 @@ interface StreamingViewProps {
 }
 
 const AGENTS_LIST = [
-  { key: 'pm' as const, label: 'Product Manager', icon: FileText, color: 'text-sylven-light', desc: 'Specs & Features', stage: 'PLANNING' as PipelineStage },
-  { key: 'architect' as const, label: 'Database Architect', icon: Database, color: 'text-sylven-light', desc: 'SQL Relations', stage: 'PLANNING' as PipelineStage },
+  { key: 'pm' as const, label: 'Product Manager', icon: FileText, color: 'text-purple-400', desc: 'Specs & Features', stage: 'PLANNING' as PipelineStage },
+  { key: 'architect' as const, label: 'Database Architect', icon: Database, color: 'text-purple-400', desc: 'SQL Relations', stage: 'PLANNING' as PipelineStage },
   { key: 'api_dev' as const, label: 'API Developer', icon: Webhook, color: 'text-sky-400', desc: 'REST Endpoints', stage: 'INGESTION' as PipelineStage },
   { key: 'designer' as const, label: 'UI/UX Designer', icon: Palette, color: 'text-sky-400', desc: 'Screen Layouts', stage: 'INGESTION' as PipelineStage },
   { key: 'coder' as const, label: 'Developer', icon: Code, color: 'text-emerald-400', desc: 'Workspace Code', stage: 'DIFF_GENERATION' as PipelineStage },
@@ -31,10 +31,10 @@ const PIPELINE_STAGE_BADGES: Record<
     label: 'PLANNING',
     Icon: Brain,
     models: 'Nemotron 3 Ultra / GLM-5.2',
-    color: 'text-sylven-light',
-    border: 'border-sylven/40',
-    bg: 'bg-sylven/10',
-    glow: 'shadow-sylven/20',
+    color: 'text-purple-400',
+    border: 'border-purple-500/40',
+    bg: 'bg-purple-500/10',
+    glow: 'shadow-purple-500/20',
   },
   INGESTION: {
     label: 'INGESTION',
@@ -106,12 +106,18 @@ export function StreamingView({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border font-mono text-xs mb-4 border-sylven/30 bg-sylven-glow text-sylven-light">
-          <span className="w-2 h-2 rounded-full animate-pulse bg-sylven" />
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border font-mono-custom text-xs mb-4"
+          style={{
+            borderColor: 'rgba(99, 102, 241, 0.3)',
+            background: 'rgba(99, 102, 241, 0.1)',
+            color: '#a5b4fc',
+          }}
+        >
+          <span className="w-2 h-2 rounded-full animate-pulse bg-indigo-400" />
           Strict Dedicated Multi-Model Pipeline
         </div>
 
-        <h2 className="font-display font-extrabold text-2xl sm:text-3xl bg-gradient-to-r from-emerald-300 via-teal-200 to-sylven-light bg-clip-text text-transparent mb-3">
+        <h2 className="font-display font-extrabold text-2xl sm:text-3xl bg-gradient-to-r from-purple-400 via-indigo-200 to-emerald-400 bg-clip-text text-transparent mb-3">
           {partialBlueprint.appName
             ? `Architecting ${partialBlueprint.appName}`
             : 'Compiling Workspace Specifications…'}
@@ -213,7 +219,7 @@ export function StreamingView({
         >
           <motion.div
             className="h-full rounded-full progress-bar-glow"
-            style={{ background: 'linear-gradient(90deg, #10b981, #34d399)' }}
+            style={{ background: 'linear-gradient(90deg, #6366f1, #10b981)' }}
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ type: 'spring', stiffness: 60, damping: 18 }}
@@ -249,29 +255,29 @@ export function StreamingView({
               <SpotlightCard
                 spotlightColor={
                   isCompleted
-                    ? 'rgba(16, 185, 129, 0.08)'
+                    ? 'rgba(34, 197, 94, 0.08)'
                     : isActive
-                      ? 'rgba(16, 185, 129, 0.15)'
+                      ? 'rgba(99, 102, 241, 0.12)'
                       : 'rgba(255, 255, 255, 0.03)'
                 }
                 className="p-4 rounded-xl text-center relative overflow-hidden transition-all duration-300"
                 style={{
                   borderColor: isCompleted
-                    ? 'rgba(16, 185, 129, 0.25)'
+                    ? 'rgba(34, 197, 94, 0.25)'
                     : isActive
-                      ? 'rgba(16, 185, 129, 0.4)'
+                      ? 'rgba(99, 102, 241, 0.4)'
                       : 'var(--border)',
                   background: isCompleted
                     ? 'var(--green-dim)'
                     : isActive
-                      ? 'rgba(16, 185, 129, 0.08)'
+                      ? 'rgba(99, 102, 241, 0.08)'
                       : 'var(--surface)',
                 }}
               >
                 {isActive && (
                   <span className="absolute top-2 right-2 flex h-2 w-2" aria-hidden>
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-sylven-light" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-sylven" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-indigo-400" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
                   </span>
                 )}
                 {isCompleted && (
@@ -293,7 +299,7 @@ export function StreamingView({
                 <div className="font-display font-semibold text-xs mb-0.5 truncate" style={{ color: 'var(--text)' }}>
                   {agent.label}
                 </div>
-                <div className="font-mono text-[9px] truncate text-sylven-light/80">
+                <div className="font-mono-custom text-[9px] truncate text-indigo-300/80">
                   {status === 'correcting' ? 'Fixing' : status === 'idle' ? agent.stage : status}
                 </div>
               </SpotlightCard>
@@ -319,8 +325,8 @@ export function StreamingView({
           whileTap={{ scale: 0.99 }}
         >
           <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-sylven-light" />
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-sylven-light">
+            <Cpu className="w-4 h-4 text-indigo-400" />
+            <span className="font-mono-custom text-[11px] font-semibold uppercase tracking-wider text-indigo-300">
               Reasoning Process & Multi-Model Execution Stream
             </span>
           </div>
@@ -349,7 +355,7 @@ export function StreamingView({
               style={{ overflow: 'hidden' }}
             >
               <div
-                className="p-4 overflow-y-auto font-mono text-xs space-y-2.5 max-h-[300px]"
+                className="p-4 overflow-y-auto font-mono-custom text-xs space-y-2.5 max-h-[300px]"
                 style={{ color: 'var(--green)' }}
               >
                 <div style={{ color: 'var(--text3)' }}>
@@ -374,7 +380,7 @@ export function StreamingView({
                         [{evt.timestamp}]
                       </span>
                       {evt.stage && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/5 border border-white/10 shrink-0 text-sylven-light">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/5 border border-white/10 shrink-0 text-indigo-300">
                           {evt.stage}
                         </span>
                       )}

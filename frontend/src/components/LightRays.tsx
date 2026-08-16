@@ -11,10 +11,10 @@ interface LightRaysProps {
  * React Bits–style volumetric light rays (canvas, no WebGL).
  */
 export function LightRays({
-  color = '16, 185, 129',
+  color = '20, 184, 166',
   rayCount = 14,
   speed = 0.0004,
-  intensity = 0.25,
+  intensity = 0.35,
 }: LightRaysProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef({ x: 0.5, y: 0.3 });

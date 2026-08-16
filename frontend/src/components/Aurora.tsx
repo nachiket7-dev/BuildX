@@ -119,7 +119,7 @@ export interface AuroraProps {
  * @see https://reactbits.dev/backgrounds/aurora
  */
 export function Aurora({
-  colorStops = ['#059669', '#10B981', '#047857'],
+  colorStops = ['#5227FF', '#7cff67', '#5227FF'],
   amplitude = 1.0,
   blend = 0.5,
   speed = 1.0,

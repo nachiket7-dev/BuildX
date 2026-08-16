@@ -56,8 +56,8 @@ export function FAQSection() {
         {/* Left Column: Sticky Section Heading */}
         <div className="lg:col-span-4 lg:sticky lg:top-28 space-y-4">
           <ScrollReveal direction="down" delay={0.05}>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sylven-glow border border-sylven/20 text-xs font-mono text-sylven-light">
-              <HelpCircle size={13} className="text-sylven-light" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-mono text-indigo-300">
+              <HelpCircle size={13} className="text-indigo-400" />
               <span>04 / FREQUENTLY ASKED QUESTIONS</span>
             </div>
           </ScrollReveal>
@@ -66,7 +66,7 @@ export function FAQSection() {
             <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white font-display leading-[1.1]">
               Everything you need to know
             </h2>
-            <p className="text-sm text-norvin-muted leading-relaxed pt-2 font-sans">
+            <p className="text-sm text-neutral-400 leading-relaxed pt-2">
               Have questions about multi-model routing, code sandbox security, or monorepo exports? Here are the technical details.
             </p>
           </ScrollReveal>
@@ -81,7 +81,7 @@ export function FAQSection() {
 
             return (
               <ScrollReveal key={faq.id} direction="up" delay={0.1}>
-                <div className="rounded-2xl border border-obsidian-border bg-obsidian-surface backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-sylven/40 shadow-lg">
+                <div className="rounded-2xl border border-white/10 bg-neutral-950/80 backdrop-blur-xl overflow-hidden transition-all duration-300 hover:border-indigo-500/30">
                   <button
                     type="button"
                     onClick={() => toggle(faq.id)}
@@ -90,12 +90,12 @@ export function FAQSection() {
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
-                        isOpen ? 'bg-sylven/20 border-sylven/40 text-sylven-light' : 'bg-obsidian-panel border-obsidian-border text-norvin-muted'
+                        isOpen ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300' : 'bg-white/[0.04] border-white/10 text-neutral-400'
                       }`}>
                         <Icon size={16} />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-[10px] font-mono text-sylven-light uppercase tracking-wider block mb-0.5">
+                        <span className="text-[10px] font-mono text-indigo-400 uppercase tracking-wider block mb-0.5">
                           {faq.tag ?? 'FAQ'}
                         </span>
                         <h3 className="text-base font-semibold text-white font-display leading-snug">
@@ -109,7 +109,7 @@ export function FAQSection() {
                       animate={{ rotate: isOpen ? 45 : 0 }}
                       transition={{ duration: 0.25, ease: 'easeInOut' }}
                       className={`p-2 rounded-full border shrink-0 ${
-                        isOpen ? 'bg-sylven/20 text-sylven-light border-sylven/40' : 'bg-obsidian-panel text-norvin-muted border-obsidian-border'
+                        isOpen ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' : 'bg-white/[0.04] text-neutral-400 border-white/10'
                       }`}
                     >
                       <Plus size={16} />
@@ -126,7 +126,7 @@ export function FAQSection() {
                         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                         className="overflow-hidden"
                       >
-                        <div className="px-6 pb-6 pt-1 text-xs sm:text-sm text-neutral-300 font-mono leading-relaxed border-t border-obsidian-borderSubtle bg-obsidian-bg/40">
+                        <div className="px-6 pb-6 pt-1 text-xs sm:text-sm text-neutral-300 font-mono leading-relaxed border-t border-white/5 bg-white/[0.01]">
                           {faq.answer}
                         </div>
                       </motion.div>

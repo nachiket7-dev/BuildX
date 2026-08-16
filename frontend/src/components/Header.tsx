@@ -29,7 +29,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
   const routeId = routeIdMatch ? routeIdMatch[1] : null;
 
   return (
-    <header className="h-16 w-full border-b border-obsidian-border px-6 flex items-center justify-between bg-obsidian-bg/90 backdrop-blur-xl z-50 shrink-0 select-none relative font-sans">
+    <header className="h-16 w-full border-b border-white/10 px-6 flex items-center justify-between bg-[#08080c]/90 backdrop-blur-xl z-50 shrink-0 select-none relative">
 
       {/* ── LEFT: Sidebar Toggle + BuildX Logo + AI ARCHITECT Badge + Breadcrumb ── */}
       <div className="flex items-center gap-4 min-w-0">
@@ -42,8 +42,8 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
             onClick={onToggleSidebar}
             className={`shrink-0 p-2 rounded-xl border transition-all ${
               sidebarOpen
-                ? 'bg-sylven/15 border-sylven/30 text-sylven-light'
-                : 'bg-transparent hover:bg-white/[0.07] border-obsidian-borderSubtle text-norvin-muted hover:text-white'
+                ? 'bg-indigo-500/15 border-indigo-500/25 text-indigo-300'
+                : 'bg-transparent hover:bg-white/[0.07] border-white/[0.08] text-zinc-400 hover:text-white'
             }`}
             title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
           >
@@ -51,7 +51,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
           </motion.button>
         )}
 
-        {/* BuildX Logo */}
+        {/* BuildX Logo (md size for spacious 64px header) */}
         <Link to="/create" className="shrink-0 focus-visible:outline-none">
           <Logo size="md" />
         </Link>
@@ -60,10 +60,10 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
         <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0 mx-1" />
 
         {/* Breadcrumb Path */}
-        <div className="hidden sm:flex items-center gap-2 font-mono text-xs text-norvin-muted min-w-0">
-          <span className="text-norvin-muted font-medium shrink-0">01 / BUILDX STUDIO</span>
+        <div className="hidden sm:flex items-center gap-2 font-mono text-xs text-zinc-400 min-w-0">
+          <span className="text-zinc-400 font-medium shrink-0">01 / BUILDX STUDIO</span>
           <ChevronRight size={12} className="text-zinc-600 shrink-0" />
-          <span className="text-zinc-200 bg-obsidian-surface border border-obsidian-border px-2.5 py-1 rounded-lg text-xs truncate max-w-[130px]">
+          <span className="text-zinc-200 bg-zinc-900 border border-white/10 px-2.5 py-1 rounded-lg text-xs truncate max-w-[130px]">
             buildx&nbsp;/&nbsp;{routeId ? routeId.slice(0, 7) : 'my-app'}
           </span>
         </div>
@@ -71,7 +71,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
 
       {/* ── CENTER: Navigation Pills ── */}
       <nav
-        className="hidden md:flex items-center gap-1 bg-obsidian-surface/90 border border-obsidian-border p-1.5 rounded-xl backdrop-blur-md"
+        className="hidden md:flex items-center gap-1 bg-zinc-900/80 border border-white/10 p-1.5 rounded-xl"
         aria-label="Main Navigation"
       >
         {[
@@ -84,11 +84,11 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
             to={to}
             className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
               active
-                ? 'bg-sylven/20 border border-sylven/30 text-white shadow-sm shadow-emerald-500/15 font-semibold'
-                : 'text-norvin-muted hover:text-white hover:bg-white/[0.05]'
+                ? 'bg-white/10 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'
             }`}
           >
-            <Icon size={13} className={active ? 'text-sylven-light' : 'text-zinc-500'} />
+            <Icon size={13} className={active ? 'text-indigo-400' : 'text-zinc-500'} />
             {label}
           </Link>
         ))}
@@ -103,7 +103,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
           onClick={onDeploy}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
-          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-lg shadow-emerald-500/20 border border-emerald-400/30 flex items-center gap-2 transition-all font-mono"
+          className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-4 py-2 rounded-lg text-xs shadow-lg shadow-indigo-500/20 border border-indigo-400/30 flex items-center gap-2 transition-all"
         >
           <Rocket size={13} />
           <span>Deploy</span>
@@ -116,12 +116,12 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
               type="button"
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowMenu(v => !v)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-obsidian-surface hover:bg-obsidian-panel border border-obsidian-border text-xs text-white transition-all"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] text-xs text-white transition-all"
               aria-expanded={showMenu}
               aria-haspopup="menu"
             >
               {/* Avatar circle */}
-              <div className="w-8 h-8 rounded-full bg-sylven/20 border border-sylven/30 flex items-center justify-center text-xs font-bold text-sylven-light shrink-0 font-mono">
+              <div className="w-8 h-8 rounded-full bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-xs font-bold text-purple-200 shrink-0 font-mono">
                 {user.name?.charAt(0)?.toUpperCase() ?? '?'}
               </div>
               <span className="hidden sm:block text-zinc-300 text-xs font-medium truncate max-w-[84px]">
@@ -138,11 +138,11 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.96 }}
                   transition={{ duration: 0.13 }}
-                  className="absolute right-0 mt-2 w-52 rounded-xl bg-obsidian-surface border border-obsidian-border shadow-2xl py-1 z-50 backdrop-blur-xl"
+                  className="absolute right-0 mt-2 w-52 rounded-xl bg-[#111116] border border-white/[0.08] shadow-2xl py-1 z-50"
                 >
-                  <div className="px-3.5 py-2.5 border-b border-obsidian-borderSubtle">
+                  <div className="px-3.5 py-2.5 border-b border-white/[0.06]">
                     <p className="text-white text-xs font-semibold truncate">{user.name}</p>
-                    <p className="text-norvin-muted text-[10px] font-mono truncate mt-0.5">{user.email}</p>
+                    <p className="text-zinc-500 text-[10px] truncate mt-0.5">{user.email}</p>
                   </div>
                   <button
                     role="menuitem"
@@ -159,7 +159,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
         ) : (
           <Link
             to="/login"
-            className="px-3.5 py-2 rounded-xl border border-obsidian-border hover:border-sylven/40 text-xs text-norvin-muted hover:text-white transition-all font-medium bg-obsidian-surface"
+            className="px-3.5 py-2 rounded-lg border border-white/10 hover:border-white/20 text-xs text-zinc-400 hover:text-white transition-all font-medium"
           >
             Sign in
           </Link>
