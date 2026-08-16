@@ -50,7 +50,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
   // STATE 1: Loading Skeleton State (high-tech VFS tree scaffolding loader)
   if (isLoading) {
     return (
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 font-mono-custom text-xs">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 font-mono text-xs tracking-tight">
         <div className="flex items-center gap-2 pb-2 border-b border-white/5">
           <span className="text-xs font-mono text-emerald-400 animate-pulse font-semibold">
             01 / SCAFFOLDING VFS TREE...
@@ -77,7 +77,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
   // STATE 3: Truly Empty (only when loading complete and no files exist)
   if (visiblePaths.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500 text-xs font-mono-custom px-3">
+      <div className="text-center py-8 text-gray-500 text-xs font-mono tracking-tight px-3">
         No workspace files found.
       </div>
     );
@@ -85,7 +85,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
 
   // STATE 2: Loaded with Files
   return (
-    <div className="flex-1 overflow-y-auto p-2 space-y-1 font-mono-custom text-xs">
+    <div className="flex-1 overflow-y-auto p-2 space-y-1 font-mono text-xs tracking-tight">
       {visiblePaths.map(filePath => {
         const isSelected = activeFilePath === filePath;
         const fileName = filePath.split('/').pop() || filePath;

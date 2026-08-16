@@ -177,7 +177,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
               <div className="sidebar-empty__icon">
                 <Lightbulb size={20} />
               </div>
-              <p className="font-mono-custom text-[11px] leading-relaxed" style={{ color: 'var(--text3)' }}>
+              <p className="font-mono text-[11px] leading-relaxed tracking-tight" style={{ color: 'var(--text3)' }}>
                 Your blueprints will appear here
               </p>
             </div>
@@ -218,7 +218,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                             onKeyDown={(e) => {
                               if (e.key === 'Escape') setEditingId(null);
                             }}
-                            className="sidebar-rename-input"
+                            className="sidebar-rename-input font-sans text-xs"
                           />
                         </form>
                       ) : (
@@ -232,7 +232,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                         >
                           {isActive && <span className="sidebar-item__bar" aria-hidden />}
                           <FileCode2 size={14} className="sidebar-item__icon flex-shrink-0" />
-                          <span className="truncate flex-1 text-left">{title}</span>
+                          <span className="truncate flex-1 text-left font-sans text-xs">{title}</span>
                           <span
                             className="sidebar-item__menu opacity-0 group-hover:opacity-100"
                             onClick={(e) => {
@@ -251,13 +251,13 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                           <div
                             className={`sidebar-context-menu ${isNearBottom ? 'sidebar-context-menu--up' : ''}`}
                           >
-                            <button onClick={() => startEditing(item)} className="sidebar-context-menu__item">
+                            <button onClick={() => startEditing(item)} className="sidebar-context-menu__item font-sans text-xs">
                               <Pencil size={13} />
                               Rename
                             </button>
                             <button
                               onClick={() => handleDelete(item.id)}
-                              className="sidebar-context-menu__item sidebar-context-menu__item--danger"
+                              className="sidebar-context-menu__item sidebar-context-menu__item--danger font-sans text-xs"
                             >
                               <Trash2 size={13} />
                               Delete
@@ -277,12 +277,12 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         <div className="sidebar-panel__footer">
           {user ? (
             <>
-              <div className="sidebar-user-avatar">{user.name.charAt(0).toUpperCase()}</div>
+              <div className="sidebar-user-avatar font-mono">{user.name.charAt(0).toUpperCase()}</div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
+                <p className="text-xs font-medium truncate font-sans" style={{ color: 'var(--text)' }}>
                   {user.name}
                 </p>
-                <p className="font-mono-custom text-[10px] truncate" style={{ color: 'var(--text3)' }}>
+                <p className="font-mono text-[10px] truncate tracking-tight" style={{ color: 'var(--text3)' }}>
                   {items.length} blueprint{items.length !== 1 ? 's' : ''}
                 </p>
               </div>

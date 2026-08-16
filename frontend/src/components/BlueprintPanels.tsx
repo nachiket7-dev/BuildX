@@ -337,7 +337,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
             <button
               key={tabItem.id}
               onClick={() => setActiveTab(tabItem.id)}
-              className="px-3 py-1.5 rounded-lg font-mono-custom text-[10px] font-medium transition-all duration-150"
+              className="px-3 py-1.5 rounded-lg font-mono text-[10px] font-medium transition-all duration-150 tracking-tight"
               style={{
                 background: activeTab === tabItem.id ? 'var(--accent-glow)' : 'transparent',
                 color: activeTab === tabItem.id ? 'var(--accent2)' : 'var(--text3)',
@@ -375,11 +375,11 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
                       <path d="M3 5a2 2 0 012-2h14a2 2 0 012 2v2H3V5zm0 4h18v2H3V9zm0 4h18v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6z" />
                     </svg>
                   </div>
-                  <span className="font-mono-custom text-sm font-medium" style={{ color: 'var(--purple)' }}>
+                  <span className="font-mono text-sm font-medium tracking-tight" style={{ color: 'var(--purple)' }}>
                     {table.table}
                   </span>
                   {isMongo && (
-                    <span className="font-mono-custom text-[9px] px-1.5 py-0.5 rounded ml-auto"
+                    <span className="font-mono text-[9px] px-1.5 py-0.5 rounded ml-auto tracking-tight"
                       style={{ background: 'var(--accent-glow)', color: 'var(--accent2)', border: '1px solid rgba(20,184,166,0.2)' }}>
                       collection
                     </span>
@@ -389,14 +389,14 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
                 {/* Columns */}
                 <div style={{ background: 'var(--surface)' }}>
                   {cols.length === 0 ? (
-                    <div className="px-5 py-4 text-xs font-mono-custom" style={{ color: 'var(--text3)' }}>
+                    <div className="px-5 py-4 text-xs font-mono tracking-tight" style={{ color: 'var(--text3)' }}>
                       No fields defined
                     </div>
                   ) : (
                     cols.map((col, i) => (
                       <div
                         key={col.name}
-                        className="flex items-center justify-between px-3 sm:px-5 py-2 text-[10px] sm:text-xs font-mono-custom border-b border-white/5 last:border-b-0 hover:bg-emerald-500/5 transition-colors group"
+                        className="flex items-center justify-between px-3 sm:px-5 py-2 text-[10px] sm:text-xs font-mono border-b border-white/5 last:border-b-0 hover:bg-emerald-500/5 transition-colors group tracking-tight"
                       >
                         <div className="flex items-center gap-1.5 min-w-0 truncate flex-1">
                           <span className="text-emerald-500 font-bold select-none opacity-60 group-hover:opacity-100">+</span>
@@ -410,7 +410,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
                           </span>
                           {col.note && (
                             <span
-                              className="px-1.5 py-0.5 rounded text-[10px]"
+                              className="px-1.5 py-0.5 rounded text-[10px] font-mono tracking-tight"
                               style={{
                                 background: 'var(--accent-glow)',
                                 color: 'var(--accent2)',
@@ -433,13 +433,13 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
         <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
           {/* Toolbar */}
           <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface2)' }}>
-            <span className="font-mono-custom text-[10px]" style={{ color: 'var(--text3)' }}>
+            <span className="font-mono text-[10px] tracking-tight" style={{ color: 'var(--text3)' }}>
               schema.{activeTab === 'sql' ? 'sql' : activeTab === 'prisma' ? 'prisma' : 'js'}
             </span>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCopy}
-                className="px-2.5 py-1 rounded-md text-[10px] font-mono-custom border transition-colors animate-fade-in"
+                className="px-2.5 py-1 rounded-md text-[10px] font-mono border transition-colors animate-fade-in tracking-tight"
                 style={{ borderColor: 'var(--border2)', background: 'var(--surface)', color: 'var(--text2)' }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent2)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border2)'; }}
@@ -448,7 +448,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
               </button>
               <button
                 onClick={handleDownload}
-                className="px-2.5 py-1 rounded-md text-[10px] font-mono-custom border transition-colors"
+                className="px-2.5 py-1 rounded-md text-[10px] font-mono border transition-colors tracking-tight"
                 style={{ borderColor: 'var(--border2)', background: 'var(--surface)', color: 'var(--text2)' }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent2)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border2)'; }}
@@ -459,7 +459,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
           </div>
 
           {/* Code Viewer */}
-          <pre className="p-5 font-mono-custom text-xs overflow-x-auto text-[var(--text2)] max-h-[500px] leading-relaxed select-text" style={{ background: 'var(--surface)' }}>
+          <pre className="p-5 font-mono text-xs overflow-x-auto text-[var(--text2)] max-h-[500px] leading-relaxed select-text" style={{ background: 'var(--surface)' }}>
             <code>{activeContent}</code>
           </pre>
         </div>
@@ -576,7 +576,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
                   setSelectedIdx(i);
                   setSandboxResponse(null);
                 }}
-                className={`api-endpoint-card font-mono-custom relative group ${isSelected ? 'api-endpoint-card--selected' : ''}`}
+                className={`api-endpoint-card font-mono relative group ${isSelected ? 'api-endpoint-card--selected' : ''}`}
               >
                 <span className="absolute left-2 text-emerald-500 font-bold select-none opacity-40 group-hover:opacity-100 pl-1">+</span>
                 <span className={`api-endpoint-card__method ${methodClass(ep.method)} ml-4`}>
@@ -606,30 +606,30 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
           >
             <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-white/10">
               <span
-                className="font-mono-custom text-xs font-semibold flex items-center gap-1.5"
+                className="font-mono text-xs font-semibold flex items-center gap-1.5"
                 style={{ color: 'var(--text)' }}
               >
                 <Terminal size={13} className="text-purple-400" />
                 Sandbox REST Client
               </span>
-              <span className="text-[9px] font-mono-custom text-green-400 bg-green-500/10 border border-green-500/25 px-1.5 py-0.5 rounded">
+              <span className="text-[9px] font-mono text-green-400 bg-green-500/10 border border-green-500/25 px-1.5 py-0.5 rounded tracking-tight">
                 SIMULATOR ONLINE
               </span>
             </div>
 
             {/* Request input bar */}
             <div
-              className="flex items-center gap-2 p-2.5 rounded-lg bg-bg-surface2 border border-white/10 mb-3 text-xs"
+              className="flex items-center gap-2 p-2.5 rounded-lg bg-bg-surface2 border border-white/10 mb-3 text-xs font-mono"
               style={{ color: 'var(--text)' }}
             >
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${methodClass(selectedEndpoint.method)}`}>
                 {selectedEndpoint.method}
               </span>
-              <span className="break-all font-mono-custom leading-snug">{selectedEndpoint.path}</span>
+              <span className="break-all font-mono leading-snug">{selectedEndpoint.path}</span>
             </div>
 
             {/* Parameter Selection Tabs */}
-            <div className="flex border-b border-white/10 mb-3 text-[10px] font-mono-custom">
+            <div className="flex border-b border-white/10 mb-3 text-[10px] font-mono">
               <button
                 type="button"
                 onClick={() => setConsoleTab('headers')}
@@ -657,10 +657,10 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
             </div>
 
             {/* Parameter panels */}
-            <div className="flex-1 overflow-y-auto space-y-3 font-mono-custom text-xs pr-1 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-3 font-mono text-xs pr-1 min-h-0">
               {consoleTab === 'headers' ? (
                 <div
-                  className="p-2.5 rounded-lg bg-bg-surface2 border border-white/10 space-y-1.5"
+                  className="p-2.5 rounded-lg bg-bg-surface2 border border-white/10 space-y-1.5 font-mono text-xs"
                   style={{ color: 'var(--text2)' }}
                 >
                   <div className="flex justify-between gap-3">
@@ -675,7 +675,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
                   )}
                 </div>
               ) : (
-                <pre className="p-2.5 rounded-lg bg-black/50 border border-white/10 text-purple-200 overflow-x-auto text-[11px] leading-normal max-h-[120px] scrollbar-none">
+                <pre className="p-2.5 rounded-lg bg-black/50 border border-white/10 text-purple-200 overflow-x-auto text-[11px] font-mono leading-normal max-h-[120px] scrollbar-none">
                   {getMockRequestBody(selectedEndpoint.method, selectedEndpoint.path)}
                 </pre>
               )}
@@ -684,7 +684,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
               <button
                 onClick={() => triggerSandboxTest(selectedEndpoint.method, selectedEndpoint.path)}
                 disabled={sandboxLoading}
-                className="w-full py-2.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-40 text-white rounded-lg font-display text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-purple-400/20"
+                className="w-full py-2.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-40 text-white rounded-lg font-sans text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-purple-400/20"
               >
                 {sandboxLoading ? (
                   <>
@@ -703,7 +703,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
               {(sandboxResponse || sandboxLoading) && (
                 <div className="space-y-1.5">
                   <div
-                    className="flex items-center justify-between text-[10px] uppercase tracking-wider"
+                    className="flex items-center justify-between text-[10px] uppercase tracking-wider font-mono"
                     style={{ color: 'var(--text2)' }}
                   >
                     <span>Response Payload</span>
@@ -714,7 +714,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
                       </div>
                     )}
                   </div>
-                  <pre className="p-2.5 rounded-lg bg-black/60 border border-white/10 text-green-400 text-[11px] overflow-auto max-h-[140px] scrollbar-thin leading-relaxed">
+                  <pre className="p-2.5 rounded-lg bg-black/60 border border-white/10 text-green-400 text-[11px] font-mono overflow-auto max-h-[140px] scrollbar-thin leading-relaxed">
                     {sandboxLoading ? (
                       <span style={{ color: 'var(--text2)' }}>Waiting for response from simulator...</span>
                     ) : (
@@ -732,7 +732,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
             spotlightColor="rgba(20, 184, 166, 0.05)"
           >
             <Terminal size={28} className="mb-3 text-purple-400/80" />
-            <p className="text-sm leading-relaxed max-w-[16rem]" style={{ color: 'var(--text2)' }}>
+            <p className="text-sm leading-relaxed max-w-[16rem] font-sans" style={{ color: 'var(--text2)' }}>
               Select an endpoint from the routes list on the left to run mock API sandbox tests and inspect
               response JSON objects.
             </p>
@@ -755,7 +755,7 @@ export function UiPanel({ blueprint }: { blueprint: Blueprint }) {
           return (
             <Card key={screen.name} className="relative group border-t border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all">
               <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
-                <span className="font-mono-custom text-[10px] text-emerald-400 font-semibold select-none">
+                <span className="font-mono text-[10px] text-emerald-400 font-semibold select-none tracking-tight">
                   [NEW] pages/{kebabName}.tsx
                 </span>
                 <span className="text-white/30 text-xs">
@@ -763,12 +763,12 @@ export function UiPanel({ blueprint }: { blueprint: Blueprint }) {
                 </span>
               </div>
               <div
-                className="font-display font-semibold text-sm mb-1.5"
+                className="font-sans font-semibold text-sm mb-1.5"
                 style={{ color: 'var(--text)' }}
               >
                 {screen.name} Page
               </div>
-              <div className="text-xs leading-relaxed font-mono-custom opacity-70" style={{ color: 'var(--text2)' }}>
+              <div className="text-xs leading-relaxed font-mono opacity-70" style={{ color: 'var(--text2)' }}>
                 {screen.components.split(',').map((c) => `+ ${c.trim()}`).join('\n')}
               </div>
             </Card>
@@ -808,10 +808,10 @@ export function ArchPanel({ blueprint }: { blueprint: Blueprint }) {
             className="p-4"
             spotlightColor="rgba(15, 118, 110, 0.12)"
           >
-            <div className="font-mono-custom text-[10px] uppercase tracking-widest mb-2" style={{ color: 'var(--text2)' }}>
+            <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: 'var(--text2)' }}>
               {label}
             </div>
-            <div className="text-sm font-medium leading-snug" style={{ color: 'var(--text)' }}>
+            <div className="text-sm font-medium leading-snug font-sans" style={{ color: 'var(--text)' }}>
               {value}
             </div>
           </SpotlightCard>
@@ -953,13 +953,13 @@ export function EffortPanel({ blueprint }: { blueprint: Blueprint }) {
             spotlightColor="rgba(20, 184, 166, 0.12)"
           >
             <div
-              className="font-mono-custom text-[10px] uppercase tracking-widest mb-2.5 flex items-center gap-1.5 text-muted-foreground"
+              className="font-mono text-[10px] uppercase tracking-widest mb-2.5 flex items-center gap-1.5 text-muted-foreground"
             >
               <Icon size={14} className={color} />
               <span>{label}</span>
             </div>
             <div
-              className={`font-display font-bold text-lg leading-snug text-white`}
+              className={`font-sans font-bold text-lg leading-snug text-white`}
             >
               {value}
             </div>
@@ -969,7 +969,7 @@ export function EffortPanel({ blueprint }: { blueprint: Blueprint }) {
 
       {/* Roadmap milestones */}
       <SpotlightCard className="p-6 mt-6" spotlightColor="rgba(94, 234, 212, 0.1)">
-        <div className="font-mono-custom text-xs uppercase tracking-widest mb-6 text-muted-foreground">
+        <div className="font-mono text-xs uppercase tracking-widest mb-6 text-muted-foreground">
           // project implementation roadmap
         </div>
 
@@ -982,7 +982,7 @@ export function EffortPanel({ blueprint }: { blueprint: Blueprint }) {
               <div key={i} className="relative group">
                 {/* Node icon */}
                 <div
-                  className={`absolute -left-[35px] top-1.5 w-[18px] h-[18px] rounded-full border flex items-center justify-center text-[9px] transition-all duration-300 ${
+                  className={`absolute -left-[35px] top-1.5 w-[18px] h-[18px] rounded-full border flex items-center justify-center text-[9px] transition-all duration-300 font-mono ${
                     isDone
                       ? 'bg-green-500 border-green-400 text-white shadow-lg shadow-green-500/20'
                       : isCurrent
@@ -996,15 +996,15 @@ export function EffortPanel({ blueprint }: { blueprint: Blueprint }) {
                 {/* Milestone details */}
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <h4 className="font-display font-bold text-sm text-white">
+                    <h4 className="font-sans font-bold text-sm text-white">
                       {m.phase}
                     </h4>
-                    <span className="font-mono-custom text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-muted-foreground">
+                    <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-muted-foreground tracking-tight">
                       {m.weeks}
                     </span>
                   </div>
 
-                  <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
+                  <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed font-sans">
                     {m.desc}
                   </p>
 
@@ -1012,7 +1012,7 @@ export function EffortPanel({ blueprint }: { blueprint: Blueprint }) {
                     {m.tasks.map((task, idx) => (
                       <span
                         key={idx}
-                        className="font-mono-custom text-[10px] px-2 py-0.5 rounded bg-bg-surface2 border border-white/5 text-muted-foreground hover:text-white transition-colors"
+                        className="font-mono text-[10px] px-2 py-0.5 rounded bg-bg-surface2 border border-white/5 text-muted-foreground hover:text-white transition-colors tracking-tight"
                       >
                         - {task}
                       </span>

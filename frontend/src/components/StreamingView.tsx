@@ -106,7 +106,7 @@ export function StreamingView({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border font-mono-custom text-xs mb-4"
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border font-mono text-xs mb-4 tracking-tight"
           style={{
             borderColor: 'rgba(99, 102, 241, 0.3)',
             background: 'rgba(99, 102, 241, 0.1)',
@@ -198,7 +198,7 @@ export function StreamingView({
 
       {/* Progress Bar — spring-animated width */}
       <div className="w-full max-w-3xl mb-6">
-        <div className="flex justify-between items-end mb-2 font-mono-custom text-xs" style={{ color: 'var(--text3)' }}>
+        <div className="flex justify-between items-end mb-2 font-mono text-xs tracking-tight" style={{ color: 'var(--text3)' }}>
           <span>Multi-Model Pipeline progress</span>
           <motion.span
             key={progress}
@@ -296,10 +296,10 @@ export function StreamingView({
                 <div className={`flex justify-center mb-2 transition-all ${!isActive && !isCompleted ? 'opacity-40 grayscale' : ''}`}>
                   <Icon size={24} className={agent.color} />
                 </div>
-                <div className="font-display font-semibold text-xs mb-0.5 truncate" style={{ color: 'var(--text)' }}>
+                <div className="font-sans font-semibold text-xs mb-0.5 truncate" style={{ color: 'var(--text)' }}>
                   {agent.label}
                 </div>
-                <div className="font-mono-custom text-[9px] truncate text-indigo-300/80">
+                <div className="font-mono text-[9px] truncate text-indigo-300/80 tracking-tight">
                   {status === 'correcting' ? 'Fixing' : status === 'idle' ? agent.stage : status}
                 </div>
               </SpotlightCard>
@@ -326,7 +326,7 @@ export function StreamingView({
         >
           <div className="flex items-center gap-2">
             <Cpu className="w-4 h-4 text-indigo-400" />
-            <span className="font-mono-custom text-[11px] font-semibold uppercase tracking-wider text-indigo-300">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-indigo-300">
               Reasoning Process & Multi-Model Execution Stream
             </span>
           </div>
@@ -355,7 +355,7 @@ export function StreamingView({
               style={{ overflow: 'hidden' }}
             >
               <div
-                className="p-4 overflow-y-auto font-mono-custom text-xs space-y-2.5 max-h-[300px]"
+                className="p-4 overflow-y-auto font-mono text-xs space-y-2.5 max-h-[300px] leading-relaxed"
                 style={{ color: 'var(--green)' }}
               >
                 <div style={{ color: 'var(--text3)' }}>

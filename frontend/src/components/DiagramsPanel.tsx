@@ -77,13 +77,13 @@ function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
         </p>
         <details className="mt-3 text-left">
           <summary
-            className="font-mono-custom text-xs cursor-pointer"
+            className="font-mono text-xs cursor-pointer tracking-tight"
             style={{ color: 'var(--text3)' }}
           >
             View source
           </summary>
           <pre
-            className="mt-2 p-3 rounded-lg text-xs overflow-x-auto"
+            className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
             style={{ background: 'var(--surface3)', color: 'var(--text2)' }}
           >
             {chart}
@@ -132,7 +132,7 @@ export function DiagramsPanel({ blueprint }: { blueprint: Blueprint }) {
   return (
     <div>
       <div
-        className="font-mono-custom text-xs uppercase tracking-widest mb-4"
+        className="font-mono text-xs uppercase tracking-widest mb-4"
         style={{ color: 'var(--text3)' }}
       >
         // visual diagrams
@@ -144,7 +144,7 @@ export function DiagramsPanel({ blueprint }: { blueprint: Blueprint }) {
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className="font-mono-custom text-xs px-4 py-2 rounded-lg border transition-all duration-150 flex items-center gap-1.5"
+            className="font-mono text-xs px-4 py-2 rounded-lg border transition-all duration-150 flex items-center gap-1.5"
             style={{
               background: activeTab === id ? 'var(--accent-glow)' : 'var(--surface2)',
               borderColor: activeTab === id ? 'rgba(20,184,166,0.3)' : 'var(--border)',

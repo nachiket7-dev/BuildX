@@ -67,9 +67,9 @@
     --nav-active-text: var(--accent2);
 
     /* Typography */
-    --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
-    --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
-    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --font-sans: 'Inter', 'Geist', system-ui, -apple-system, sans-serif;
+    --font-display: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', ui-monospace, monospace;
   }
 
   * {
