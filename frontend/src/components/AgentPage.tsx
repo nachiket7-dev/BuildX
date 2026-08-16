@@ -8,9 +8,9 @@ import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { json } from '@codemirror/lang-json';
 import { sql } from '@codemirror/lang-sql';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from '@codemirror/view';
 import { EditorSelection } from '@codemirror/state';
+import { buildxEditorTheme, buildxSyntaxHighlighting, buildxExtensions } from './theme/buildxTheme';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { fetchBlueprintFilesWithContent, fetchBlueprint, fetchMyBlueprints } from '../lib/api';
@@ -673,16 +673,16 @@ export function AgentPage() {
                 {/* CodeMirror Merge Container */}
                 <div className="flex-1 overflow-auto min-h-0 p-2 font-mono text-xs">
                   <CodeMirrorMerge
-                    theme={oneDark}
+                    theme={buildxEditorTheme}
                     className="h-full rounded-xl overflow-hidden border border-white/10"
                   >
                     <Original
                       value={pendingDiff.original}
-                      extensions={[...getLanguageExtension(selectedFile.path), EditorView.lineWrapping]}
+                      extensions={[...getLanguageExtension(selectedFile.path), ...buildxExtensions, EditorView.lineWrapping]}
                     />
                     <Modified
                       value={pendingDiff.modified}
-                      extensions={[...getLanguageExtension(selectedFile.path), EditorView.lineWrapping]}
+                      extensions={[...getLanguageExtension(selectedFile.path), ...buildxExtensions, EditorView.lineWrapping]}
                     />
                   </CodeMirrorMerge>
                 </div>
@@ -692,18 +692,11 @@ export function AgentPage() {
                 <CodeMirror
                   value={selectedFile.content}
                   height="100%"
-                  theme={oneDark}
+                  theme={buildxEditorTheme}
                   extensions={[
                     ...getLanguageExtension(selectedFile.path),
+                    ...buildxExtensions,
                     EditorView.lineWrapping,
-                    EditorView.theme({
-                      '&': { height: '100%', backgroundColor: '#08080c' },
-                      '.cm-scroller': { overflow: 'auto', fontFamily: 'monospace' },
-                      '.cm-gutters': {
-                        backgroundColor: '#09090d',
-                        borderRight: '1px solid rgba(255,255,255,0.06)',
-                      },
-                    }),
                   ]}
                   onCreateEditor={(view) => {
                     editorViewRef.current = view;

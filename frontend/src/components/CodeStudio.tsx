@@ -6,9 +6,9 @@ import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { json } from '@codemirror/lang-json';
 import { sql } from '@codemirror/lang-sql';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from '@codemirror/view';
 import { EditorSelection } from '@codemirror/state';
+import { buildxEditorTheme, buildxSyntaxHighlighting, buildxExtensions } from './theme/buildxTheme';
 import type { Blueprint } from '../lib/types';
 import { formatSQL } from '../lib/utils';
 import {
@@ -892,16 +892,16 @@ export function CodeStudio({
               {/* CodeMirror Merge Container */}
               <div className="flex-1 overflow-auto min-h-0 p-2 font-mono text-xs">
                 <CodeMirrorMerge
-                  theme={oneDark}
+                  theme={buildxEditorTheme}
                   className="h-full rounded-xl overflow-hidden border border-white/10"
                 >
                   <Original
                     value={currentPendingDiff ? currentPendingDiff.original : activeContent}
-                    extensions={[...languageExts, EditorView.lineWrapping]}
+                    extensions={[...languageExts, ...buildxExtensions, EditorView.lineWrapping]}
                   />
                   <Modified
                     value={currentPendingDiff ? currentPendingDiff.modified : activeContent}
-                    extensions={[...languageExts, EditorView.lineWrapping]}
+                    extensions={[...languageExts, ...buildxExtensions, EditorView.lineWrapping]}
                   />
                 </CodeMirrorMerge>
               </div>
@@ -913,15 +913,11 @@ export function CodeStudio({
                 ref={editorRef}
                 value={activeContent}
                 height="100%"
-                theme={oneDark}
+                theme={buildxEditorTheme}
                 extensions={[
                   ...languageExts,
+                  ...buildxExtensions,
                   EditorView.lineWrapping,
-                  EditorView.theme({
-                    '&': { height: '100%', backgroundColor: '#08080c' },
-                    '.cm-scroller': { overflow: 'auto', fontFamily: 'monospace' },
-                    '.cm-gutters': { backgroundColor: '#09090d', borderRight: '1px solid rgba(255,255,255,0.06)' },
-                  }),
                 ]}
                 onCreateEditor={(view) => {
                   editorViewRef.current = view;
