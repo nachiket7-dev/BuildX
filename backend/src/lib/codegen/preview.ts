@@ -63,16 +63,69 @@ function mockRows(table: SchemaTable, count = 5): string {
   return rows.join('\n');
 }
 
-type ScreenKind = 'dashboard' | 'list' | 'form' | 'profile' | 'settings' | 'auth' | 'generic';
-function classifyScreen(screen: UiScreen): ScreenKind {
+type ScreenKind = 'dashboard' | 'storefront' | 'list' | 'form' | 'profile' | 'settings' | 'auth' | 'generic';
+function classifyScreen(screen: UiScreen, isStorefront?: boolean): ScreenKind {
   const n = (screen.name + ' ' + screen.components).toLowerCase();
+  if (n.includes('login') || n.includes('signup') || n.includes('register') || n.includes('onboarding')) return 'auth';
+  if (isStorefront && (n.includes('discovery') || n.includes('home') || n.includes('explore') || n.includes('feed') || n.includes('catalog') || n.includes('storefront') || n.includes('restaurant'))) return 'storefront';
+  if (n.includes('discovery') || n.includes('catalog') || n.includes('storefront') || n.includes('restaurant') || n.includes('menu')) return 'storefront';
   if (n.includes('dashboard') || n.includes('overview') || n.includes('analytics')) return 'dashboard';
-  if (n.includes('login') || n.includes('signup') || n.includes('register'))        return 'auth';
-  if (n.includes('setting') || n.includes('config') || n.includes('preference'))    return 'settings';
-  if (n.includes('profile') || n.includes('account'))                               return 'profile';
-  if (n.includes('form') || n.includes('create') || n.includes('edit'))             return 'form';
-  if (n.includes('list') || n.includes('table') || n.includes('grid'))              return 'list';
-  return 'generic';
+  if (n.includes('setting') || n.includes('config') || n.includes('preference')) return 'settings';
+  if (n.includes('profile') || n.includes('account')) return 'profile';
+  if (n.includes('form') || n.includes('create') || n.includes('edit')) return 'form';
+  if (n.includes('list') || n.includes('table') || n.includes('grid')) return 'list';
+  return isStorefront ? 'storefront' : 'generic';
+}
+
+function renderStorefrontDiscovery(blueprint: Blueprint, accent: ReturnType<typeof pickAccent>): string {
+  const restaurants = [
+    { name: "Mario's Woodfired Pizza", rating: '4.9 ★ (420+)', time: '20-30 min', tag: 'Artisan Pizza · Italian', price: '$$', image: '🍕' },
+    { name: "Tokyo Ramen & Sushi Bar", rating: '4.8 ★ (850+)', time: '25-35 min', tag: 'Ramen · Bento · Fresh Sashimi', price: '$$$', image: '🍣' },
+    { name: "Green Garden Poké & Bowls", rating: '4.9 ★ (310+)', time: '15-25 min', tag: 'Healthy · Organic Bowls · Salads', price: '$$', image: '🥗' },
+    { name: "Smash & Shake Burger Co.", rating: '4.7 ★ (1.2k+)', time: '20-30 min', tag: 'American Burgers · Shakes', price: '$', image: '🍔' },
+    { name: "Le Petit Croissant & Bakery", rating: '4.9 ★ (580+)', time: '15-20 min', tag: 'Pastries · Specialty Espresso', price: '$$', image: '☕' },
+    { name: "Taco Libre Taqueria", rating: '4.8 ★ (920+)', time: '20-30 min', tag: 'Street Tacos · Burritos · Mexican', price: '$', image: '🌮' },
+  ];
+
+  return `
+    <div style="max-width:1200px;margin:0 auto;">
+      <!-- Hero Promotional Banner -->
+      <div style="background:linear-gradient(135deg, rgba(${accent.rgb},0.3) 0%, rgba(249,115,22,0.2) 100%), #121218;border:1px solid rgba(255,255,255,0.1);border-radius:18px;padding:28px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;background:rgba(249,115,22,0.2);color:#fb923c;border:1px solid rgba(249,115,22,0.3);text-transform:uppercase;">🔥 Limited Time Offer</span>
+          <h2 style="font-size:24px;font-weight:800;color:#fff;margin:8px 0 4px;">Free Delivery on your first 3 orders!</h2>
+          <p style="font-size:13px;color:#d1d5db;">Use voucher code <strong style="color:#fb923c;font-family:monospace;">SWIFTFAST</strong> at checkout.</p>
+        </div>
+        <div style="font-size:48px;">🚀</div>
+      </div>
+
+      <!-- Section Title -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h3 style="font-size:18px;font-weight:700;color:#fff;">Top Rated Restaurants & Stores Near You</h3>
+        <span style="font-size:12px;color:#9ca3af;cursor:pointer;">View all (28) →</span>
+      </div>
+
+      <!-- Restaurant Cards Grid -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+        ${restaurants.map(r => `
+          <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;transition:transform 0.15s, border-color 0.15s;cursor:pointer;">
+            <div style="height:120px;background:linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.4) 100%);display:flex;align-items:center;justify-content:center;font-size:44px;position:relative;">
+              ${r.image}
+              <span style="position:absolute;bottom:8px;right:8px;font-size:10px;font-weight:700;background:rgba(0,0,0,0.7);color:#fff;padding:2px 8px;border-radius:6px;backdrop-filter:blur(4px);">${r.time}</span>
+            </div>
+            <div style="padding:14px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:15px;font-weight:700;color:#fff;">${r.name}</span>
+                <span style="font-size:11px;font-weight:700;color:#fbbf24;">${r.rating}</span>
+              </div>
+              <div style="font-size:12px;color:#9ca3af;margin-bottom:10px;">${r.tag} · ${r.price}</div>
+              <button style="width:100%;padding:8px 12px;border-radius:8px;background:rgba(${accent.rgb},0.2);color:${accent.light};border:1px solid rgba(${accent.rgb},0.3);font-size:12px;font-weight:600;cursor:pointer;">Browse Menu</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
 }
 
 function renderDashboard(blueprint: Blueprint, accent: ReturnType<typeof pickAccent>): string {
@@ -249,30 +302,32 @@ function renderGeneric(screen: UiScreen): string {
     </div>`;
 }
 
-// ─── Main Deterministic Builder ────────────────────────────────────────────────
-
 export function buildDeterministicPreview(blueprint: Blueprint): string {
   const accent = pickAccent(blueprint.appName || 'App');
   const screens = blueprint.screens || [];
+  const isStorefront = blueprint.layoutParadigm === 'TOP_NAV_STOREFRONT';
 
   const navItems = screens.map((s, i) => ({
     id: `screen-${i}`,
     label: s.name,
     icon: screenIcon(s.name),
-    kind: classifyScreen(s),
+    kind: classifyScreen(s, isStorefront),
     screen: s,
   }));
+
+  const authNavItem = navItems.find(n => n.kind === 'auth');
 
   const screenContents = navItems.map(item => {
     let content = '';
     switch (item.kind) {
-      case 'dashboard': content = renderDashboard(blueprint, accent); break;
-      case 'list':      content = renderList(blueprint, item.screen); break;
-      case 'form':      content = renderForm(item.screen, blueprint); break;
-      case 'auth':      content = renderAuth(item.screen, blueprint.appName, accent); break;
-      case 'settings':  content = renderSettings(blueprint); break;
-      case 'profile':   content = renderProfile(); break;
-      default:          content = renderGeneric(item.screen);
+      case 'storefront': content = renderStorefrontDiscovery(blueprint, accent); break;
+      case 'dashboard':  content = renderDashboard(blueprint, accent); break;
+      case 'list':       content = renderList(blueprint, item.screen); break;
+      case 'form':       content = renderForm(item.screen, blueprint); break;
+      case 'auth':       content = renderAuth(item.screen, blueprint.appName, accent); break;
+      case 'settings':   content = renderSettings(blueprint); break;
+      case 'profile':    content = renderProfile(); break;
+      default:           content = renderGeneric(item.screen);
     }
     return `<div id="${item.id}" class="screen" style="display:none;height:100%;">${content}</div>`;
   }).join('\n');
@@ -304,12 +359,59 @@ export function buildDeterministicPreview(blueprint: Blueprint): string {
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d0d0f;color:#e5e7eb;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
 .nav-btn:hover{background:rgba(255,255,255,.05)!important;color:#fff!important;}
 .nav-btn.active{background:var(--accent-dim)!important;color:#fff!important;border-left:2px solid var(--accent);padding-left:10px;}
+${isStorefront ? '.nav-btn.active{border-left:none!important;background:rgba(249,115,22,0.2)!important;color:#fb923c!important;border:1px solid rgba(249,115,22,0.4)!important;padding-left:14px!important;}' : ''}
 .screen{animation:fi .2s ease;}
 @keyframes fi{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
 ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:4px;}
 </style>
 </head>
 <body>
+${isStorefront ? `
+<!-- Top Consumer Storefront Navigation Bar -->
+<header style="background:#111113;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;padding:0 24px;height:56px;gap:16px;flex-shrink:0;z-index:10;">
+  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#f97316,#ea580c);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;box-shadow:0 4px 12px rgba(249,115,22,0.3);">${escHtml((blueprint.appName||'B')[0])}</div>
+    <span style="font-size:16px;font-weight:700;color:#fff;letter-spacing:-0.02em;">${escHtml(blueprint.appName)}</span>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:99px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);font-size:12px;color:#d1d5db;flex-shrink:0;">
+    <span style="color:#f97316;">📍</span>
+    <span>San Francisco, CA</span>
+    <span style="color:#6b7280;">·</span>
+    <span style="color:#34d399;font-weight:600;">25-35 min</span>
+  </div>
+
+  <div style="flex:1;max-width:440px;margin:0 auto;position:relative;">
+    <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#6b7280;font-size:12px;">🔍</span>
+    <input style="width:100%;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:7px 12px 7px 32px;font-size:12px;color:#fff;outline:none;" placeholder="Search dishes, groceries, or essentials..." />
+  </div>
+
+  <div style="display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0;">
+    <button style="padding:6px 14px;border-radius:10px;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;font-size:12px;font-weight:600;border:none;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(249,115,22,0.25);">
+      <span>🛒</span><span>Cart (3)</span>
+    </button>
+    ${authNavItem ? `
+    <button class="nav-btn" data-target="${authNavItem.id}" onclick="activate('${authNavItem.id}',this)" style="padding:6px 12px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#d1d5db;font-size:12px;font-weight:600;cursor:pointer;">
+      <span>👤 Account</span>
+    </button>` : ''}
+  </div>
+</header>
+
+<!-- Horizontal Category Filter Pills -->
+<div style="background:#0e0e12;border-bottom:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;gap:8px;overflow-x:auto;">
+  ${navItems.filter(n => n.kind !== 'auth').map(item => `
+    <button class="nav-btn" data-target="${item.id}" onclick="activate('${item.id}',this)" style="padding:6px 14px;border-radius:99px;font-size:12px;font-weight:600;color:#9ca3af;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);cursor:pointer;white-space:nowrap;transition:all 0.15s;">
+      <span>${item.icon}</span> <span style="margin-left:4px;">${escHtml(item.label)}</span>
+    </button>
+  `).join('')}
+</div>
+
+<!-- Main Storefront Canvas Content -->
+<main style="flex:1;overflow-y:auto;padding:24px;background:#09090b;">
+  ${screenContents}
+</main>
+` : `
+<!-- Classic B2B Workspace Header -->
 <header style="background:#111113;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;padding:0 16px;height:48px;gap:10px;flex-shrink:0;z-index:10;">
   <div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;">${escHtml((blueprint.appName||'A')[0])}</div>
   <span style="font-size:14px;font-weight:600;color:#fff;">${escHtml(blueprint.appName)}</span>
@@ -338,10 +440,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </main>
 </div>
+`}
 <script>
 function activate(id,btn){
   document.querySelectorAll('.screen').forEach(el=>el.style.display='none');
-  document.querySelectorAll('.nav-btn').forEach(b=>{b.classList.remove('active');b.style.paddingLeft='12px';});
+  document.querySelectorAll('.nav-btn').forEach(b=>{b.classList.remove('active');});
   var el=document.getElementById(id);
   if(el)el.style.display='block';
   if(btn){btn.classList.add('active');}
@@ -359,7 +462,7 @@ function activate(id,btn){
   if (!targetBtn) {
     targetBtn = allBtns.find(function(b) {
       var t = (b.textContent || '').toLowerCase();
-      return !t.includes('login') && !t.includes('auth') && !t.includes('sign') && !t.includes('register') && !t.includes('api');
+      return !t.includes('login') && !t.includes('auth') && !t.includes('sign') && !t.includes('register') && !t.includes('onboarding') && !t.includes('api');
     });
   }
   if (!targetBtn && allBtns.length > 0) {

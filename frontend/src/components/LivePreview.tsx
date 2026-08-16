@@ -178,11 +178,12 @@ function buildSrcDocPayload(
       window[iconName] = createLucideIcon(iconName);
     });
 
-    // ─── Adaptive Shell Wrapper Components ────────────────────────────────────
+    // --- Adaptive Shell Wrapper Components ---
 
     function StorefrontTopNavShell({ children, title }) {
       const [cartCount, setCartCount] = useState(3);
       const [activeCategory, setActiveCategory] = useState('All');
+      const [showAuthModal, setShowAuthModal] = useState(false);
       const categories = ['All', '🔥 Popular', '🍔 Burgers & Fast', '🥗 Fresh Bowls', '🍣 Asian & Sushi', '🍕 Pizza', '☕ Drinks', '⭐ Top Rated'];
 
       return (
@@ -228,9 +229,13 @@ function buildSrcDocPayload(
                   <span>🛒 Cart</span>
                   <span className="bg-black/30 px-1.5 py-0.2 rounded-full text-[11px] font-mono">{cartCount}</span>
                 </button>
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-xs font-bold border border-white/20 ml-1">
+                <button 
+                  onClick={() => setShowAuthModal(!showAuthModal)} 
+                  className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-xs font-bold border border-white/20 ml-1 cursor-pointer hover:ring-2 hover:ring-orange-500 transition-all"
+                  title="Profile & Account"
+                >
                   JD
-                </div>
+                </button>
               </div>
             </div>
 
@@ -251,6 +256,43 @@ function buildSrcDocPayload(
               ))}
             </div>
           </header>
+
+          {/* Auth Modal on Profile Click */}
+          {showAuthModal && (
+            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-sm bg-[#121218] border border-white/10 rounded-2xl p-6 shadow-2xl relative">
+                <button 
+                  onClick={() => setShowAuthModal(false)}
+                  className="absolute right-4 top-4 text-zinc-400 hover:text-white text-sm"
+                >
+                  ✕
+                </button>
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 rounded-xl bg-orange-500/20 border border-orange-500/30 text-orange-400 font-bold text-lg flex items-center justify-center mx-auto mb-3">
+                    {title ? title.charAt(0) : 'B'}
+                  </div>
+                  <h3 className="text-lg font-bold text-white">Sign In to {title || 'Storefront'}</h3>
+                  <p className="text-xs text-zinc-400 mt-1">Access your saved addresses & order history</p>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Email</label>
+                    <input type="email" placeholder="you@example.com" className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-orange-500" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1">Password</label>
+                    <input type="password" placeholder="••••••••" className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-orange-500" />
+                  </div>
+                  <button 
+                    onClick={() => setShowAuthModal(false)}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold text-xs shadow-lg shadow-orange-500/20 hover:opacity-95 mt-2"
+                  >
+                    Sign In
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Main Storefront Canvas Content */}
           <main className="flex-1 w-full max-w-7xl mx-auto p-4 lg:p-6">
