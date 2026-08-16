@@ -368,46 +368,46 @@ export function BlueprintOutput({
       aria-labelledby="blueprint-title"
     >
       <div className="flex flex-col gap-4 sm:gap-6 py-5 sm:py-8">
-        <div className="flex-1 min-w-0 border border-white/10 rounded-xl bg-black/45 p-5 font-mono-custom text-xs relative overflow-hidden">
+        <div className="flex-1 min-w-0 border border-obsidian-border rounded-xl bg-obsidian-surface p-5 font-mono text-xs relative overflow-hidden">
           <div className="absolute right-4 top-4 text-[10px] text-white/20 select-none font-bold">
             COMMIT: {blueprintId ? blueprintId.substring(0, 7) : 'draft'}
           </div>
           
           <div className="flex items-start gap-3 mb-4">
-            <div className="w-5 h-5 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0 text-purple-300 font-bold select-none text-[10px]">
+            <div className="w-5 h-5 rounded-full bg-sylven/20 border border-sylven/30 flex items-center justify-center shrink-0 text-sylven-light font-bold select-none text-[10px]">
               λ
             </div>
             <div>
               <h2
                 id="blueprint-title"
-                className="text-sm font-semibold text-purple-300 leading-tight"
+                className="text-sm font-semibold text-sylven-light leading-tight"
               >
                 feat({blueprint.appName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}): initialize project architecture specification
               </h2>
-              <div className="text-white/40 text-[10px] mt-1 select-none">
-                committed by <span className="text-white/60 font-semibold">BuildX Agentic Pipeline</span> via <span className="text-purple-400 font-semibold">{modelLabel || 'AI Studio'}</span>
+              <div className="text-white/40 text-[10px] mt-1 select-none font-mono">
+                committed by <span className="text-white/60 font-semibold">BuildX Agentic Pipeline</span> via <span className="text-sylven-light font-semibold">{modelLabel || 'AI Studio'}</span>
               </div>
             </div>
           </div>
           
-          <div className="border-t border-white/5 pt-4 text-white/70 leading-relaxed mb-4 whitespace-pre-wrap">
+          <div className="border-t border-obsidian-borderSubtle pt-4 text-white/70 leading-relaxed mb-4 whitespace-pre-wrap font-sans text-xs">
             {blueprint.description}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-[10px] border-t border-white/5 pt-4">
-            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-emerald-400 font-mono font-bold">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] border-t border-obsidian-borderSubtle pt-4 font-mono">
+            <span className="flex items-center gap-1 bg-obsidian-panel px-2 py-1 rounded border border-obsidian-border text-emerald-400 font-mono font-bold">
               + {blueprint.schema?.length ?? 0} {(blueprint.architecture?.database || '').toLowerCase().includes('mongo') ? 'collections' : 'tables'}
             </span>
-            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-sky-400 font-mono font-bold">
+            <span className="flex items-center gap-1 bg-obsidian-panel px-2 py-1 rounded border border-obsidian-border text-sky-400 font-mono font-bold">
               + {blueprint.endpoints?.length ?? 0} endpoints
             </span>
-            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-purple-400 font-mono font-bold">
+            <span className="flex items-center gap-1 bg-obsidian-panel px-2 py-1 rounded border border-obsidian-border text-norvin-silver font-mono font-bold">
               + {blueprint.screens?.length ?? 0} screens
             </span>
-            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-amber-400 font-mono font-bold">
+            <span className="flex items-center gap-1 bg-obsidian-panel px-2 py-1 rounded border border-obsidian-border text-amber-400 font-mono font-bold">
               # {blueprint.complexity} complexity
             </span>
-            <span className="flex items-center gap-1 bg-zinc-900/90 px-2.5 py-1 rounded border border-white/15 ml-auto text-zinc-200 font-mono text-[10px] font-medium shadow-sm">
+            <span className="flex items-center gap-1 bg-obsidian-panel px-2.5 py-1 rounded border border-obsidian-border ml-auto text-zinc-200 font-mono text-[10px] font-medium shadow-sm">
               Audience: <span className="text-white font-semibold">{blueprint.targetUsers}</span>
             </span>
           </div>

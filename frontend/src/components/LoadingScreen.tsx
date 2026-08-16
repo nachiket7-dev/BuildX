@@ -65,12 +65,12 @@ export function LoadingScreen() {
         </div>
 
         <h2
-          className="font-display font-extrabold text-2xl text-center mb-2 bg-gradient-to-r from-white via-slate-200 to-purple-400 bg-clip-text text-transparent"
+          className="font-display font-extrabold text-2xl text-center mb-2 bg-gradient-to-r from-white via-slate-200 to-emerald-400 bg-clip-text text-transparent"
         >
           Architecting your app...
         </h2>
         <p className="font-mono-custom text-sm text-center mb-10" style={{ color: 'var(--text3)' }}>
-          This takes 20-40 seconds. Claude is thinking deeply.
+          This takes 20-40 seconds. Cortex Multi-Model Pipeline is thinking deeply.
         </p>
 
         {/* Steps */}

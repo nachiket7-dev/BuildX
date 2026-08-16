@@ -42,7 +42,7 @@ const TARGETS: TargetConfig[] = [
     label: 'Deploy to Live Sandbox',
     description: 'Generate instant sandbox link powered by BuildX preview engine.',
     cta: 'Open Live Sandbox',
-    accentColor: 'text-emerald-400',
+    accentColor: 'text-sylven-light',
     bgColor: 'bg-emerald-500/10 hover:bg-emerald-500/15',
     borderColor: 'border-emerald-500/20 hover:border-emerald-500/40',
   },
@@ -52,9 +52,9 @@ const TARGETS: TargetConfig[] = [
     label: 'Push to GitHub',
     description: 'Commit code directly to your connected GitHub account with a single click.',
     cta: 'Push to GitHub',
-    accentColor: 'text-indigo-400',
-    bgColor: 'bg-indigo-500/10 hover:bg-indigo-500/15',
-    borderColor: 'border-indigo-500/20 hover:border-indigo-500/40',
+    accentColor: 'text-cyan-400',
+    bgColor: 'bg-cyan-500/10 hover:bg-cyan-500/15',
+    borderColor: 'border-cyan-500/20 hover:border-cyan-500/40',
   },
   {
     id: 'zip',
@@ -62,9 +62,9 @@ const TARGETS: TargetConfig[] = [
     label: 'Download Monorepo ZIP',
     description: 'Export complete source code with zero-config Vite + React workspace.',
     cta: 'Download ZIP',
-    accentColor: 'text-purple-400',
-    bgColor: 'bg-purple-500/10 hover:bg-purple-500/15',
-    borderColor: 'border-purple-500/20 hover:border-purple-500/40',
+    accentColor: 'text-norvin-silver',
+    bgColor: 'bg-slate-400/10 hover:bg-slate-400/15',
+    borderColor: 'border-slate-400/20 hover:border-slate-400/40',
   },
 ];
 
@@ -240,13 +240,13 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-none font-sans"
           >
-            <div className="pointer-events-auto w-full max-w-lg bg-brand-surface border border-brand-border rounded-3xl shadow-2xl shadow-black/60 backdrop-blur-xl overflow-hidden relative">
+            <div className="pointer-events-auto w-full max-w-lg bg-obsidian-surface border border-obsidian-border rounded-3xl shadow-2xl shadow-black/60 backdrop-blur-xl overflow-hidden relative">
 
               {/* Ambient top glow */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[120px] bg-purple-500/10 blur-[80px] pointer-events-none rounded-full" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[120px] bg-sylven/10 blur-[80px] pointer-events-none rounded-full" />
 
               {/* Header Rail */}
-              <div className="relative flex items-center justify-between px-6 pt-5 pb-4 border-b border-brand-borderSubtle">
+              <div className="relative flex items-center justify-between px-6 pt-5 pb-4 border-b border-obsidian-borderSubtle">
                 <div className="flex flex-col gap-0.5">
                   <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
                     00 / DEPLOYMENT CENTER
@@ -257,7 +257,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                 </div>
                 <button
                   onClick={handleClose}
-                  className="p-1.5 rounded-lg bg-brand-surface2 hover:bg-brand-surface3 border border-brand-border text-zinc-400 hover:text-white transition-all"
+                  className="p-1.5 rounded-lg bg-obsidian-panel hover:bg-obsidian-surface border border-obsidian-border text-zinc-400 hover:text-white transition-all"
                   aria-label="Close modal"
                 >
                   <X size={14} />
@@ -278,25 +278,25 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                       className="flex flex-col items-center gap-4 py-6 text-center"
                     >
                       <div className="w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-                        <Check className="text-brand-green" size={24} />
+                        <Check className="text-sylven-light" size={24} />
                       </div>
                       <div>
                         <p className="text-white font-semibold text-sm">Deployment successful!</p>
-                        <p className="text-zinc-400 text-xs mt-1 font-sans">
+                        <p className="text-norvin-muted text-xs mt-1 font-sans">
                           {selected === 'zip'
                             ? 'Your ZIP archive is downloading...'
                             : 'Your deployment is live and ready.'}
                         </p>
                       </div>
                       {deploymentUrl && (
-                        <div className="w-full flex items-center gap-2 px-3 py-2 bg-brand-bg border border-brand-border rounded-xl font-mono text-xs text-zinc-300">
+                        <div className="w-full flex items-center gap-2 px-3 py-2 bg-obsidian-bg border border-obsidian-border rounded-xl font-mono text-xs text-zinc-300">
                           <span className="flex-1 truncate">{deploymentUrl}</span>
                           <button
                             onClick={handleCopy}
                             className="shrink-0 p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
                             title="Copy URL"
                           >
-                            {copied ? <Check size={13} className="text-brand-green" /> : <Copy size={13} />}
+                            {copied ? <Check size={13} className="text-sylven-light" /> : <Copy size={13} />}
                           </button>
                           <a
                             href={deploymentUrl}
@@ -310,7 +310,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                       )}
                       <button
                         onClick={handleClose}
-                        className="mt-2 px-5 py-2 rounded-xl bg-brand-surface2 hover:bg-brand-surface3 border border-brand-border text-xs text-zinc-300 hover:text-white transition-all font-mono"
+                        className="mt-2 px-5 py-2 rounded-xl bg-obsidian-panel hover:bg-obsidian-surface border border-obsidian-border text-xs text-zinc-300 hover:text-white transition-all font-mono"
                       >
                         Done
                       </button>
@@ -344,7 +344,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                             className={`w-full flex items-start gap-4 p-4 rounded-2xl border transition-all text-left ${
                               selected === target.id
                                 ? `${target.bgColor} ${target.borderColor}`
-                                : 'bg-brand-surface2 hover:bg-brand-surface3 border-brand-border hover:border-brand-accent/30'
+                                : 'bg-obsidian-panel hover:bg-obsidian-surface border-obsidian-border hover:border-sylven/30'
                             }`}
                           >
                             <div className={`mt-0.5 shrink-0 ${selected === target.id ? target.accentColor : 'text-zinc-500'} transition-colors`}>
@@ -354,7 +354,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                               <p className={`text-sm font-semibold transition-colors ${selected === target.id ? 'text-white' : 'text-zinc-300'}`}>
                                 {target.label}
                               </p>
-                              <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed font-sans">
+                              <p className="text-xs text-norvin-muted mt-0.5 leading-relaxed font-sans">
                                 {target.description}
                               </p>
                             </div>
@@ -388,8 +388,8 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                     disabled={!selected || isDeploying}
                     className={`w-full flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold transition-all border ${
                       selected && !isDeploying
-                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-purple-400/30 shadow-lg shadow-purple-500/20'
-                        : 'bg-brand-surface2 text-zinc-500 border-brand-border cursor-not-allowed'
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border-emerald-400/30 shadow-lg shadow-emerald-500/20'
+                        : 'bg-obsidian-panel text-zinc-500 border-obsidian-border cursor-not-allowed'
                     }`}
                   >
                     {isDeploying ? (

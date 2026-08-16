@@ -468,35 +468,35 @@ export function AgentPage() {
   // ── Workspace selector ────────────────────────────────────────────────────
   if (!id) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
+      <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full font-sans">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-4">
-            <Cpu className="text-indigo-400" size={32} />
+          <div className="w-16 h-16 rounded-2xl bg-sylven/10 border border-sylven/20 flex items-center justify-center mx-auto mb-4">
+            <Cpu className="text-sylven-light" size={32} />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Cortex Agent Workspace</h1>
-          <p className="text-gray-400 text-sm max-w-md">
+          <h1 className="text-3xl font-bold text-white mb-2 font-display">Cortex Agent Workspace</h1>
+          <p className="text-norvin-muted text-sm max-w-md">
             Select a project workspace to plan, edit files, and build code interactively with AI.
           </p>
         </div>
 
         {loadingWorkspaces ? (
-          <div className="flex flex-col items-center gap-2 py-12">
-            <Loader2 className="animate-spin text-indigo-400" size={24} />
-            <span className="text-xs text-gray-500 font-mono-custom">Loading workspaces…</span>
+          <div className="flex flex-col items-center gap-2 py-12 font-mono">
+            <Loader2 className="animate-spin text-sylven-light" size={24} />
+            <span className="text-xs text-zinc-500">Loading workspaces…</span>
           </div>
         ) : workspaces.length === 0 ? (
-          <div className="text-center py-12 border border-white/5 bg-white/[0.02] rounded-2xl px-8 max-w-md w-full">
-            <p className="text-sm text-gray-400 mb-4">You don't have any blueprints yet.</p>
+          <div className="text-center py-12 border border-obsidian-border bg-obsidian-surface rounded-2xl px-8 max-w-md w-full font-mono">
+            <p className="text-sm text-norvin-muted mb-4 font-sans">You don't have any blueprints yet.</p>
             <button
               onClick={() => navigate('/create')}
-              className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold rounded-xl transition-all"
+              className="px-4 py-2 bg-sylven/20 hover:bg-sylven/30 text-sylven-light border border-sylven/30 text-xs font-semibold rounded-xl transition-all"
             >
               Build your first app
             </button>
           </div>
         ) : (
           <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full"
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full font-mono"
             initial="hidden"
             animate="show"
             variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
@@ -511,15 +511,15 @@ export function AgentPage() {
                 }}
                 whileHover={{ scale: 1.02, y: -2 }}
                 whileTap={{ scale: 0.98 }}
-                className="flex items-start text-left p-5 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-indigo-500/20 rounded-2xl transition-colors group"
+                className="flex items-start text-left p-5 bg-obsidian-surface hover:bg-obsidian-panel border border-obsidian-border hover:border-sylven/40 rounded-2xl transition-colors group shadow-lg"
               >
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-lg font-bold text-indigo-400 shrink-0 mr-4 group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-sylven/10 border border-sylven/20 flex items-center justify-center text-lg font-bold text-sylven-light shrink-0 mr-4 group-hover:scale-105 transition-transform">
                   {w.appName?.[0]?.toUpperCase() || 'A'}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-white truncate">{w.appName}</h3>
-                  <p className="text-xs text-gray-400 truncate mt-1">{w.idea}</p>
-                  <span className="inline-block mt-3 text-[10px] font-mono-custom text-indigo-400 border border-indigo-500/10 px-2 py-0.5 rounded">
+                  <h3 className="text-sm font-semibold text-white truncate font-display">{w.appName}</h3>
+                  <p className="text-xs text-norvin-muted truncate mt-1 font-sans">{w.idea}</p>
+                  <span className="inline-block mt-3 text-[10px] font-mono text-sylven-light border border-sylven/20 bg-sylven-glow px-2 py-0.5 rounded">
                     Open IDE Studio →
                   </span>
                 </div>
@@ -533,25 +533,25 @@ export function AgentPage() {
 
   // ── Active workspace: Studio 3-Column Layout ─────────────────────────────
   const TAB_STYLES = {
-    active: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/25 shadow-sm',
-    inactive: 'text-gray-400 hover:text-white hover:bg-white/[0.06] border border-transparent',
+    active: 'bg-sylven/20 text-sylven-light border border-sylven/30 shadow-sm',
+    inactive: 'text-norvin-muted hover:text-white hover:bg-white/[0.06] border border-transparent',
   };
 
   return (
-    <div className="w-full h-full overflow-hidden flex flex-col bg-[#08080c] text-white relative selection:bg-purple-500 selection:text-white">
+    <div className="w-full h-full overflow-hidden flex flex-col bg-obsidian-bg text-white relative selection:bg-sylven selection:text-black font-sans">
       {/* Top Ambient Mesh Light */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[250px] bg-emerald-500/10 blur-[150px] pointer-events-none rounded-full" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[250px] bg-sylven/10 blur-[150px] pointer-events-none rounded-full" />
 
       {/* ── Flex Workspace Wrapper ── */}
-      <div className="flex-1 min-h-0 w-full flex overflow-hidden relative z-10 bg-[#08080c]">
+      <div className="flex-1 min-h-0 w-full flex overflow-hidden relative z-10 bg-obsidian-bg">
 
         {/* ── 1. Workspace File Tree Column ────────────── */}
         {/* ── 1. Workspace File Tree (192px, never shrinks) ── */}
-        <aside className="w-48 shrink-0 h-full border-r border-white/10 bg-[#08080c] flex flex-col overflow-y-auto custom-scrollbar">
-          <div className="p-3 border-b border-white/5 flex items-center justify-between shrink-0 bg-white/[0.02]">
+        <aside className="w-48 shrink-0 h-full border-r border-obsidian-border bg-obsidian-bg flex flex-col overflow-y-auto custom-scrollbar">
+          <div className="p-3 border-b border-obsidian-borderSubtle flex items-center justify-between shrink-0 bg-obsidian-surface font-mono">
             <div className="flex items-center gap-2">
-              <Folder size={14} className="text-purple-400" />
-              <span className="text-xs font-bold text-white font-mono-custom">Workspace Files</span>
+              <Folder size={14} className="text-sylven-light" />
+              <span className="text-xs font-bold text-white font-mono">Workspace Files</span>
             </div>
             <span className="text-[10px] font-mono-custom text-gray-500 bg-white/5 px-2 py-0.5 rounded">
               {visibleFiles.length} files
@@ -588,13 +588,13 @@ export function AgentPage() {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`relative flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-mono font-medium transition-colors z-10 ${
-                  activeTab === tab.key ? 'text-white' : 'text-neutral-500 hover:text-white'
+                  activeTab === tab.key ? 'text-white' : 'text-norvin-muted hover:text-white'
                 }`}
               >
                 {activeTab === tab.key && (
                   <motion.div
                     layoutId="studioActiveTab"
-                    className="absolute inset-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30"
+                    className="absolute inset-0 rounded-lg bg-sylven/20 border border-sylven/40"
                     transition={{ type: 'spring', stiffness: 400, damping: 35 }}
                   />
                 )}
@@ -604,9 +604,9 @@ export function AgentPage() {
           </div>
 
           {selectedFile && activeTab === 'editor' && (
-            <div className="flex items-center gap-2 font-mono-custom text-[11px] text-gray-400 truncate min-w-0">
-              <span className="text-gray-300 truncate">{selectedFile.path}</span>
-              <span className="uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px] shrink-0">
+            <div className="flex items-center gap-2 font-mono text-[11px] text-zinc-400 truncate min-w-0">
+              <span className="text-zinc-300 truncate">{selectedFile.path}</span>
+              <span className="uppercase text-sylven-light bg-sylven-glow border border-sylven/20 px-1.5 py-0.5 rounded text-[9px] shrink-0">
                 {selectedFile.language}
               </span>
             </div>
@@ -636,16 +636,16 @@ export function AgentPage() {
             </AnimatePresence>
 
             {visibleFiles.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-xs p-6 text-center max-w-sm mx-auto">
+              <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 text-xs p-6 text-center max-w-sm mx-auto font-mono">
                 <Terminal size={24} className="opacity-30 mb-2" />
                 <span>Initialize the VFS workspace files first to edit or view code.</span>
               </div>
             ) : pendingDiff !== null && selectedFile ? (
               <div className="h-full flex flex-col min-h-0 relative">
                 {/* Floating Diff Review Action Bar */}
-                <div className="z-20 flex items-center justify-between px-4 py-2 bg-indigo-950/60 backdrop-blur-md border-b border-indigo-500/30 text-indigo-300 text-xs shrink-0 shadow-lg">
+                <div className="z-20 flex items-center justify-between px-4 py-2 bg-obsidian-surface border-b border-obsidian-border text-sylven-light text-xs shrink-0 shadow-lg font-mono">
                   <div className="flex items-center gap-2 font-mono">
-                    <GitCompare size={14} className="text-indigo-400 shrink-0" />
+                    <GitCompare size={14} className="text-sylven-light shrink-0" />
                     <span>
                       AI Diff Review Mode — <strong className="text-white">{selectedFile.path}</strong>
                     </span>
@@ -674,7 +674,7 @@ export function AgentPage() {
                 <div className="flex-1 overflow-auto min-h-0 p-2 font-mono text-xs">
                   <CodeMirrorMerge
                     theme={buildxEditorTheme}
-                    className="h-full rounded-xl overflow-hidden border border-white/10"
+                    className="h-full rounded-xl overflow-hidden border border-obsidian-border"
                   >
                     <Original
                       value={pendingDiff.original}
@@ -722,7 +722,7 @@ export function AgentPage() {
                 />
               </div>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-xs gap-2 font-mono">
+              <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 text-xs gap-2 font-mono">
                 <FileCode size={24} className="opacity-30" />
                 <span>Select a file from the left sidebar or Overview.</span>
               </div>
@@ -745,31 +745,31 @@ export function AgentPage() {
       </main>
 
       {/* ── 3. Cortex Agent Right Panel (w-80 shrink-0 — always visible) ── */}
-      <aside className="w-80 shrink-0 h-full overflow-hidden border-l border-white/10 bg-[#08080c] z-10 studio-card flex flex-col min-h-0">
+      <aside className="w-80 shrink-0 h-full overflow-hidden border-l border-obsidian-border bg-obsidian-bg z-10 studio-card flex flex-col min-h-0 font-mono">
 
         {/* Panel Header */}
-        <div className="p-3 border-b border-white/5 flex flex-col gap-2 shrink-0 bg-white/[0.02]">
+        <div className="p-3 border-b border-obsidian-borderSubtle flex flex-col gap-2 shrink-0 bg-obsidian-surface">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => navigate('/agent')}
-                className="p-1 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
+                className="p-1 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition-colors"
                 title="Back to Workspaces"
               >
                 <ArrowLeft size={14} />
               </button>
-              <Cpu size={14} className="text-indigo-400 shrink-0" />
+              <Cpu size={14} className="text-sylven-light shrink-0" />
               <span className="text-xs font-bold text-white">Cortex Agent</span>
             </div>
 
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono-custom shrink-0 transition-all ${isThinking ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
+            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono shrink-0 transition-all ${isThinking ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/5 text-zinc-500'}`}>
               {isThinking && <Loader2 className="animate-spin text-emerald-400" size={10} />}
               <span>{isThinking ? 'Thinking…' : 'Idle'}</span>
             </div>
           </div>
 
           {/* Multi-Model Telemetry Badges */}
-          <div className="flex flex-col gap-1 p-2 rounded-lg bg-indigo-950/30 border border-indigo-500/20 text-[10px] font-mono-custom text-indigo-300">
+          <div className="flex flex-col gap-1 p-2 rounded-lg bg-obsidian-panel border border-obsidian-border text-[10px] font-mono text-sylven-light">
             <div className="flex items-center justify-between font-semibold">
               <span>Pipeline Stage Telemetry</span>
               <span className="flex items-center gap-1 text-emerald-400">
@@ -777,10 +777,10 @@ export function AgentPage() {
                 Active
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] text-gray-400 pt-1 border-t border-indigo-500/10">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] text-zinc-400 pt-1 border-t border-obsidian-borderSubtle">
               <div className="flex items-center gap-1">
-                <Brain size={9} className="text-purple-400 shrink-0" />
-                <span>PLAN: <span className="text-purple-300">Nemotron</span></span>
+                <Brain size={9} className="text-sylven-light shrink-0" />
+                <span>PLAN: <span className="text-sylven-light">Nemotron</span></span>
               </div>
               <div className="flex items-center gap-1">
                 <Zap size={9} className="text-sky-400 shrink-0" />
@@ -807,14 +807,14 @@ export function AgentPage() {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="overflow-hidden border-b border-white/5 bg-emerald-500/[0.02] shrink-0"
+              className="overflow-hidden border-b border-obsidian-borderSubtle bg-sylven/[0.02] shrink-0"
             >
               <div className="p-2.5">
-                <div className="flex items-center gap-1.5 text-[10px] font-mono-custom text-emerald-400 uppercase tracking-widest font-semibold mb-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-mono text-sylven-light uppercase tracking-widest font-semibold mb-1">
                   <CheckSquare size={11} />
                   <span>Task Checklist</span>
                 </div>
-                <pre className="text-[11px] text-gray-400 font-mono-custom whitespace-pre-wrap max-h-20 overflow-y-auto leading-relaxed">
+                <pre className="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap max-h-20 overflow-y-auto leading-relaxed">
                   {plan}
                 </pre>
               </div>
@@ -825,12 +825,12 @@ export function AgentPage() {
         {/* Conversation Stream */}
         <div
           ref={chatScrollRef}
-          className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 font-mono-custom text-xs chat-scroll-area scroll-smooth"
+          className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 font-mono text-xs chat-scroll-area scroll-smooth"
         >
           {messages.length === 0 && !isThinking && (
             <div className="text-center py-10 px-3">
-              <Sparkles className="mx-auto text-indigo-400/40 mb-2 animate-pulse" size={20} />
-              <p className="text-[11px] text-gray-400 leading-relaxed">
+              <Sparkles className="mx-auto text-sylven-light/40 mb-2 animate-pulse" size={20} />
+              <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
                 Describe code edits or features to build. The multi-model pipeline plans, generates diff patches, and applies fixes live.
               </p>
             </div>
@@ -844,31 +844,31 @@ export function AgentPage() {
               transition={{ duration: 0.25 }}
               className={`flex flex-col max-w-[92%] rounded-xl text-[11px] leading-relaxed overflow-hidden ${
                 msg.role === 'user'
-                  ? 'bg-purple-500/15 border border-purple-500/30 text-purple-200 self-end ml-auto p-2.5'
-                  : 'bg-white/[0.04] border border-white/5 text-gray-300 self-start'
+                  ? 'bg-sylven/20 border border-sylven/40 text-white self-end ml-auto p-2.5'
+                  : 'bg-obsidian-panel border border-obsidian-border text-zinc-300 self-start'
               }`}
             >
               {msg.role === 'assistant' ? (
                 <>
                   {/* Thinking steps accordion */}
                   {msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
-                    <div className="border-b border-white/5 p-2 bg-black/20">
+                    <div className="border-b border-obsidian-borderSubtle p-2 bg-black/20">
                       <button
                         onClick={() =>
                           setExpandedThinking(prev => ({ ...prev, [i]: !prev[i] }))
                         }
-                        className="flex items-center gap-1.5 text-[10px] font-mono-custom text-gray-500 hover:text-emerald-400 transition-colors w-full text-left"
+                        className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-400 hover:text-sylven-light transition-colors w-full text-left"
                       >
-                        <Brain size={10} className="text-emerald-500/60 shrink-0" />
+                        <Brain size={10} className="text-sylven-light/70 shrink-0" />
                         <span className="uppercase tracking-widest font-semibold">
                           Pipeline thought for {msg.thinkingSteps.length} step{msg.thinkingSteps.length !== 1 ? 's' : ''}
                         </span>
                         {expandedThinking[i] ? <ChevronDown size={10} className="ml-auto" /> : <ChevronRight size={10} className="ml-auto" />}
                       </button>
                       {expandedThinking[i] && (
-                        <div className="mt-2 space-y-1 max-h-40 overflow-y-auto pr-1 font-mono-custom">
+                        <div className="mt-2 space-y-1 max-h-40 overflow-y-auto pr-1 font-mono">
                           {msg.thinkingSteps.map((step, si) => (
-                            <div key={si} className="text-[10px] text-gray-400 leading-relaxed border-l-2 border-emerald-500/20 pl-2 py-0.5">
+                            <div key={si} className="text-[10px] text-zinc-400 leading-relaxed border-l-2 border-sylven/30 pl-2 py-0.5">
                               {step}
                             </div>
                           ))}
@@ -878,7 +878,7 @@ export function AgentPage() {
                   )}
 
                   <div className="p-2.5">
-                    <span className="text-[9px] font-mono-custom uppercase tracking-wider text-emerald-400/70 mb-1 block">
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-sylven-light/80 mb-1 block">
                       {msg.model ? `Pipeline · ${msg.model}` : 'Pipeline · Cortex'}
                     </span>
                     <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -891,14 +891,14 @@ export function AgentPage() {
           ))}
 
           {isThinking && (
-            <div className="self-start flex flex-col max-w-[92%] bg-white/[0.03] border border-white/5 rounded-xl p-2.5 text-[11px]">
-              <div className="flex items-center gap-1.5 mb-1.5 text-emerald-400 font-semibold">
-                <Loader2 className="animate-spin" size={12} />
+            <div className="self-start flex flex-col max-w-[92%] bg-obsidian-panel border border-obsidian-border rounded-xl p-2.5 text-[11px] font-mono">
+              <div className="flex items-center gap-1.5 mb-1.5 text-sylven-light font-semibold">
+                <Loader2 className="animate-spin text-sylven-light" size={12} />
                 <span>Executing Pipeline…</span>
               </div>
               <div className="space-y-1">
                 {liveThinkingSteps.map((step, idx) => (
-                  <div key={idx} className="text-[10px] text-gray-400 border-l-2 border-emerald-500/30 pl-2 py-0.5">
+                  <div key={idx} className="text-[10px] text-zinc-400 border-l-2 border-sylven/30 pl-2 py-0.5">
                     {step}
                   </div>
                 ))}
@@ -910,19 +910,19 @@ export function AgentPage() {
         </div>
 
         {/* Pinned Bottom Chat Input */}
-        <form onSubmit={handleSend} className="p-2.5 border-t border-white/5 bg-white/[0.02] flex items-center gap-2 shrink-0">
+        <form onSubmit={handleSend} className="p-2.5 border-t border-obsidian-borderSubtle bg-obsidian-surface flex items-center gap-2 shrink-0 font-mono">
           <input
             type="text"
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
             placeholder={isThinking ? 'Pipeline running…' : 'Ask Agent to refine code…'}
             disabled={isThinking}
-            className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-indigo-500/50 font-mono-custom"
+            className="flex-1 bg-obsidian-bg border border-obsidian-border rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-sylven/50 font-mono"
           />
           <button
             type="submit"
             disabled={!prompt.trim() || isThinking}
-            className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-30 transition-all shrink-0"
+            className="p-2 rounded-lg bg-sylven hover:bg-sylven-light text-obsidian-bg disabled:opacity-30 transition-all shrink-0 font-bold"
           >
             <Send size={14} />
           </button>

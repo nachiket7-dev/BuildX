@@ -4,66 +4,64 @@
 
 @layer base {
   :root {
-    --background: 260 20% 4%;
-    --foreground: 0 0% 98%;
-    --card: 260 18% 7%;
-    --card-foreground: 0 0% 98%;
-    --popover: 260 20% 4%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 255 72% 60%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 260 15% 11%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 260 12% 10%;
-    --muted-foreground: 260 8% 62%;
-    --accent: 255 72% 60%;
-    --accent-foreground: 0 0% 100%;
+    --background: 220 13% 5%;
+    --foreground: 210 40% 98%;
+    --card: 220 14% 9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 220 14% 9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 158 64% 52%;
+    --primary-foreground: 220 13% 5%;
+    --secondary: 220 16% 12%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 220 16% 12%;
+    --muted-foreground: 215 16% 65%;
+    --accent: 158 64% 52%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 260 12% 16%;
-    --input: 260 12% 16%;
-    --ring: 255 72% 60%;
+    --border: 220 13% 18%;
+    --input: 220 16% 12%;
+    --ring: 158 64% 52%;
     --radius: 0.75rem;
 
-    /* BuildX Unified Dark Palette */
-    --bg: #09090D;
-    --surface: #13141F;
-    --surface2: #181926;
-    --surface3: #222338;
+    /* Obsidian x Norvin/Sylven Unified Palette */
+    --bg: #0B0C0E;
+    --surface: #13151A;
+    --surface2: #1A1D24;
+    --surface3: #262932;
 
-    --border-rgba: rgba(255, 255, 255, 0.1);
-    --border2: rgba(255, 255, 255, 0.14);
+    --border-rgba: rgba(255, 255, 255, 0.08);
+    --border2: rgba(255, 255, 255, 0.12);
 
-    --accent-hex: #A855F7;
-    --accent2: #C084FC;
-    --accent3: #34D399;
-    --accent-deep: #9333EA;
-    --accent-glow: rgba(168, 85, 247, 0.15);
-    --accent-rgb: 168, 85, 247;
+    --accent-hex: #10B981;
+    --accent2: #34D399;
+    --accent3: #10B981;
+    --accent-deep: #059669;
+    --accent-glow: rgba(16, 185, 129, 0.15);
+    --accent-rgb: 16, 185, 129;
 
-    --green: #34D399;
-    --green-dim: rgba(52, 211, 153, 0.1);
+    --green: #10B981;
+    --green-dim: rgba(16, 185, 129, 0.12);
     --amber: #F59E0B;
     --amber-dim: rgba(245, 158, 11, 0.08);
     --coral: #EF4444;
     --coral-dim: rgba(239, 68, 68, 0.08);
     --blue: #38BDF8;
     --blue-dim: rgba(56, 189, 248, 0.1);
-    --purple: #A855F7;
-    --purple-dim: rgba(168, 85, 247, 0.1);
 
     --text: #F8FAFC;
     --text2: #94A3B8;
     --text3: #64748B;
 
     /* Shell (header + sidebar) */
-    --shell-bg: rgba(9, 9, 13, 0.85);
-    --shell-bg-solid: #0d0d14;
-    --shell-border: rgba(168, 85, 247, 0.15);
-    --shell-border-subtle: rgba(255, 255, 255, 0.08);
-    --shell-inset-glow: rgba(168, 85, 247, 0.08);
+    --shell-bg: rgba(11, 12, 14, 0.85);
+    --shell-bg-solid: #13151A;
+    --shell-border: rgba(255, 255, 255, 0.08);
+    --shell-border-subtle: rgba(255, 255, 255, 0.05);
+    --shell-inset-glow: rgba(16, 185, 129, 0.06);
     --nav-active-bg: var(--accent-glow);
-    --nav-active-border: rgba(168, 85, 247, 0.35);
+    --nav-active-border: rgba(16, 185, 129, 0.35);
     --nav-active-text: var(--accent2);
 
     /* Typography */
@@ -474,9 +472,9 @@
     border: 1px solid rgba(245, 158, 11, 0.2);
   }
   .method-patch {
-    background: var(--purple-dim);
-    color: var(--purple);
-    border: 1px solid rgba(124, 255, 103, 0.2);
+    background: var(--blue-dim);
+    color: var(--blue);
+    border: 1px solid rgba(56, 189, 248, 0.2);
   }
   .method-delete {
     background: var(--coral-dim);
@@ -1141,10 +1139,10 @@
     letter-spacing: 0.02em;
   }
 
-  .bento-badge--indigo {
-    background: rgba(99, 102, 241, 0.12);
-    color: #a5b4fc;
-    border: 1px solid rgba(99, 102, 241, 0.25);
+  .bento-badge--silver {
+    background: rgba(226, 232, 240, 0.08);
+    color: #e2e8f0;
+    border: 1px solid rgba(226, 232, 240, 0.2);
   }
 
   .bento-badge--emerald {
@@ -1972,9 +1970,9 @@
 }
 
 .bp-meta--model {
-  color: var(--purple);
-  border-color: rgba(157, 122, 255, 0.32);
-  background: var(--purple-dim);
+  color: var(--accent2);
+  border-color: rgba(52, 211, 153, 0.32);
+  background: var(--accent-glow);
 }
 
 .bp-meta--model svg {
@@ -3837,7 +3835,7 @@
   transition-duration: 0.08s;
 }
 
-/* Primary — indigo gradient + lift + glow */
+/* Primary — emerald gradient + lift + glow */
 .landing-btn--primary {
   min-width: 11.5rem;
   padding: 0.875rem 1.75rem;
@@ -3845,23 +3843,23 @@
   font-size: 0.9375rem;
   letter-spacing: -0.01em;
   color: #fff;
-  background: linear-gradient(110deg, #6366f1 0%, #4f46e5 40%, #818cf8 60%, #6366f1 100%);
+  background: linear-gradient(110deg, #059669 0%, #10b981 40%, #34d399 60%, #059669 100%);
   background-size: 220% 100%;
   background-position: 0% 50%;
-  border: 1px solid rgba(129, 140, 248, 0.5);
+  border: 1px solid rgba(52, 211, 153, 0.4);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.06) inset,
-    0 0 28px rgba(99, 102, 241, 0.4),
+    0 0 28px rgba(16, 185, 129, 0.35),
     0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .landing-btn--primary:hover {
   background-position: 100% 50%;
-  border-color: rgba(129, 140, 248, 0.7);
+  border-color: rgba(52, 211, 153, 0.7);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.1) inset,
-    0 0 48px rgba(99, 102, 241, 0.55),
-    0 0 20px rgba(129, 140, 248, 0.2),
+    0 0 48px rgba(16, 185, 129, 0.5),
+    0 0 20px rgba(52, 211, 153, 0.25),
     0 10px 28px rgba(0, 0, 0, 0.45);
   transform: translateY(-3px) scale(1.01);
 }
@@ -3876,7 +3874,7 @@
   transform: translateX(4px);
 }
 
-/* Secondary — frosted glass + indigo border glow */
+/* Secondary — frosted glass + emerald border glow */
 .landing-btn--secondary {
   min-width: 10rem;
   padding: 0.875rem 1.5rem;
@@ -3884,7 +3882,7 @@
   font-size: 0.8125rem;
   color: rgba(255, 255, 255, 0.75);
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  border: 1px solid rgba(16, 185, 129, 0.25);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.05);
@@ -3892,10 +3890,10 @@
 
 .landing-btn--secondary:hover {
   color: #ffffff;
-  background: rgba(99, 102, 241, 0.12);
-  border-color: rgba(129, 140, 248, 0.55);
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(52, 211, 153, 0.55);
   box-shadow:
-    0 0 28px rgba(99, 102, 241, 0.25),
+    0 0 28px rgba(16, 185, 129, 0.25),
     0 6px 20px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform: translateY(-2px);
