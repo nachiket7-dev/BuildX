@@ -219,17 +219,17 @@ DIFF GENERATION INSTRUCTION:
         parsed = {
           plan: fields['plan'] || '',
           message: fields['message'] || 'Workspace files have been updated.',
-          files: [],
+          files: Array.isArray(fields['files']) ? fields['files'] : [],
         };
 
-        if (fields['files_raw']) {
+        if (parsed.files.length === 0 && fields['files_raw']) {
           parsed.files = parseFilesRaw(fields['files_raw']);
-          console.log(`[Agent] parseFilesRaw recovered ${parsed.files.length} file(s)`);
         }
+        console.log(`[Agent] Fallback recovered ${parsed.files.length} file(s)`);
       }
     }
 
-    // ── Fallback 2: Universal regex extractor for code fences & diff blocks ─
+    // ── Fallback 2: Universal extractor for code fences, diffs & JSON objects ─
     if (!parsed) {
       parsed = {
         plan: '- [x] Applied requested code modifications',

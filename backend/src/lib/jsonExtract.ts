@@ -308,9 +308,9 @@ export interface ExtractedFile {
  * Last-resort extraction: pull top-level string field values directly from
  * raw text using regexes that handle multi-line strings and raw arrays.
  */
-export function extractFieldsFromBrokenJson(raw: string): Record<string, string> | null {
+export function extractFieldsFromBrokenJson(raw: string): Record<string, any> | null {
   try {
-    const result: Record<string, string> = {};
+    const result: Record<string, any> = {};
 
     // Extract simple string fields: "plan": "...", "message": "..."
     const simpleFieldRe = /"(plan|message|diff)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
@@ -319,15 +319,26 @@ export function extractFieldsFromBrokenJson(raw: string): Record<string, string>
       result[m[1]] = m[2].replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
     }
 
-    // Extract "files" array as raw string
-    const filesMatch = raw.match(/"files"\s*:\s*(\[[\s\S]*?\])\s*(?:,\s*"[a-zA-Z_]+"|\s*\})/);
-    if (filesMatch) {
-      result['files_raw'] = filesMatch[1];
-    } else {
-      const looseFilesMatch = raw.match(/"files"\s*:\s*(\[[\s\S]*)/);
-      if (looseFilesMatch) {
-        result['files_raw'] = looseFilesMatch[1];
+    // Extract loose plan if not quoted
+    if (!result['plan']) {
+      const loosePlan = raw.match(/"plan"\s*:\s*([^,}\]]+)/);
+      if (loosePlan) {
+        result['plan'] = loosePlan[1].trim().replace(/^['"`]|['"`]$/g, '');
       }
+    }
+
+    // Extract loose message if not quoted
+    if (!result['message']) {
+      const looseMsg = raw.match(/"message"\s*:\s*([^,}\]]+)/);
+      if (looseMsg) {
+        result['message'] = looseMsg[1].trim().replace(/^['"`]|['"`]$/g, '');
+      }
+    }
+
+    // Extract files via boundary-aware extractor
+    const extractedFiles = extractFilesFromBrokenJsonOrText(raw);
+    if (extractedFiles.length > 0) {
+      result['files'] = extractedFiles;
     }
 
     return Object.keys(result).length > 0 ? result : null;
@@ -360,15 +371,16 @@ export function parseFilesRaw(filesRaw: string): ExtractedFile[] {
       return parsed.filter((f) => f && typeof f.path === 'string' && typeof f.content === 'string');
     }
   } catch {
-    // Proceed to regex recovery
+    // Proceed to boundary-aware extractor
   }
 
   return extractFilesFromBrokenJsonOrText(filesRaw);
 }
 
 /**
- * Universal fallback file extractor:
- * Extracts file objects from broken JSON, markdown code fences, comments, or diff blocks.
+ * Universal Boundary-Aware File Extractor:
+ * Extracts file objects from broken JSON, unescaped code strings, markdown code fences,
+ * comments, or diff blocks without failing on internal quotes or newlines.
  */
 export function extractFilesFromBrokenJsonOrText(
   raw: string,
@@ -379,95 +391,151 @@ export function extractFilesFromBrokenJsonOrText(
   const seenPaths = new Set<string>();
 
   const addFile = (path: string, content: string, action: string = 'modify') => {
-    if (!path || !content || content.trim().length === 0) return;
-    const cleanPath = path.trim().replace(/^['"`]|['"`]$/g, '').replace(/^[./\\]+/, '');
-    let finalPath = cleanPath;
+    if (!path || !content || typeof content !== 'string') return;
+    const trimmed = content.trim();
+    if (trimmed.length === 0) return;
 
-    if (!finalPath.startsWith('frontend/') && !finalPath.startsWith('backend/')) {
+    let cleanPath = path.trim().replace(/^['"`]|['"`]$/g, '').replace(/^[./\\]+/, '');
+
+    // Normalize path with knownFilePaths if needed
+    if (!cleanPath.startsWith('frontend/') && !cleanPath.startsWith('backend/')) {
       const match = knownFilePaths.find(
-        (p) => p === finalPath || p.endsWith(`/${finalPath}`) || p.split('/').pop() === finalPath
+        (p) => p === cleanPath || p.endsWith(`/${cleanPath}`) || p.split('/').pop() === cleanPath
       );
-      if (match) {
-        finalPath = match;
-      }
+      if (match) cleanPath = match;
     }
 
-    if (!seenPaths.has(finalPath)) {
-      seenPaths.add(finalPath);
-      files.push({ path: finalPath, content: content.trim(), action });
+    if (!seenPaths.has(cleanPath)) {
+      seenPaths.add(cleanPath);
+      files.push({ path: cleanPath, content: trimmed, action });
     }
   };
 
-  // Tier 1: JSON file objects with path and content keys
-  const jsonFileRegex = /\{\s*"path"\s*:\s*"([^"]+)"\s*,\s*"content"\s*:\s*"([\s\S]*?)(?="\s*(?:,\s*"action"|\s*\}))\s*(?:,\s*"action"\s*:\s*"([^"]*)")?\s*\}/g;
-  let m: RegExpExecArray | null;
-  while ((m = jsonFileRegex.exec(raw)) !== null) {
-    const filePath = m[1];
-    let content = m[2];
-    const action = m[3] || 'modify';
-    content = content
-      .replace(/\\n/g, '\n')
-      .replace(/\\r/g, '\r')
-      .replace(/\\t/g, '\t')
-      .replace(/\\"/g, '"')
-      .replace(/\\\\/g, '\\');
-    addFile(filePath, content, action);
+  if (!raw || typeof raw !== 'string') return files;
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // STRATEGY 1: Full JSON Parse via Sanitizer
+  // ──────────────────────────────────────────────────────────────────────────
+  try {
+    const directObj = JSON.parse(raw);
+    if (directObj && Array.isArray(directObj.files)) {
+      for (const f of directObj.files) {
+        if (f && f.path && typeof f.content === 'string') {
+          addFile(f.path, f.content, f.action || 'modify');
+        }
+      }
+      if (files.length > 0) return files;
+    }
+  } catch {
+    // Proceed to structural object scanner
   }
 
-  if (files.length > 0) return files;
-
-  // Tier 2: Loose key matching for path and content
-  const looseFileRegex = /"path"\s*:\s*"([^"\r\n]+)"[\s\S]*?"content"\s*:\s*("(?:[^"\\]|\\.)*")/g;
-  while ((m = looseFileRegex.exec(raw)) !== null) {
-    const filePath = m[1];
-    try {
-      const content = JSON.parse(m[2]);
-      addFile(filePath, content, 'modify');
-    } catch {
-      const unescaped = m[2].slice(1, -1).replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-      addFile(filePath, unescaped, 'modify');
-    }
+  // ──────────────────────────────────────────────────────────────────────────
+  // STRATEGY 2: Structural Object Scanner for "path" & "content"
+  // ──────────────────────────────────────────────────────────────────────────
+  // Find all file boundaries in the text by locating "path" occurrences
+  const pathRegex = /"path"\s*:\s*["']([^"'\r\n]+)["']/g;
+  const pathMatches: Array<{ path: string; index: number }> = [];
+  let pm: RegExpExecArray | null;
+  while ((pm = pathRegex.exec(raw)) !== null) {
+    pathMatches.push({ path: pm[1], index: pm.index });
   }
 
-  if (files.length > 0) return files;
+  if (pathMatches.length > 0) {
+    for (let i = 0; i < pathMatches.length; i++) {
+      const current = pathMatches[i];
+      const nextIndex = i + 1 < pathMatches.length ? pathMatches[i + 1].index : raw.length;
 
-  // Tier 3: Markdown code blocks with file path hints in comments or headers
-  const mdCommentBlockRegex = /(?:(?:###|##|#|\*\*|File:?)\s*[`*]?([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)[`*]?\s*\n\s*)?```(?:[a-zA-Z0-9_-]+)?(?:\s+(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+))?\s*(?:\n\s*(?:\/\/|\/\*|#)\s*(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)(?:\s*\*\/)?)?\n([\s\S]*?)```/g;
-  while ((m = mdCommentBlockRegex.exec(raw)) !== null) {
-    const pathHeader = m[1] || m[2] || m[3];
-    const code = m[4];
-    if (pathHeader && code && code.trim().length > 0) {
-      addFile(pathHeader, code, 'modify');
-    }
-  }
+      // Look back slightly to catch the start of the object { if "content" is before "path"
+      const searchStart = Math.max(0, current.index - 500);
+      const segment = raw.slice(searchStart, nextIndex);
 
-  if (files.length > 0) return files;
+      // Look for "content"\s*:\s* inside this segment
+      const contentIdx = segment.indexOf('"content"');
+      if (contentIdx !== -1) {
+        const afterContent = segment.slice(contentIdx + 9);
+        const colonIdx = afterContent.indexOf(':');
+        if (colonIdx !== -1) {
+          let valuePart = afterContent.slice(colonIdx + 1).trim();
 
-  // Tier 4: Search/Replace diff blocks
-  if (raw.includes('<<<<<<< SEARCH') && raw.includes('>>>>>>> REPLACE')) {
-    if (activeFilePath) {
-      addFile(activeFilePath, raw, 'modify');
-      return files;
-    }
-    for (const kp of knownFilePaths) {
-      const baseName = kp.split('/').pop()!;
-      if (raw.includes(baseName) || raw.includes(kp)) {
-        addFile(kp, raw, 'modify');
-        return files;
+          // If valuePart starts with quote
+          let rawContent = '';
+          if (valuePart.startsWith('"')) {
+            valuePart = valuePart.slice(1);
+
+            // Look for end of string before action or closing brace
+            const endMatch = valuePart.match(/([\s\S]*?)(?:"\s*,\s*"action"|"\s*\}\s*[,\]]|"\s*\}\s*$|"\s*,\s*\{|\s*\}\s*\]|\s*\}\s*$)/);
+            if (endMatch && endMatch[1]) {
+              rawContent = endMatch[1];
+            } else {
+              // Fallback: strip trailing closing quotes / braces
+              rawContent = valuePart.replace(/"\s*\}\s*[,\]]?\s*$/g, '').replace(/"\s*$/g, '');
+            }
+          } else {
+            // Unquoted or code-fenced content
+            rawContent = valuePart.replace(/\s*\}\s*[,\]]?\s*$/g, '');
+          }
+
+          // Unescape content if it was JSON-escaped
+          let cleanContent = rawContent;
+          if (!cleanContent.includes('\n') && cleanContent.includes('\\n')) {
+            cleanContent = cleanContent
+              .replace(/\\n/g, '\n')
+              .replace(/\\r/g, '\r')
+              .replace(/\\t/g, '\t')
+              .replace(/\\"/g, '"')
+              .replace(/\\\\/g, '\\');
+          } else {
+            // Raw multiline string: still decode escaped quotes & slashes
+            cleanContent = cleanContent
+              .replace(/\\"/g, '"')
+              .replace(/\\\\/g, '\\');
+          }
+
+          // Strip surrounding code fences if LLM wrapped content in them
+          cleanContent = cleanContent.replace(/^```[a-zA-Z0-9_-]*\s*\n?/, '').replace(/\n?```\s*$/, '');
+
+          if (cleanContent.trim().length > 0) {
+            addFile(current.path, cleanContent);
+          }
+        }
       }
     }
-    if (knownFilePaths.length > 0) {
-      addFile(knownFilePaths[0], raw, 'modify');
-      return files;
+
+    if (files.length > 0) return files;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // STRATEGY 3: Markdown Code Fences with File Header or Comment
+  // ──────────────────────────────────────────────────────────────────────────
+  const fenceRegex = /(?:(?:###|##|#|\*\*|File:?|\/\/)\s*[`*]?([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)[`*]?\s*\n\s*)?```(?:[a-zA-Z0-9_-]+)?(?:\s+(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+))?\s*(?:\n\s*(?:\/\/|\/\*|#)\s*(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)(?:\s*\*\/)?)?\n([\s\S]*?)```/g;
+  let fm: RegExpExecArray | null;
+  while ((fm = fenceRegex.exec(raw)) !== null) {
+    const pathHeader = fm[1] || fm[2] || fm[3];
+    const code = fm[4];
+    if (pathHeader && code && code.trim().length > 0) {
+      addFile(pathHeader, code);
     }
   }
 
-  // Tier 5: Single markdown code block fallback
-  const singleCodeBlockRegex = /```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/;
-  const singleBlock = raw.match(singleCodeBlockRegex);
+  if (files.length > 0) return files;
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // STRATEGY 4: Search/Replace Diff Blocks
+  // ──────────────────────────────────────────────────────────────────────────
+  if (raw.includes('<<<<<<< SEARCH') && raw.includes('>>>>>>> REPLACE')) {
+    const target = activeFilePath || (knownFilePaths.length > 0 ? knownFilePaths[0] : 'frontend/src/App.tsx');
+    addFile(target, raw);
+    return files;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // STRATEGY 5: Single Code Block Fallback
+  // ──────────────────────────────────────────────────────────────────────────
+  const singleBlock = raw.match(/```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/);
   if (singleBlock && singleBlock[1] && singleBlock[1].trim().length > 0) {
     const target = activeFilePath || (knownFilePaths.length > 0 ? knownFilePaths[0] : 'frontend/src/App.tsx');
-    addFile(target, singleBlock[1], 'modify');
+    addFile(target, singleBlock[1]);
   }
 
   return files;

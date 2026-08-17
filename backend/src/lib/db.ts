@@ -83,6 +83,11 @@ const pool = new Pool({
   max: 10,
 });
 
+// Gracefully catch idle client disconnects / network blips from remote DB (Supabase, Railway, etc.)
+pool.on('error', (err) => {
+  console.warn('[PostgreSQL Pool] Idle client error (handled):', err.message);
+});
+
 export type DatabaseMode = 'postgresql' | 'fallback' | 'unconfigured';
 
 let dbMode: DatabaseMode = 'unconfigured';
