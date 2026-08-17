@@ -31,7 +31,8 @@ import {
   XCircle,
   Wand2,
   Terminal,
-  MousePointerClick
+  MousePointerClick,
+  FlaskConical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../hooks/useToast';
@@ -211,6 +212,9 @@ export function CodeStudio({
 
   const [isDiffMode, setIsDiffMode] = useState(false);
   const [patchFlash, setPatchFlash] = useState(false);
+
+  // ─── Diff Re-Key Counter: forces CodeMirror full re-mount when diff toggles ─
+  const [diffKey, setDiffKey] = useState(0);
 
   // CodeMirror Editor View Reference for Bidirectional Inspection
   const editorRef = useRef<ReactCodeMirrorRef>(null);
@@ -499,6 +503,25 @@ export function CodeStudio({
     : null;
 
   const isShowingDiff = Boolean((isDiffMode || currentStagedDiff !== null) && activeFile && currentStagedDiff);
+
+  // Bump diffKey whenever diff state transitions so CodeMirror fully re-mounts
+  const prevDiffRef = useRef<string | null>(null);
+  useEffect(() => {
+    const diffId = currentStagedDiff ? `${currentStagedDiff.filePath || ''}::${currentStagedDiff.incoming?.length}` : null;
+    if (diffId !== prevDiffRef.current) {
+      prevDiffRef.current = diffId;
+      if (diffId) setDiffKey(k => k + 1);
+    }
+  }, [currentStagedDiff]);
+
+  // ─── Dev Test Diff Trigger ─────────────────────────────────────────────────
+  const handleTestDiff = useCallback(() => {
+    if (!activeFile) return;
+    const testAddition = '\n// ✅ Test Green Addition Line — delete after verifying inline diff visuals';
+    vfs.stageFileDiff(activeFile.path, activeFile.content + testAddition, activeFile.content);
+    setIsDiffMode(true);
+    toast('🧪 Test diff staged — verify green/red highlights below', 'info');
+  }, [activeFile, vfs, toast]);
 
   const handleAcceptDiff = useCallback(async () => {
     if (!activeFile) return;
@@ -909,6 +932,16 @@ export function CodeStudio({
                 </span>
               </div>
             )}
+            {/* Dev Test Diff Button */}
+            <button
+              type="button"
+              onClick={handleTestDiff}
+              className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg hover:bg-amber-500/20 hover:text-amber-300 font-mono flex items-center gap-1 transition-colors shrink-0"
+              title="Test diff visuals with a sample addition"
+            >
+              <FlaskConical size={11} />
+              <span>🧪 Test Diff</span>
+            </button>
             <div className="w-px h-4 bg-white/10 shrink-0" />
             <button
               onClick={handleCopyCode}
@@ -977,6 +1010,7 @@ export function CodeStudio({
               {/* CodeMirror 6 Unified Merge View Engine */}
               <div className="flex-1 overflow-hidden relative min-h-0 bg-[#08080c]">
                 <CodeMirror
+                  key={`diff-${activeFile.path}-${diffKey}`}
                   value={currentStagedDiff.incoming}
                   height="100%"
                   theme={buildxEditorTheme}
@@ -1002,6 +1036,7 @@ export function CodeStudio({
             /* ─── Standard CodeMirror 6 Live Editor ─── */
             <div className="h-full flex-1 min-h-0 overflow-hidden relative">
               <CodeMirror
+                key={`editor-${activeFilePath}`}
                 ref={editorRef}
                 value={activeContent}
                 height="100%"
