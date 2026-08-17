@@ -4789,3 +4789,58 @@
   background: rgba(239, 68, 68, 0.3) !important;
   background-color: rgba(239, 68, 68, 0.3) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   High-Contrast Dark Mode Overrides for CodeMirror 6 Inline Diff
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.dark .cm-editor .cm-merge-b,
+.dark .cm-editor .cm-insertedLine,
+.dark .cm-insertedLine {
+  background: rgba(16, 185, 129, 0.2) !important;
+  background-color: rgba(16, 185, 129, 0.2) !important;
+  color: #34D399 !important;
+}
+
+.dark .cm-editor .cm-merge-a,
+.dark .cm-editor .cm-deletedLine,
+.dark .cm-deletedLine {
+  background: rgba(239, 68, 68, 0.2) !important;
+  background-color: rgba(239, 68, 68, 0.2) !important;
+  color: #F87171 !important;
+  text-decoration: line-through !important;
+}
+
+.dark .cm-changedLine {
+  background: rgba(16, 185, 129, 0.12) !important;
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+
+.dark .cm-changedText {
+  background: rgba(16, 185, 129, 0.25) !important;
+  background-color: rgba(16, 185, 129, 0.25) !important;
+  color: #34D399 !important;
+}
+
+.dark .cm-deletedChunk {
+  background: rgba(239, 68, 68, 0.2) !important;
+  background-color: rgba(239, 68, 68, 0.2) !important;
+  border-left: 3px solid #ef4444 !important;
+  text-decoration: line-through !important;
+  color: #F87171 !important;
+}
+
+.dark .cm-insertedChunk {
+  border-left: 3px solid #10b981 !important;
+}
+
+.dark .cm-merge-gutter-b,
+.dark .cm-gutterElement.cm-insertedLine {
+  background: rgba(16, 185, 129, 0.3) !important;
+  background-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.dark .cm-merge-gutter-a,
+.dark .cm-gutterElement.cm-deletedLine {
+  background: rgba(239, 68, 68, 0.3) !important;
+  background-color: rgba(239, 68, 68, 0.3) !important;
+}
