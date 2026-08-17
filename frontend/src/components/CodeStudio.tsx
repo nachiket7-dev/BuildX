@@ -385,55 +385,103 @@ export function CodeStudio({
 
   const activeFile = files.find((f) => f.path === activeFilePath) || files[0];
 
-  // ─── Bidirectional Element-to-Code Selection Message Listener ──────────────
+  // ─── Bidirectional Click-to-Code Visual Inspection Listener ────────────────
   useEffect(() => {
-    const handlePreviewMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'buildx:preview-element-click' && event.data.element) {
-        const el = event.data.element;
+    const handleInspectTarget = (targetFile?: string, targetLine?: number, el?: any) => {
+      // 1. If targetFile is provided and not currently active, open and select it
+      if (targetFile) {
+        if (!openFiles.includes(targetFile)) {
+          setOpenFiles((prev) => [...prev, targetFile]);
+        }
+        setActiveFilePath(targetFile);
+        vfs.setActiveFile?.(targetFile);
+      }
+
+      // 2. Scroll and highlight line in CodeMirror 6
+      const applySelection = () => {
         const view = editorViewRef.current;
         if (!view) return;
 
-        const doc = view.state.doc.toString();
-
-        // Candidates to search in active file code
-        const candidates = [
-          el.textContent,
-          el.placeholder,
-          el.ariaLabel,
-          el.title,
-          el.id ? `id="${el.id}"` : '',
-          el.id ? `id='${el.id}'` : '',
-          el.id,
-          el.className ? el.className.split(' ').filter((c: string) => c.length > 3)[0] : '',
-        ].filter(Boolean);
-
-        let matchPos = -1;
-        let matchLen = 0;
-
-        for (const cand of candidates) {
-          if (!cand || cand.length < 2) continue;
-          const idx = doc.indexOf(cand);
-          if (idx !== -1) {
-            matchPos = idx;
-            matchLen = cand.length;
-            break;
-          }
-        }
-
-        if (matchPos !== -1) {
+        if (targetLine && targetLine > 0) {
+          const clampedLine = Math.min(Math.max(targetLine, 1), view.state.doc.lines);
+          const line = view.state.doc.line(clampedLine);
           view.dispatch({
-            selection: EditorSelection.single(matchPos, matchPos + matchLen),
+            selection: { anchor: line.from, head: line.to },
             scrollIntoView: true,
           });
           view.focus();
-          toast(`Inspected element: "${candidates[0]}"`, 'info');
+          const fname = (targetFile || activeFilePath || '').split('/').pop() || 'file';
+          toast(`Inspected element: jumped to line ${clampedLine} in ${fname}`, 'info');
+          return;
         }
+
+        // Fallback: search for candidate text/tag snippet in active document
+        if (el) {
+          const doc = view.state.doc.toString();
+          const candidates = [
+            el.textContent,
+            el.placeholder ? `placeholder="${el.placeholder}"` : '',
+            el.placeholder,
+            el.ariaLabel ? `aria-label="${el.ariaLabel}"` : '',
+            el.ariaLabel,
+            el.title ? `title="${el.title}"` : '',
+            el.id ? `id="${el.id}"` : '',
+            el.id,
+            el.className ? el.className.split(' ').filter((c: string) => c.length > 4 && !c.includes(':'))[0] : '',
+            el.tagName && el.tagName !== 'div' ? `<${el.tagName}` : '',
+          ].filter(Boolean);
+
+          let matchPos = -1;
+          let matchLen = 0;
+
+          for (const cand of candidates) {
+            if (!cand || cand.length < 2) continue;
+            const idx = doc.indexOf(cand);
+            if (idx !== -1) {
+              matchPos = idx;
+              matchLen = cand.length;
+              break;
+            }
+          }
+
+          if (matchPos !== -1) {
+            view.dispatch({
+              selection: EditorSelection.single(matchPos, matchPos + matchLen),
+              scrollIntoView: true,
+            });
+            view.focus();
+            toast(`Inspected element: "${candidates[0]}"`, 'info');
+          }
+        }
+      };
+
+      setTimeout(applySelection, 70);
+    };
+
+    const handleWindowMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'BUILDX_INSPECT_CODE_TARGET') {
+        const { targetFile, targetLine, element } = event.data;
+        handleInspectTarget(targetFile, targetLine, element);
+      } else if (event.data?.type === 'buildx:preview-element-click' && event.data.element) {
+        handleInspectTarget(undefined, undefined, event.data.element);
       }
     };
 
-    window.addEventListener('message', handlePreviewMessage);
-    return () => window.removeEventListener('message', handlePreviewMessage);
-  }, [toast]);
+    const handleCustomInspectEvent = (e: Event) => {
+      const custom = e as CustomEvent;
+      if (custom.detail) {
+        const { targetFile, targetLine, element } = custom.detail;
+        handleInspectTarget(targetFile, targetLine, element);
+      }
+    };
+
+    window.addEventListener('message', handleWindowMessage);
+    window.addEventListener('buildx:inspect_target', handleCustomInspectEvent);
+    return () => {
+      window.removeEventListener('message', handleWindowMessage);
+      window.removeEventListener('buildx:inspect_target', handleCustomInspectEvent);
+    };
+  }, [activeFilePath, toast, openFiles, vfs]);
 
   // ─── Keyboard Shortcuts for Diff Review (⌘Enter / Esc) ─────────────────────
   const currentPendingDiff =
