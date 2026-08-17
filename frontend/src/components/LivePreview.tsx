@@ -1,10 +1,12 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   SandpackProvider,
   SandpackPreview,
+  useSandpack,
 } from '@codesandbox/sandpack-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useVFS } from '../context/VFSContext';
-import { AlertCircle, Loader2, Wand2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Loader2, Wand2, Zap, X } from 'lucide-react';
 import { SchemaUISynthesizer } from './preview/SchemaUISynthesizer';
 import type { LayoutParadigm, ProductArchetype, Blueprint } from '../lib/types';
 
@@ -20,6 +22,7 @@ interface LivePreviewProps {
   productArchetype?: ProductArchetype;
   primaryLandingScreenId?: string;
   blueprint?: Partial<Blueprint> | null;
+  onPromptAgent?: (prompt: string) => void;
 }
 
 const VIEWPORTS = [
@@ -78,6 +81,34 @@ const buildxSandpackTheme = {
   },
 };
 
+/**
+ * Sandpack Error Bridge: Listens to Sandpack runtime build/execution errors
+ * and posts window events to sync with Cortex Agent / Refinement Chat.
+ */
+function SandpackErrorBridge({
+  onErrorStateChange,
+}: {
+  onErrorStateChange: (err: string | null) => void;
+}) {
+  const { sandpack } = useSandpack();
+  const error = sandpack.error?.message || null;
+
+  useEffect(() => {
+    onErrorStateChange(error);
+    if (error) {
+      window.postMessage(
+        {
+          type: 'BUILDX_SANDBOX_ERROR',
+          error: { message: error },
+        },
+        '*'
+      );
+    }
+  }, [error, onErrorStateChange]);
+
+  return null;
+}
+
 export function LivePreview({
   files: propFiles,
   activeFilePath: propActiveFilePath,
@@ -88,10 +119,13 @@ export function LivePreview({
   productArchetype: propProductArchetype,
   primaryLandingScreenId,
   blueprint,
+  onPromptAgent,
 }: LivePreviewProps) {
   const vfs = useVFS();
   const files = propFiles || vfs.files || {};
   const activeFilePath = propActiveFilePath || vfs.activeFilePath;
+
+  const [activeError, setActiveError] = useState<string | null>(null);
 
   // Resolve layout paradigm (explicit prop, blueprint property, or inferred)
   const layoutParadigm = useMemo(() => {
@@ -118,6 +152,44 @@ export function LivePreview({
       setEnhanceError(err.message || 'AI Enhancement failed. Please try again.');
     }
   }, [blueprintId, vfs]);
+
+  const handleAutoFix = useCallback(() => {
+    if (!activeError) return;
+    const errorMsg = activeError;
+
+    // 1. Trigger prop function if provided
+    if (onPromptAgent) {
+      onPromptAgent(`Fix this runtime error: ${errorMsg}`);
+    }
+
+    // 2. Post window messages for RefinementChat and iframe bridges
+    window.postMessage(
+      {
+        type: 'BUILDX_SANDBOX_ERROR',
+        error: { message: errorMsg },
+      },
+      '*'
+    );
+    window.postMessage(
+      {
+        type: 'BUILDX_TRIGGER_AUTO_FIX',
+        error: { message: errorMsg },
+      },
+      '*'
+    );
+
+    // 3. Dispatch global browser events for any listening panels
+    window.dispatchEvent(
+      new CustomEvent('buildx:autofix', {
+        detail: { error: errorMsg, message: `Fix this runtime error: ${errorMsg}` },
+      })
+    );
+    window.dispatchEvent(
+      new CustomEvent('buildx:agent_prompt', {
+        detail: { message: `Fix this runtime error: ${errorMsg}` },
+      })
+    );
+  }, [activeError, onPromptAgent]);
 
   // Convert the VFS files dictionary into Sandpack's required structure
   const sandpackFiles = useMemo(() => {
@@ -264,7 +336,7 @@ export default function App() {
       )}
 
       {/* Frame Container */}
-      <div className="w-full flex-1 min-h-0 flex flex-col rounded-2xl border border-white/10 overflow-hidden bg-[#0e0e14] shadow-2xl">
+      <div className="w-full flex-1 min-h-0 flex flex-col rounded-2xl border border-white/10 overflow-hidden bg-[#0e0e14] shadow-2xl relative">
         {/* Browser Chrome Header */}
         <div className="flex items-center justify-between px-4 py-2.5 bg-[#121216] border-b border-white/10 select-none shrink-0">
           <div className="flex items-center gap-1.5">
@@ -311,6 +383,7 @@ export default function App() {
                 }}
                 className="h-full flex-1 min-h-0"
               >
+                <SandpackErrorBridge onErrorStateChange={setActiveError} />
                 <SandpackPreview
                   showNavigator={false}
                   showRefreshButton={false}
@@ -332,6 +405,45 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {/* Floating Error Bar at bottom of Canvas */}
+          <AnimatePresence>
+            {activeError && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                transition={{ duration: 0.2 }}
+                className="absolute bottom-3 inset-x-3 z-30 flex items-center justify-between gap-3 p-3 bg-red-950/90 border border-red-500/30 rounded-xl backdrop-blur-xl shadow-2xl text-xs font-mono text-red-200"
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <AlertTriangle size={15} className="text-red-400 shrink-0" />
+                  <div className="truncate">
+                    <span className="font-semibold text-red-300">Runtime Error: </span>
+                    <span className="text-red-200/90 truncate">{activeError}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleAutoFix}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-sans font-semibold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <Zap size={13} className="fill-current" />
+                    <span>⚡ Auto-Fix with Cortex</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveError(null)}
+                    className="p-1 text-neutral-400 hover:text-white rounded-lg transition-colors"
+                    title="Dismiss error"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>
