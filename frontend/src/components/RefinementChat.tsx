@@ -184,11 +184,11 @@ export function RefinementChat({
     if (prevIsRefiningRef.current && !isRefining && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content) {
-        const codeBlockRegex = /```(?:\w+)?\s*(?:\/\/\s*(?:file(?:path)?:?\s*)?([^\n]+))\n([\s\S]*?)```/gi;
+        const codeBlockRegex = /(?:(?:###|##|#|\*\*|File:?|\/\/)\s*[`*]?([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)[`*]?\s*\n\s*)?```(?:[a-zA-Z0-9_-]+)?(?:\s+(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+))?\s*(?:\n\s*(?:\/\/|\/\*|#)\s*(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)(?:\s*\*\/)?)?\n([\s\S]*?)```/gi;
         let match;
         while ((match = codeBlockRegex.exec(lastMsg.content)) !== null) {
-          const rawPath = match[1]?.trim();
-          const code = match[2]?.trim();
+          const rawPath = match[1]?.trim() || match[2]?.trim() || match[3]?.trim();
+          const code = match[4]?.trim();
           if (rawPath && code) {
             const matchingKey = Object.keys(vfs.files).find(
               (k) =>
@@ -197,9 +197,9 @@ export function RefinementChat({
                 rawPath.endsWith(`/${k}`) ||
                 k.split('/').pop() === rawPath
             );
-            if (matchingKey && vfs.files[matchingKey]) {
-              vfs.stageFileDiff(matchingKey, code, vfs.files[matchingKey]);
-            }
+            const targetPath = matchingKey || rawPath;
+            vfs.stageDiff(targetPath, code);
+            vfs.setActiveFile(targetPath);
           }
         }
       }
@@ -211,7 +211,8 @@ export function RefinementChat({
   useEffect(() => {
     const handleStageEvent = (e: MessageEvent) => {
       if (e.data?.type === 'BUILDX_STAGE_FILE_DIFF' && e.data.filePath && e.data.incomingCode) {
-        vfs.stageFileDiff(e.data.filePath, e.data.incomingCode, e.data.originalCode);
+        vfs.stageDiff(e.data.filePath, e.data.incomingCode);
+        vfs.setActiveFile(e.data.filePath);
       }
     };
     window.addEventListener('message', handleStageEvent);

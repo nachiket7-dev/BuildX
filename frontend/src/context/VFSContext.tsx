@@ -9,23 +9,28 @@ export interface VFSFile {
 }
 
 export interface PendingDiff {
-  original: string;
-  modified: string;
-  filePath?: string;
+  filePath: string;
+  originalCode: string;
+  incomingCode: string;
+  original?: string;
+  modified?: string;
+  incoming?: string;
   summary?: string;
 }
 
 export interface StagedDiff {
-  original: string;
-  incoming: string;
-  filePath?: string;
+  filePath: string;
+  originalCode: string;
+  incomingCode: string;
+  original?: string;
+  incoming?: string;
   summary?: string;
 }
 
 interface VFSContextType {
   files: Record<string, string>;
   committedFiles: Record<string, string>;
-  pendingDiff: StagedDiff | null;
+  pendingDiff: PendingDiff | null;
   pendingDiffs: Record<string, PendingDiff>;
   stagedDiffs: Record<string, StagedDiff>;
   fileList: VFSFile[];
@@ -33,10 +38,10 @@ interface VFSContextType {
   activeFilePath: string | null;
   setActiveFile: (file: VFSFile | string | null) => void;
   updateFile: (blueprintId: string, path: string, content: string) => Promise<void>;
-  stageDiff: (path: string, diff: PendingDiff | string) => void;
+  stageDiff: (filePath: string, incomingCode: string | PendingDiff) => void;
   stageFileDiff: (path: string, incomingCode: string, originalCode?: string) => void;
-  acceptDiff: (blueprintIdOrPath: string, path?: string) => Promise<void>;
-  rejectDiff: (path: string) => void;
+  acceptDiff: (blueprintIdOrPath?: string, path?: string) => Promise<void>;
+  rejectDiff: (path?: string) => void;
   clearAllDiffs: () => void;
   initVFS: (blueprintId: string) => Promise<Record<string, string>>;
   loadVFS: (blueprintId: string) => Promise<Record<string, string>>;
@@ -51,7 +56,7 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [files, setFiles] = useState<Record<string, string>>({});
-  const [pendingDiff, setPendingDiff] = useState<StagedDiff | null>(null);
+  const [pendingDiff, setPendingDiff] = useState<PendingDiff | null>(null);
   const [pendingDiffs, setPendingDiffs] = useState<Record<string, PendingDiff>>({});
   const [stagedDiffs, setStagedDiffs] = useState<Record<string, StagedDiff>>({});
   const [fileList, setFileList] = useState<VFSFile[]>([]);
@@ -171,64 +176,111 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const stageFileDiff = useCallback((path: string, incomingCode: string, originalCode?: string) => {
     const orig = originalCode !== undefined ? originalCode : (files[path] || '');
-    const diffObj: StagedDiff = {
-      original: orig,
-      incoming: incomingCode,
+    const diffObj: PendingDiff = {
       filePath: path,
+      originalCode: orig,
+      incomingCode,
+      original: orig,
+      modified: incomingCode,
+      incoming: incomingCode,
     };
     setPendingDiff(diffObj);
-    setStagedDiffs(prev => ({ ...prev, [path]: diffObj }));
-    setPendingDiffs(prev => ({ ...prev, [path]: { original: orig, modified: incomingCode, filePath: path } }));
-    setActiveFilePath(path);
-  }, [files]);
-
-  const stageDiff = useCallback((path: string, diff: PendingDiff | string) => {
-    const diffObj: PendingDiff = typeof diff === 'string'
-      ? { original: files[path] || '', modified: diff }
-      : diff;
-    const staged: StagedDiff = {
-      original: diffObj.original,
-      incoming: diffObj.modified,
-      filePath: path,
-    };
-    setPendingDiff(staged);
+    setStagedDiffs(prev => ({ ...prev, [path]: diffObj as any }));
     setPendingDiffs(prev => ({ ...prev, [path]: diffObj }));
-    setStagedDiffs(prev => ({
-      ...prev,
-      [path]: staged,
-    }));
     setActiveFilePath(path);
   }, [files]);
 
-  const acceptDiff = useCallback(async (blueprintIdOrPath: string, pathParam?: string): Promise<void> => {
-    const path = pathParam || blueprintIdOrPath;
-    const blueprintId = pathParam ? blueprintIdOrPath : undefined;
-    const staged = stagedDiffs[path] || (pendingDiffs[path] ? { original: pendingDiffs[path].original, incoming: pendingDiffs[path].modified } : undefined) || (pendingDiff?.filePath === path ? pendingDiff : undefined);
-    if (!staged) return;
+  const stageDiff = useCallback((filePath: string, incoming: string | PendingDiff) => {
+    const orig = files[filePath] || '';
+    const incomingCode = typeof incoming === 'string'
+      ? incoming
+      : (incoming.incomingCode || (incoming as any).modified || '');
+    const originalCode = typeof incoming === 'object' && (incoming.originalCode || incoming.original) !== undefined
+      ? (incoming.originalCode || incoming.original || '')
+      : orig;
+
+    const diffObj: PendingDiff = {
+      filePath,
+      originalCode,
+      incomingCode,
+      original: originalCode,
+      modified: incomingCode,
+      incoming: incomingCode,
+    };
+    setPendingDiff(diffObj);
+    setPendingDiffs(prev => ({ ...prev, [filePath]: diffObj }));
+    setStagedDiffs(prev => ({ ...prev, [filePath]: diffObj as any }));
+    setActiveFilePath(filePath);
+  }, [files]);
+
+  const acceptDiff = useCallback(async (blueprintIdOrPath?: string, pathParam?: string): Promise<void> => {
+    // Determine path and optional blueprintId from arguments or pendingDiff
+    let path = pathParam;
+    let blueprintId: string | undefined;
+
+    if (pathParam && blueprintIdOrPath) {
+      blueprintId = blueprintIdOrPath;
+      path = pathParam;
+    } else if (blueprintIdOrPath) {
+      if (files[blueprintIdOrPath] !== undefined || stagedDiffs[blueprintIdOrPath] || pendingDiffs[blueprintIdOrPath]) {
+        path = blueprintIdOrPath;
+      } else {
+        blueprintId = blueprintIdOrPath;
+        path = pendingDiff?.filePath;
+      }
+    } else {
+      path = pendingDiff?.filePath;
+    }
+
+    if (!path) return;
+
+    const staged = stagedDiffs[path] || pendingDiffs[path] || (pendingDiff?.filePath === path ? pendingDiff : undefined);
+    const codeToCommit = staged?.incomingCode || staged?.incoming || (staged as any)?.modified;
+    if (codeToCommit === undefined) return;
 
     try {
       // Persist to backend database strictly upon acceptance if blueprintId is available
       if (blueprintId) {
         await axios.put(
           `${BASE_URL}/api/blueprints/${blueprintId}/vfs/file`,
-          { path, content: staged.incoming },
+          { path, content: codeToCommit },
           { headers: getAuthHeaders() }
         );
       }
 
-      setFiles(prev => ({ ...prev, [path]: staged.incoming }));
+      setFiles(prev => ({ ...prev, [path!]: codeToCommit }));
       setFileList(prev => {
-        const lang = getLanguageFromPath(path);
+        const lang = getLanguageFromPath(path!);
         const idx = prev.findIndex(f => f.path === path);
         if (idx > -1) {
           const copy = [...prev];
-          copy[idx] = { path, content: staged.incoming, language: lang };
+          copy[idx] = { path: path!, content: codeToCommit, language: lang };
           return copy;
         }
-        return [...prev, { path, content: staged.incoming, language: lang }];
+        return [...prev, { path: path!, content: codeToCommit, language: lang }];
       });
 
       // Clear diff from staged and pending maps
+      setStagedDiffs(prev => {
+        const copy = { ...prev };
+        delete copy[path!];
+        return copy;
+      });
+      setPendingDiffs(prev => {
+        const copy = { ...prev };
+        delete copy[path!];
+        return copy;
+      });
+      setPendingDiff(prev => (prev?.filePath === path ? null : prev));
+    } catch (err) {
+      console.error('[VFSContext] Failed to accept and persist diff', err);
+      throw err;
+    }
+  }, [files, stagedDiffs, pendingDiffs, pendingDiff]);
+
+  const rejectDiff = useCallback((pathParam?: string) => {
+    const path = pathParam || pendingDiff?.filePath;
+    if (path) {
       setStagedDiffs(prev => {
         const copy = { ...prev };
         delete copy[path];
@@ -239,26 +291,9 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         delete copy[path];
         return copy;
       });
-      setPendingDiff(prev => (prev?.filePath === path ? null : prev));
-    } catch (err) {
-      console.error('[VFSContext] Failed to accept and persist diff', err);
-      throw err;
     }
-  }, [stagedDiffs, pendingDiffs, pendingDiff]);
-
-  const rejectDiff = useCallback((path: string) => {
-    setStagedDiffs(prev => {
-      const copy = { ...prev };
-      delete copy[path];
-      return copy;
-    });
-    setPendingDiffs(prev => {
-      const copy = { ...prev };
-      delete copy[path];
-      return copy;
-    });
-    setPendingDiff(prev => (prev?.filePath === path ? null : prev));
-  }, []);
+    setPendingDiff(prev => (!path || prev?.filePath === path ? null : prev));
+  }, [pendingDiff]);
 
   const clearAllDiffs = useCallback(() => {
     setStagedDiffs({});
