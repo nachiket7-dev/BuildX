@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   SandpackProvider,
-  SandpackLayout,
   SandpackPreview,
 } from '@codesandbox/sandpack-react';
 import { useVFS } from '../context/VFSContext';
@@ -120,35 +119,35 @@ export function LivePreview({
     }
   }, [blueprintId, vfs]);
 
-  // Construct normalized Sandpack files map from VFS
+  // Convert the VFS files dictionary into Sandpack's required structure
   const sandpackFiles = useMemo(() => {
-    const fileEntries = Object.entries(files).filter(
+    const fileEntries = Object.entries(files || {}).filter(
       ([p]) => p !== 'preview.html' && !p.endsWith('.sql') && !p.endsWith('.md')
     );
 
     if (fileEntries.length === 0) return null;
 
-    const result: Record<string, string> = {};
+    const acc = fileEntries.reduce<Record<string, { code: string }>>((res, [path, content]) => {
+      const cleanPath = path.startsWith('frontend/')
+        ? path.replace('frontend/', '/')
+        : path.startsWith('/')
+          ? path
+          : `/${path}`;
+      res[cleanPath] = { code: content };
+      return res;
+    }, {});
 
-    for (const [rawPath, content] of fileEntries) {
-      let normalized = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
-
-      // Flatten frontend/ prefix for Sandpack standard structure
-      if (normalized.startsWith('/frontend/')) {
-        normalized = normalized.replace('/frontend/', '/');
-      }
-
-      result[normalized] = content;
-
-      // Also provide root /App.tsx alias if inside /src/App.tsx
-      if (normalized === '/src/App.tsx' || normalized === '/src/App.jsx') {
-        result['/App.tsx'] = content;
-      }
+    // Ensure Sandpack react-ts entry point /App.tsx is present
+    if (acc['/src/App.tsx'] && !acc['/App.tsx']) {
+      acc['/App.tsx'] = { code: acc['/src/App.tsx'].code };
+    } else if (acc['/src/App.jsx'] && !acc['/App.tsx']) {
+      acc['/App.tsx'] = { code: acc['/src/App.jsx'].code };
     }
 
-    // Default HTML with Tailwind CSS CDN
-    if (!result['/public/index.html'] && !result['/index.html']) {
-      result['/public/index.html'] = `<!DOCTYPE html>
+    // Default HTML with Tailwind CSS CDN for instant styling
+    if (!acc['/public/index.html'] && !acc['/index.html']) {
+      acc['/public/index.html'] = {
+        code: `<!DOCTYPE html>
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
@@ -165,23 +164,20 @@ export function LivePreview({
   <body class="bg-[#09090b] text-zinc-100 min-h-screen">
     <div id="root"></div>
   </body>
-</html>`;
-    }
-
-    // Default index.css
-    if (!result['/src/index.css'] && !result['/index.css']) {
-      result['/index.css'] = `@tailwind base;\n@tailwind components;\n@tailwind utilities;\nbody { background-color: #09090b; color: #f4f4f5; }`;
+</html>`,
+      };
     }
 
     // Ensure entry App.tsx exists
-    if (!result['/App.tsx'] && !result['/src/App.tsx']) {
-      const candidateKey = Object.keys(result).find(
-        (k) => (k.endsWith('.tsx') || k.endsWith('.jsx')) && !k.includes('index')
+    if (!acc['/App.tsx'] && !acc['/src/App.tsx']) {
+      const candidateKey = Object.keys(acc).find(
+        (k) => (k.endsWith('.tsx') || k.endsWith('.jsx')) && !k.includes('index') && !k.includes('main')
       );
       if (candidateKey) {
-        result['/App.tsx'] = result[candidateKey];
+        acc['/App.tsx'] = { code: acc[candidateKey].code };
       } else {
-        result['/App.tsx'] = `import React from 'react';
+        acc['/App.tsx'] = {
+          code: `import React from 'react';
 export default function App() {
   return (
     <div className="p-8 text-center text-white bg-[#09090b] min-h-screen">
@@ -189,11 +185,12 @@ export default function App() {
       <p className="text-zinc-400 text-sm">Application ready. Select or modify components in Code tab.</p>
     </div>
   );
-}`;
+}`,
+        };
       }
     }
 
-    return result;
+    return acc;
   }, [files, appName, blueprint]);
 
   const activeViewport = VIEWPORTS.find((v) => v.id === selectedViewport) || VIEWPORTS[0];
@@ -297,12 +294,10 @@ export default function App() {
                 files={sandpackFiles}
                 customSetup={{
                   dependencies: {
-                    react: '^18.2.0',
-                    'react-dom': '^18.2.0',
-                    'lucide-react': '^0.294.0',
-                    'framer-motion': '^11.0.0',
-                    clsx: '^2.1.1',
-                    'tailwind-merge': '^2.3.0',
+                    'lucide-react': 'latest',
+                    'tailwind-merge': 'latest',
+                    clsx: 'latest',
+                    'framer-motion': 'latest',
                   },
                 }}
                 options={{
@@ -316,21 +311,12 @@ export default function App() {
                 }}
                 className="h-full flex-1 min-h-0"
               >
-                <SandpackLayout
-                  style={{
-                    height: '100%',
-                    border: 'none',
-                    borderRadius: 0,
-                    backgroundColor: 'transparent',
-                  }}
-                >
-                  <SandpackPreview
-                    showOpenInCodeSandbox={false}
-                    showRefreshButton={true}
-                    showRestartButton={true}
-                    style={{ height: '100%', width: '100%' }}
-                  />
-                </SandpackLayout>
+                <SandpackPreview
+                  showNavigator={false}
+                  showRefreshButton={false}
+                  showOpenInCodeSandbox={false}
+                  style={{ height: '100%', width: '100%' }}
+                />
               </SandpackProvider>
             ) : blueprint && (blueprint.screens?.length || blueprint.schema?.length) ? (
               <div className="w-full h-full overflow-auto bg-[#09090b]">
