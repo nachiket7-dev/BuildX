@@ -18,6 +18,7 @@ import type { Blueprint } from '../lib/types';
 import { PreviewPanel } from './PreviewPanel';
 import { WorkspaceFileTree } from './WorkspaceFileTree';
 import { useCodeGeneration } from '../hooks/useCodeGeneration';
+import { useVFS } from '../context/VFSContext';
 import {
   Cpu,
   Folder,
@@ -89,6 +90,7 @@ export function AgentPage() {
   const { token } = useAuth();
   const { toast } = useToast();
   const { sidebarOpen } = useOutletContext<AppShellOutletContext>();
+  const vfs = useVFS();
 
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(true);
@@ -285,9 +287,18 @@ export function AgentPage() {
                 collectedSteps.push(step);
                 setLiveThinkingSteps(prev => [...prev, step]);
 
+              } else if (pendingEvent === 'staged_diff') {
+                // ─── Capture pre-edit VFS snapshot and route to diff staging ───
+                const { path, original, modified } = payload;
+                if (path && modified) {
+                  const origContent = original || files.find(f => f.path === path)?.content || '';
+                  vfs.stageFileDiff(path, modified, origContent);
+                  console.log(`[AgentPage] Staged diff for ${path} (orig=${origContent.length} chars, mod=${modified.length} chars)`);
+                }
+
               } else if (pendingEvent === 'done') {
                 gotDone = true;
-                const { message, plan: newPlan, modifiedFiles } = payload;
+                const { message, plan: newPlan, modifiedFiles, stagedDiffs: serverStagedDiffs } = payload;
                 setLiveThinkingSteps([]);
                 setMessages(prev => [
                   ...prev,
@@ -300,7 +311,16 @@ export function AgentPage() {
                 ]);
                 if (newPlan) setPlan(newPlan);
 
-                // Reload workspace files
+                // Stage any remaining diffs from the done payload that weren't sent as individual SSE events
+                if (serverStagedDiffs && typeof serverStagedDiffs === 'object') {
+                  for (const [filePath, diffData] of Object.entries(serverStagedDiffs as Record<string, { original: string; modified: string }>)) {
+                    if (diffData.modified && !vfs.stagedDiffs[filePath]) {
+                      vfs.stageFileDiff(filePath, diffData.modified, diffData.original || '');
+                    }
+                  }
+                }
+
+                // Reload workspace files (backend already saved them)
                 const updated = await fetchBlueprintFilesWithContent(id);
                 setFiles(updated);
                 if (selectedFile) {
@@ -309,7 +329,12 @@ export function AgentPage() {
                 }
                 setPreviewKey(k => k + 1);
                 if (modifiedFiles?.length) {
-                  toast(`Updated ${modifiedFiles.length} file(s) successfully!`, 'success');
+                  const stagedCount = Object.keys(vfs.stagedDiffs).length;
+                  if (stagedCount > 0) {
+                    toast(`${modifiedFiles.length} file(s) modified — review diffs in Code Studio`, 'info');
+                  } else {
+                    toast(`Updated ${modifiedFiles.length} file(s) successfully!`, 'success');
+                  }
                 }
 
               } else if (pendingEvent === 'error') {
