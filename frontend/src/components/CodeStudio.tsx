@@ -484,22 +484,29 @@ export function CodeStudio({
   }, [activeFilePath, toast, openFiles, vfs]);
 
   // ─── Keyboard Shortcuts for Diff Review (⌘Enter / Esc) ─────────────────────
-  const currentPendingDiff =
-    (activeFile && vfs.pendingDiffs[activeFile.path]) ||
-    (pendingDiff && pendingDiff.filePath === activeFile?.path ? pendingDiff : pendingDiff);
+  const currentStagedDiff = activeFile
+    ? vfs.stagedDiffs[activeFile.path] ||
+      (vfs.pendingDiffs[activeFile.path]
+        ? {
+            original: vfs.pendingDiffs[activeFile.path].original,
+            incoming: vfs.pendingDiffs[activeFile.path].modified,
+            filePath: activeFile.path,
+          }
+        : null) ||
+      (pendingDiff && pendingDiff.filePath === activeFile?.path
+        ? { original: pendingDiff.original, incoming: pendingDiff.modified, filePath: pendingDiff.filePath }
+        : null)
+    : null;
+
+  const isShowingDiff = Boolean((isDiffMode || currentStagedDiff !== null) && activeFile && currentStagedDiff);
 
   const handleAcceptDiff = useCallback(async () => {
-    const activeDiff = (activeFile && vfs.pendingDiffs[activeFile.path]) || pendingDiff;
-    if (!activeDiff || !activeFile) return;
-    const targetPath = activeDiff.filePath || activeFile.path;
-
+    if (!activeFile) return;
     try {
       if (blueprintId) {
-        if (vfs.pendingDiffs[targetPath]) {
-          await vfs.acceptDiff(blueprintId, targetPath);
-        } else {
-          await vfs.updateFile(blueprintId, targetPath, activeDiff.modified);
-        }
+        await vfs.acceptDiff(blueprintId, activeFile.path);
+      } else {
+        await vfs.acceptDiff(activeFile.path);
       }
       triggerPatchFlash();
       setPendingDiff(null);
@@ -508,19 +515,18 @@ export function CodeStudio({
     } catch (err: any) {
       toast(err.message || 'Failed to update file in VFS', 'error');
     }
-  }, [vfs, pendingDiff, activeFile, blueprintId, toast]);
+  }, [vfs, activeFile, blueprintId, toast]);
 
   const handleRejectDiff = useCallback(() => {
-    if (activeFile && vfs.pendingDiffs[activeFile.path]) {
-      vfs.rejectDiff(activeFile.path);
-    }
+    if (!activeFile) return;
+    vfs.rejectDiff(activeFile.path);
     setPendingDiff(null);
     setIsDiffMode(false);
     toast('Proposed AI changes discarded', 'info');
   }, [vfs, activeFile, toast]);
 
   useEffect(() => {
-    if (!currentPendingDiff) return;
+    if (!currentStagedDiff) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
@@ -532,7 +538,7 @@ export function CodeStudio({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentPendingDiff, handleAcceptDiff, handleRejectDiff]);
+  }, [currentStagedDiff, handleAcceptDiff, handleRejectDiff]);
 
   // ─── File Open/Close Handlers ──────────────────────────────────────────────
   const handleOpenFile = (path: string) => {
@@ -693,11 +699,7 @@ export function CodeStudio({
           const data = await res.json();
           if (data.modifiedCode || data.data?.modifiedCode) {
             const modified = data.modifiedCode || data.data?.modifiedCode;
-            setPendingDiff({
-              original: activeFile.content,
-              modified,
-              filePath: activeFile.path,
-            });
+            vfs.stageFileDiff(activeFile.path, modified, activeFile.content);
             setIsDiffMode(true);
             toast('AI proposed code edits — review diff below', 'info');
             return;
@@ -939,7 +941,7 @@ export function CodeStudio({
           </AnimatePresence>
 
           {/* ─── Diff Mode / Cursor-Style Inline AI Review Mode ─── */}
-          {(isDiffMode || currentPendingDiff !== null) && activeFile ? (
+          {isShowingDiff && activeFile && currentStagedDiff ? (
             <div className="h-full flex flex-col min-h-0 relative">
               {/* Floating Action Header Bar */}
               <div className="z-20 flex items-center justify-between px-4 py-2.5 bg-indigo-950/70 backdrop-blur-xl border-b border-indigo-500/30 text-indigo-300 text-xs shrink-0 shadow-xl">
@@ -975,13 +977,13 @@ export function CodeStudio({
               {/* CodeMirror 6 Unified Merge View Engine */}
               <div className="flex-1 overflow-hidden relative min-h-0 bg-[#08080c]">
                 <CodeMirror
-                  value={currentPendingDiff ? currentPendingDiff.modified : activeContent}
+                  value={currentStagedDiff.incoming}
                   height="100%"
                   theme={buildxEditorTheme}
                   extensions={[
                     ...languageExts,
                     unifiedMergeView({
-                      original: currentPendingDiff ? currentPendingDiff.original : activeContent,
+                      original: currentStagedDiff.original,
                       highlightChanges: true,
                       syntaxHighlightDeletions: true,
                       mergeControls: false,
