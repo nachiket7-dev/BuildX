@@ -4741,29 +4741,34 @@
 .cm-merge-b,
 .cm-insertedLine,
 .cm-change-b {
-  background-color: rgba(16, 185, 129, 0.25) !important;
+  background: rgba(16, 185, 129, 0.2) !important;
+  background-color: rgba(16, 185, 129, 0.2) !important;
   color: #34D399 !important;
 }
 
 .cm-merge-a,
 .cm-deletedLine,
 .cm-change-a {
-  background-color: rgba(239, 68, 68, 0.25) !important;
+  background: rgba(239, 68, 68, 0.2) !important;
+  background-color: rgba(239, 68, 68, 0.2) !important;
   color: #F87171 !important;
   text-decoration: line-through !important;
 }
 
 .cm-changedLine {
+  background: rgba(16, 185, 129, 0.12) !important;
   background-color: rgba(16, 185, 129, 0.12) !important;
 }
 
 .cm-changedText {
-  background-color: rgba(16, 185, 129, 0.28) !important;
+  background: rgba(16, 185, 129, 0.25) !important;
+  background-color: rgba(16, 185, 129, 0.25) !important;
   color: #34D399 !important;
 }
 
 .cm-deletedChunk {
-  background-color: rgba(239, 68, 68, 0.18) !important;
+  background: rgba(239, 68, 68, 0.2) !important;
+  background-color: rgba(239, 68, 68, 0.2) !important;
   border-left: 3px solid #ef4444 !important;
   text-decoration: line-through !important;
   color: #F87171 !important;
@@ -4775,10 +4780,12 @@
 
 .cm-merge-gutter-b,
 .cm-gutterElement.cm-insertedLine {
-  background-color: rgba(16, 185, 129, 0.4) !important;
+  background: rgba(16, 185, 129, 0.3) !important;
+  background-color: rgba(16, 185, 129, 0.3) !important;
 }
 
 .cm-merge-gutter-a,
 .cm-gutterElement.cm-deletedLine {
-  background-color: rgba(239, 68, 68, 0.4) !important;
+  background: rgba(239, 68, 68, 0.3) !important;
+  background-color: rgba(239, 68, 68, 0.3) !important;
 }

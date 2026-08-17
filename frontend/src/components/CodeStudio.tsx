@@ -489,16 +489,33 @@ export function CodeStudio({
 
   // ─── Keyboard Shortcuts for Diff Review (⌘Enter / Esc) ─────────────────────
   const currentStagedDiff = activeFile
-    ? vfs.stagedDiffs[activeFile.path] ||
-      (vfs.pendingDiffs[activeFile.path]
+    ? (vfs.pendingDiff && vfs.pendingDiff.filePath === activeFile.path
         ? {
-            original: vfs.pendingDiffs[activeFile.path].original,
-            incoming: vfs.pendingDiffs[activeFile.path].modified,
+            original: vfs.pendingDiff.originalCode || vfs.pendingDiff.original || '',
+            incoming: vfs.pendingDiff.incomingCode || (vfs.pendingDiff as any).modified || '',
             filePath: activeFile.path,
           }
         : null) ||
-      (pendingDiff && pendingDiff.filePath === activeFile?.path
-        ? { original: pendingDiff.original, incoming: pendingDiff.modified, filePath: pendingDiff.filePath }
+      (vfs.stagedDiffs && vfs.stagedDiffs[activeFile.path]
+        ? {
+            original: vfs.stagedDiffs[activeFile.path].originalCode || vfs.stagedDiffs[activeFile.path].original || '',
+            incoming: vfs.stagedDiffs[activeFile.path].incomingCode || vfs.stagedDiffs[activeFile.path].incoming || (vfs.stagedDiffs[activeFile.path] as any).modified || '',
+            filePath: activeFile.path,
+          }
+        : null) ||
+      (vfs.pendingDiffs && vfs.pendingDiffs[activeFile.path]
+        ? {
+            original: vfs.pendingDiffs[activeFile.path].originalCode || vfs.pendingDiffs[activeFile.path].original || '',
+            incoming: vfs.pendingDiffs[activeFile.path].incomingCode || vfs.pendingDiffs[activeFile.path].modified || '',
+            filePath: activeFile.path,
+          }
+        : null) ||
+      (pendingDiff && pendingDiff.filePath === activeFile.path
+        ? {
+            original: pendingDiff.original || '',
+            incoming: pendingDiff.modified || '',
+            filePath: activeFile.path,
+          }
         : null)
     : null;
 
@@ -518,7 +535,7 @@ export function CodeStudio({
   const handleTestDiff = useCallback(() => {
     if (!activeFile) return;
     const testAddition = '\n// ✅ Test Green Addition Line — delete after verifying inline diff visuals';
-    vfs.stageFileDiff(activeFile.path, activeFile.content + testAddition, activeFile.content);
+    vfs.stageDiff(activeFile.path, activeFile.content + testAddition);
     setIsDiffMode(true);
     toast('🧪 Test diff staged — verify green/red highlights below', 'info');
   }, [activeFile, vfs, toast]);
