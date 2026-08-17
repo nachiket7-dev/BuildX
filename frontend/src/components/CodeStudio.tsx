@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
-import CodeMirrorMerge from 'react-codemirror-merge';
+import { unifiedMergeView } from '@codemirror/merge';
 import { javascript } from '@codemirror/lang-javascript';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
@@ -39,8 +39,40 @@ import { getAuthHeaders } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { useVFS } from '../context/VFSContext';
 
-const Original = CodeMirrorMerge.Original;
-const Modified = CodeMirrorMerge.Modified;
+// ─── Cursor-Style Inline Diff Theme for CodeMirror 6 ──────────────────────────
+
+const cursorInlineDiffTheme = EditorView.theme({
+  '&.cm-editor .cm-merge-inserted, &.cm-editor .cm-insertedLine, .cm-insertedLine': {
+    backgroundColor: 'rgba(16, 185, 129, 0.15) !important',
+    color: '#34D399 !important',
+  },
+  '&.cm-editor .cm-insertedText, .cm-insertedText': {
+    backgroundColor: 'rgba(16, 185, 129, 0.28) !important',
+    color: '#34D399 !important',
+  },
+  '&.cm-editor .cm-merge-deleted, &.cm-editor .cm-deletedLine, .cm-deletedLine, .cm-deletedChunk': {
+    backgroundColor: 'rgba(239, 68, 68, 0.15) !important',
+    color: '#F87171 !important',
+    textDecoration: 'line-through !important',
+  },
+  '&.cm-editor .cm-deletedText, .cm-deletedText': {
+    backgroundColor: 'rgba(239, 68, 68, 0.28) !important',
+    color: '#F87171 !important',
+    textDecoration: 'line-through !important',
+  },
+  '&.cm-editor .cm-changedLine, .cm-changedLine': {
+    backgroundColor: 'rgba(16, 185, 129, 0.12) !important',
+  },
+  '&.cm-editor .cm-changedText, .cm-changedText': {
+    backgroundColor: 'rgba(16, 185, 129, 0.25) !important',
+  },
+  '.cm-deletedChunk': {
+    borderLeft: '3px solid #ef4444 !important',
+  },
+  '.cm-insertedChunk': {
+    borderLeft: '3px solid #10b981 !important',
+  },
+});
 
 // ─── File Icon Helper ──────────────────────────────────────────────────────────
 
@@ -858,52 +890,62 @@ export function CodeStudio({
             )}
           </AnimatePresence>
 
-          {/* ─── Diff Mode / AI Review Mode ─── */}
+          {/* ─── Diff Mode / Cursor-Style Inline AI Review Mode ─── */}
           {(isDiffMode || currentPendingDiff !== null) && activeFile ? (
             <div className="h-full flex flex-col min-h-0 relative">
               {/* Floating Action Header Bar */}
-              <div className="z-20 flex items-center justify-between px-4 py-2 bg-indigo-950/60 backdrop-blur-md border-b border-indigo-500/30 text-indigo-300 text-xs shrink-0 shadow-lg">
+              <div className="z-20 flex items-center justify-between px-4 py-2.5 bg-indigo-950/70 backdrop-blur-xl border-b border-indigo-500/30 text-indigo-300 text-xs shrink-0 shadow-xl">
                 <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   <GitCompare size={14} className="text-indigo-400 shrink-0" />
                   <span className="font-mono text-xs">
-                    AI Diff Review Mode — <strong className="text-white">{activeFile.name}</strong>
+                    Cursor-Style Inline Diff — <strong className="text-white">{activeFile.name}</strong>
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={handleAcceptDiff}
-                    className="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-emerald-500/20"
+                    className="px-3.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-emerald-500/20"
                     title="Accept Changes (⌘+Enter)"
                   >
                     <CheckCircle2 size={13} />
-                    <span>Accept Changes (⌘Enter)</span>
+                    <span>[ ⌘Enter Accept ]</span>
                   </button>
                   <button
+                    type="button"
                     onClick={handleRejectDiff}
-                    className="px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-red-500/20"
+                    className="px-3.5 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-red-500/20"
                     title="Reject (Esc)"
                   >
                     <XCircle size={13} />
-                    <span>Reject (Esc)</span>
+                    <span>[ Esc Reject ]</span>
                   </button>
                 </div>
               </div>
 
-              {/* CodeMirror Merge Container */}
-              <div className="flex-1 overflow-auto min-h-0 p-2 font-mono text-xs">
-                <CodeMirrorMerge
+              {/* CodeMirror 6 Unified Merge View Engine */}
+              <div className="flex-1 overflow-hidden relative min-h-0 bg-[#08080c]">
+                <CodeMirror
+                  value={currentPendingDiff ? currentPendingDiff.modified : activeContent}
+                  height="100%"
                   theme={buildxEditorTheme}
-                  className="h-full rounded-xl overflow-hidden border border-white/10"
-                >
-                  <Original
-                    value={currentPendingDiff ? currentPendingDiff.original : activeContent}
-                    extensions={[...languageExts, ...buildxExtensions, EditorView.lineWrapping]}
-                  />
-                  <Modified
-                    value={currentPendingDiff ? currentPendingDiff.modified : activeContent}
-                    extensions={[...languageExts, ...buildxExtensions, EditorView.lineWrapping]}
-                  />
-                </CodeMirrorMerge>
+                  extensions={[
+                    ...languageExts,
+                    unifiedMergeView({
+                      original: currentPendingDiff ? currentPendingDiff.original : activeContent,
+                      highlightChanges: true,
+                      syntaxHighlightDeletions: true,
+                      mergeControls: false,
+                      gutter: true,
+                    }),
+                    cursorInlineDiffTheme,
+                    ...buildxExtensions,
+                    EditorView.lineWrapping,
+                  ]}
+                  editable={false}
+                  className="h-full text-xs font-mono"
+                />
               </div>
             </div>
           ) : activeFile ? (
