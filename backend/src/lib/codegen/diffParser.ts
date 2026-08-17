@@ -99,6 +99,69 @@ export function parseDiffBlocks(rawOutput: string): DiffBlock[] | 'NO_CHANGE' {
     }
   }
 
+  // ── Fallback: Parse standard unified diff hunks (--- a/ +++ b/ @@ format) ──
+  if (blocks.length === 0) {
+    const unifiedBlocks = parseUnifiedDiffHunks(unwrapped);
+    if (unifiedBlocks.length > 0) return unifiedBlocks;
+  }
+
+  return blocks;
+}
+
+/**
+ * Parse unified diff format (git diff) into DiffBlock objects.
+ * Handles output like:
+ *   --- a/path/to/file
+ *   +++ b/path/to/file
+ *   @@ -10,5 +10,6 @@
+ *   context line
+ *   -removed line
+ *   +added line
+ */
+function parseUnifiedDiffHunks(text: string): DiffBlock[] {
+  const blocks: DiffBlock[] = [];
+  const hunkRegex = /@@\s*-\d+(?:,\d+)?\s*\+\d+(?:,\d+)?\s*@@[^\n]*/g;
+  let match: RegExpExecArray | null;
+  const positions: number[] = [];
+
+  while ((match = hunkRegex.exec(text)) !== null) {
+    positions.push(match.index + match[0].length);
+  }
+
+  if (positions.length === 0) return blocks;
+
+  for (let p = 0; p < positions.length; p++) {
+    const start = positions[p];
+    const end = p + 1 < positions.length
+      ? text.lastIndexOf('@@', positions[p + 1])
+      : text.length;
+    const hunkBody = text.slice(start, end).trim();
+    const lines = hunkBody.split('\n');
+
+    const searchLines: string[] = [];
+    const replaceLines: string[] = [];
+
+    for (const line of lines) {
+      if (line.startsWith('-')) {
+        searchLines.push(line.slice(1));
+      } else if (line.startsWith('+')) {
+        replaceLines.push(line.slice(1));
+      } else if (line.startsWith(' ') || line === '') {
+        // Context line — appears in both
+        const ctx = line.startsWith(' ') ? line.slice(1) : line;
+        searchLines.push(ctx);
+        replaceLines.push(ctx);
+      }
+    }
+
+    if (searchLines.length > 0) {
+      blocks.push({
+        search: searchLines.join('\n'),
+        replace: replaceLines.join('\n'),
+      });
+    }
+  }
+
   return blocks;
 }
 
@@ -203,6 +266,10 @@ function applySingleBlock(originalCode: string, block: DiffBlock): string | null
     }
   }
 
+  // ── Strategy 4: Fuzzy line-by-line matching (collapse all whitespace) ───
+  const fuzzyResult = fuzzyLineMatch(originalCode, search, replace);
+  if (fuzzyResult !== null) return fuzzyResult;
+
   // ── Idempotency check ────────────────────────────────────────────────────
   // If the REPLACE content is already present, treat as a no-op success
   const normReplaceCheck = normalizeLines(replace);
@@ -212,6 +279,41 @@ function applySingleBlock(originalCode: string, block: DiffBlock): string | null
   }
 
   return null; // could not match
+}
+
+/**
+ * Strategy 4: Fuzzy line-by-line match.
+ * Compresses all whitespace on each line for comparison. If the stripped lines
+ * match a contiguous region in the file, substitute the original region with
+ * the replacement (preserving the replacement's own indentation).
+ */
+function fuzzyLineMatch(originalCode: string, search: string, replace: string): string | null {
+  const compress = (s: string) => s.replace(/\s+/g, ' ').trim();
+  const origLines = originalCode.split('\n');
+  const searchLines = search.split('\n').filter(l => l.trim().length > 0);
+
+  if (searchLines.length === 0) return null;
+
+  const compressedSearch = searchLines.map(compress);
+
+  for (let i = 0; i <= origLines.length - searchLines.length; i++) {
+    let allMatch = true;
+    for (let j = 0; j < searchLines.length; j++) {
+      if (compress(origLines[i + j]) !== compressedSearch[j]) {
+        allMatch = false;
+        break;
+      }
+    }
+    if (allMatch) {
+      const before = origLines.slice(0, i);
+      const after = origLines.slice(i + searchLines.length);
+      const replaceLines = replace.split('\n');
+      console.info(`[diffParser] Fuzzy match succeeded at line ${i + 1} for ${searchLines.length} line(s)`);
+      return [...before, ...replaceLines, ...after].join('\n');
+    }
+  }
+
+  return null;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
