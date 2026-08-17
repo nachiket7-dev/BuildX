@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronUp, Send, Cpu, AlertTriangle, Wrench, X, Brain, Zap, GitCompare, Sparkles, MessageSquare, Terminal, User, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useVFS } from '../context/VFSContext';
 import type { ChatMessage } from '../hooks/useRefinement';
 import type { Blueprint } from '../lib/types';
 import { timelineNodeSlide, timelineContainer, commandDock as commandDockVariants } from '../lib/motion';
@@ -173,6 +174,44 @@ export function RefinementChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const anchorBounds = useAnchorBounds(anchorRef, layoutSyncKey);
+  const vfs = useVFS();
+
+  // Route incoming agent code patches targeting existing VFS files to stageFileDiff
+  useEffect(() => {
+    if (!messages || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content) {
+      const codeBlockRegex = /```(?:\w+)?\s*(?:\/\/\s*(?:file(?:path)?:?\s*)?([^\n]+))\n([\s\S]*?)```/gi;
+      let match;
+      while ((match = codeBlockRegex.exec(lastMsg.content)) !== null) {
+        const rawPath = match[1]?.trim();
+        const code = match[2]?.trim();
+        if (rawPath && code) {
+          const matchingKey = Object.keys(vfs.files).find(
+            (k) =>
+              k === rawPath ||
+              k.endsWith(`/${rawPath}`) ||
+              rawPath.endsWith(`/${k}`) ||
+              k.split('/').pop() === rawPath
+          );
+          if (matchingKey && vfs.files[matchingKey]) {
+            vfs.stageFileDiff(matchingKey, code);
+          }
+        }
+      }
+    }
+  }, [messages, vfs]);
+
+  // Listen for external stage diff window messages
+  useEffect(() => {
+    const handleStageEvent = (e: MessageEvent) => {
+      if (e.data?.type === 'BUILDX_STAGE_FILE_DIFF' && e.data.filePath && e.data.incomingCode) {
+        vfs.stageFileDiff(e.data.filePath, e.data.incomingCode, e.data.originalCode);
+      }
+    };
+    window.addEventListener('message', handleStageEvent);
+    return () => window.removeEventListener('message', handleStageEvent);
+  }, [vfs]);
 
   useEffect(() => {
     setMounted(true);

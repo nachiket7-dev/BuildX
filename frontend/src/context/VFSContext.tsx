@@ -15,17 +15,26 @@ export interface PendingDiff {
   summary?: string;
 }
 
+export interface StagedDiff {
+  original: string;
+  incoming: string;
+  filePath?: string;
+  summary?: string;
+}
+
 interface VFSContextType {
   files: Record<string, string>;
   committedFiles: Record<string, string>;
   pendingDiffs: Record<string, PendingDiff>;
+  stagedDiffs: Record<string, StagedDiff>;
   fileList: VFSFile[];
   activeFile: VFSFile | null;
   activeFilePath: string | null;
   setActiveFile: (file: VFSFile | string | null) => void;
   updateFile: (blueprintId: string, path: string, content: string) => Promise<void>;
   stageDiff: (path: string, diff: PendingDiff | string) => void;
-  acceptDiff: (blueprintId: string, path: string) => Promise<void>;
+  stageFileDiff: (path: string, incomingCode: string, originalCode?: string) => void;
+  acceptDiff: (blueprintIdOrPath: string, path?: string) => Promise<void>;
   rejectDiff: (path: string) => void;
   clearAllDiffs: () => void;
   initVFS: (blueprintId: string) => Promise<Record<string, string>>;
@@ -42,6 +51,7 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [files, setFiles] = useState<Record<string, string>>({});
   const [pendingDiffs, setPendingDiffs] = useState<Record<string, PendingDiff>>({});
+  const [stagedDiffs, setStagedDiffs] = useState<Record<string, StagedDiff>>({});
   const [fileList, setFileList] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   const [isLoadingVFS, setIsLoadingVFS] = useState<boolean>(false);
@@ -157,39 +167,64 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     []
   );
 
+  const stageFileDiff = useCallback((path: string, incomingCode: string, originalCode?: string) => {
+    const orig = originalCode !== undefined ? originalCode : (files[path] || '');
+    const diffObj: StagedDiff = {
+      original: orig,
+      incoming: incomingCode,
+      filePath: path,
+    };
+    setStagedDiffs(prev => ({ ...prev, [path]: diffObj }));
+    setPendingDiffs(prev => ({ ...prev, [path]: { original: orig, modified: incomingCode, filePath: path } }));
+    setActiveFilePath(path);
+  }, [files]);
+
   const stageDiff = useCallback((path: string, diff: PendingDiff | string) => {
     const diffObj: PendingDiff = typeof diff === 'string'
       ? { original: files[path] || '', modified: diff }
       : diff;
     setPendingDiffs(prev => ({ ...prev, [path]: diffObj }));
+    setStagedDiffs(prev => ({
+      ...prev,
+      [path]: { original: diffObj.original, incoming: diffObj.modified, filePath: path },
+    }));
     setActiveFilePath(path);
   }, [files]);
 
-  const acceptDiff = useCallback(async (blueprintId: string, path: string): Promise<void> => {
-    const diff = pendingDiffs[path];
-    if (!diff) return;
+  const acceptDiff = useCallback(async (blueprintIdOrPath: string, pathParam?: string): Promise<void> => {
+    const path = pathParam || blueprintIdOrPath;
+    const blueprintId = pathParam ? blueprintIdOrPath : undefined;
+    const staged = stagedDiffs[path] || (pendingDiffs[path] ? { original: pendingDiffs[path].original, incoming: pendingDiffs[path].modified } : undefined);
+    if (!staged) return;
 
     try {
-      // Persist to backend database strictly upon acceptance
-      await axios.put(
-        `${BASE_URL}/api/blueprints/${blueprintId}/vfs/file`,
-        { path, content: diff.modified },
-        { headers: getAuthHeaders() }
-      );
+      // Persist to backend database strictly upon acceptance if blueprintId is available
+      if (blueprintId) {
+        await axios.put(
+          `${BASE_URL}/api/blueprints/${blueprintId}/vfs/file`,
+          { path, content: staged.incoming },
+          { headers: getAuthHeaders() }
+        );
+      }
 
-      setFiles(prev => ({ ...prev, [path]: diff.modified }));
+      setFiles(prev => ({ ...prev, [path]: staged.incoming }));
       setFileList(prev => {
         const lang = getLanguageFromPath(path);
         const idx = prev.findIndex(f => f.path === path);
         if (idx > -1) {
           const copy = [...prev];
-          copy[idx] = { path, content: diff.modified, language: lang };
+          copy[idx] = { path, content: staged.incoming, language: lang };
           return copy;
         }
-        return [...prev, { path, content: diff.modified, language: lang }];
+        return [...prev, { path, content: staged.incoming, language: lang }];
       });
 
-      // Clear diff from pending map
+      // Clear diff from staged and pending maps
+      setStagedDiffs(prev => {
+        const copy = { ...prev };
+        delete copy[path];
+        return copy;
+      });
       setPendingDiffs(prev => {
         const copy = { ...prev };
         delete copy[path];
@@ -199,9 +234,14 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('[VFSContext] Failed to accept and persist diff', err);
       throw err;
     }
-  }, [pendingDiffs]);
+  }, [stagedDiffs, pendingDiffs]);
 
   const rejectDiff = useCallback((path: string) => {
+    setStagedDiffs(prev => {
+      const copy = { ...prev };
+      delete copy[path];
+      return copy;
+    });
     setPendingDiffs(prev => {
       const copy = { ...prev };
       delete copy[path];
@@ -210,6 +250,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const clearAllDiffs = useCallback(() => {
+    setStagedDiffs({});
     setPendingDiffs({});
   }, []);
 
@@ -259,12 +300,14 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         files,
         committedFiles: files,
         pendingDiffs,
+        stagedDiffs,
         fileList,
         activeFile,
         activeFilePath,
         setActiveFile: handleSetActiveFile,
         updateFile,
         stageDiff,
+        stageFileDiff,
         acceptDiff,
         rejectDiff,
         clearAllDiffs,
@@ -287,3 +330,5 @@ export const useVFS = () => {
   }
   return context;
 };
+
+export default VFSContext;
