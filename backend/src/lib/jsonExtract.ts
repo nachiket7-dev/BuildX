@@ -2,8 +2,8 @@
  * jsonExtract.ts
  *
  * Strips reasoning-model tags, markdown code fences, comments, and repairs
- * malformed or truncated JSON returned by LLM models — with special handling
- * for raw code strings embedded in JSON property values.
+ * malformed or truncated JSON returned by LLM models — with specialized handling
+ * for raw code strings, unescaped quotes, control characters, and broken files_raw.
  */
 
 // ─── Comment Stripping ───────────────────────────────────────────────────────
@@ -58,101 +58,113 @@ function removeJsonComments(str: string): string {
   return result;
 }
 
-// ─── Code-String Repair ──────────────────────────────────────────────────────
+// ─── Code-String Repair & Unescaped Quote Fixer ───────────────────────────────
 
 /**
- * The most common LLM JSON failure mode:
- *
- *   "content": "function foo() {
- *     return "bar";   ← raw newline + unescaped quote inside string
- *   }"
- *
- * This function walks the raw text character-by-character, tracking whether
- * we're inside a JSON string literal (after a key's colon separator).
- * Inside string values it:
- *   - Converts raw \r\n / \n / \r → \\n
- *   - Converts raw \t → \\t
- *   - Escapes bare " that are NOT the closing delimiter of the string
- *   - Escapes bare \ not already followed by a valid JSON escape char
+ * Walks JSON character-by-character tracking property key vs property value state.
+ * Inside string values (especially embedded code), it:
+ *   - Strips illegal ASCII control characters (\x00-\x1F except \t, \n, \r)
+ *   - Converts raw unescaped newlines to \n and tabs to \t
+ *   - Distinguishes structural closing quotes from internal unescaped quotes (e.g. JSX className="...")
+ *   - Automatically escapes internal quotes as \"
  */
-function repairCodeStrings(raw: string): string {
+export function repairCodeStrings(raw: string): string {
+  let s = raw;
+
+  // 1. Strip illegal control characters
+  s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+
   const out: string[] = [];
-  let i = 0;
-  const len = raw.length;
+  let inString = false;
+  let isEscaped = false;
+  let isKey = true;
 
-  // Valid single-char JSON escape followers: " \ / b f n r t
-  const VALID_ESCAPES = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u']);
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
 
-  while (i < len) {
-    // ── Outside a string: copy structural characters verbatim ──────────────
-    const ch = raw[i];
-
-    if (ch !== '"') {
-      out.push(ch);
-      i++;
-      continue;
-    }
-
-    // ── Entering a string value ─────────────────────────────────────────────
-    // Emit the opening quote
-    out.push('"');
-    i++;
-
-    while (i < len) {
-      const c = raw[i];
+    if (inString) {
+      if (isEscaped) {
+        out.push(c);
+        isEscaped = false;
+        continue;
+      }
 
       if (c === '\\') {
-        // Peek at next char
-        const next = raw[i + 1];
-        if (next !== undefined && VALID_ESCAPES.has(next)) {
-          // Valid escape sequence — copy both chars verbatim
-          out.push('\\', next);
-          i += 2;
-        } else {
-          // Bare backslash with no valid escape — double it
-          out.push('\\\\');
-          i++;
-        }
+        out.push('\\');
+        isEscaped = true;
         continue;
       }
 
       if (c === '"') {
-        // Could be closing delimiter OR an unescaped quote inside the string.
-        // Heuristic: look ahead past whitespace for a structural token
-        // (: , ] } \n) that confirms this is the real closing quote.
+        // Look ahead past whitespace to determine if this is a real structural closing quote
         let j = i + 1;
-        while (j < len && (raw[j] === ' ' || raw[j] === '\t')) j++;
-        const after = raw[j];
-        const isClosing =
-          after === ':' || after === ',' || after === '}' || after === ']' ||
-          after === '\n' || after === '\r' || j >= len;
+        while (j < s.length && (s[j] === ' ' || s[j] === '\t' || s[j] === '\r' || s[j] === '\n')) j++;
+        const nextChar = s[j];
 
+        // If inside a key: closing quote MUST be followed by ':'
+        if (isKey) {
+          if (nextChar === ':') {
+            inString = false;
+            isKey = false;
+            out.push('"');
+            continue;
+          } else {
+            out.push('\\"');
+            continue;
+          }
+        }
+
+        // If inside a value: closing quote MUST be followed by ',', '}', ']', or end of text
+        const isClosing = nextChar === ',' || nextChar === '}' || nextChar === ']' || j >= s.length;
         if (isClosing) {
-          // This is the real closing delimiter
+          inString = false;
+          isKey = true;
           out.push('"');
-          i++;
-          break;
+          continue;
         } else {
-          // Unescaped double quote inside the string value — escape it
+          // Embedded quote inside code/string value -> escape it
           out.push('\\"');
-          i++;
           continue;
         }
       }
 
-      // Raw control characters inside string values
-      if (c === '\n') { out.push('\\n'); i++; continue; }
-      if (c === '\r') {
-        // Handle \r\n as a single newline
-        if (raw[i + 1] === '\n') i++;
-        out.push('\\n'); i++; continue;
+      // Convert raw newlines and tabs inside strings
+      if (c === '\n') {
+        out.push('\\n');
+        continue;
       }
-      if (c === '\t') { out.push('\\t'); i++; continue; }
+      if (c === '\r') {
+        if (s[i + 1] === '\n') i++;
+        out.push('\\n');
+        continue;
+      }
+      if (c === '\t') {
+        out.push('\\t');
+        continue;
+      }
 
-      // All other characters — safe to copy
       out.push(c);
-      i++;
+      continue;
     }
+
+    // Outside string
+    if (c === '"') {
+      inString = true;
+      out.push('"');
+      continue;
+    }
+
+    if (c === ':') {
+      isKey = false;
+    } else if (c === ',' || c === '{' || c === '[') {
+      isKey = true;
+    }
+
+    out.push(c);
+  }
+
+  if (inString) {
+    out.push('"');
   }
 
   return out.join('');
@@ -284,14 +296,17 @@ function repairTruncatedJson(cleaned: string): string {
   }
 }
 
-// ─── Field-Level Key Extractor ───────────────────────────────────────────────
+// ─── Field-Level Key Extractor & Fallback Parser ─────────────────────────────
+
+export interface ExtractedFile {
+  path: string;
+  content: string;
+  action?: string;
+}
 
 /**
  * Last-resort extraction: pull top-level string field values directly from
- * raw text using a regex that handles multi-line strings. Used when full JSON
- * parsing has failed to avoid hard-throwing on the agent pipeline.
- *
- * Extracts: plan, message, files (as raw string), diff
+ * raw text using regexes that handle multi-line strings and raw arrays.
  */
 export function extractFieldsFromBrokenJson(raw: string): Record<string, string> | null {
   try {
@@ -301,19 +316,161 @@ export function extractFieldsFromBrokenJson(raw: string): Record<string, string>
     const simpleFieldRe = /"(plan|message|diff)"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
     let m: RegExpExecArray | null;
     while ((m = simpleFieldRe.exec(raw)) !== null) {
-      result[m[1]] = m[2].replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"');
+      result[m[1]] = m[2].replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
     }
 
-    // Extract "files" array as raw string for further processing
-    const filesMatch = raw.match(/"files"\s*:\s*(\[[\s\S]*?\])\s*[,}]/);
+    // Extract "files" array as raw string
+    const filesMatch = raw.match(/"files"\s*:\s*(\[[\s\S]*?\])\s*(?:,\s*"[a-zA-Z_]+"|\s*\})/);
     if (filesMatch) {
       result['files_raw'] = filesMatch[1];
+    } else {
+      const looseFilesMatch = raw.match(/"files"\s*:\s*(\[[\s\S]*)/);
+      if (looseFilesMatch) {
+        result['files_raw'] = looseFilesMatch[1];
+      }
     }
 
     return Object.keys(result).length > 0 ? result : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Reliably parses raw files_raw string or recovers file entries even if the array is broken.
+ */
+export function parseFilesRaw(filesRaw: string): ExtractedFile[] {
+  if (!filesRaw || typeof filesRaw !== 'string') return [];
+
+  // Try direct parse
+  try {
+    const parsed = JSON.parse(filesRaw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((f) => f && typeof f.path === 'string' && typeof f.content === 'string');
+    }
+  } catch {
+    // Proceed to repair
+  }
+
+  // Try extractJSON pass
+  try {
+    const cleaned = extractJSON(filesRaw);
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((f) => f && typeof f.path === 'string' && typeof f.content === 'string');
+    }
+  } catch {
+    // Proceed to regex recovery
+  }
+
+  return extractFilesFromBrokenJsonOrText(filesRaw);
+}
+
+/**
+ * Universal fallback file extractor:
+ * Extracts file objects from broken JSON, markdown code fences, comments, or diff blocks.
+ */
+export function extractFilesFromBrokenJsonOrText(
+  raw: string,
+  activeFilePath?: string,
+  knownFilePaths: string[] = []
+): ExtractedFile[] {
+  const files: ExtractedFile[] = [];
+  const seenPaths = new Set<string>();
+
+  const addFile = (path: string, content: string, action: string = 'modify') => {
+    if (!path || !content || content.trim().length === 0) return;
+    const cleanPath = path.trim().replace(/^['"`]|['"`]$/g, '').replace(/^[./\\]+/, '');
+    let finalPath = cleanPath;
+
+    if (!finalPath.startsWith('frontend/') && !finalPath.startsWith('backend/')) {
+      const match = knownFilePaths.find(
+        (p) => p === finalPath || p.endsWith(`/${finalPath}`) || p.split('/').pop() === finalPath
+      );
+      if (match) {
+        finalPath = match;
+      }
+    }
+
+    if (!seenPaths.has(finalPath)) {
+      seenPaths.add(finalPath);
+      files.push({ path: finalPath, content: content.trim(), action });
+    }
+  };
+
+  // Tier 1: JSON file objects with path and content keys
+  const jsonFileRegex = /\{\s*"path"\s*:\s*"([^"]+)"\s*,\s*"content"\s*:\s*"([\s\S]*?)(?="\s*(?:,\s*"action"|\s*\}))\s*(?:,\s*"action"\s*:\s*"([^"]*)")?\s*\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = jsonFileRegex.exec(raw)) !== null) {
+    const filePath = m[1];
+    let content = m[2];
+    const action = m[3] || 'modify';
+    content = content
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r')
+      .replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\');
+    addFile(filePath, content, action);
+  }
+
+  if (files.length > 0) return files;
+
+  // Tier 2: Loose key matching for path and content
+  const looseFileRegex = /"path"\s*:\s*"([^"\r\n]+)"[\s\S]*?"content"\s*:\s*("(?:[^"\\]|\\.)*")/g;
+  while ((m = looseFileRegex.exec(raw)) !== null) {
+    const filePath = m[1];
+    try {
+      const content = JSON.parse(m[2]);
+      addFile(filePath, content, 'modify');
+    } catch {
+      const unescaped = m[2].slice(1, -1).replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      addFile(filePath, unescaped, 'modify');
+    }
+  }
+
+  if (files.length > 0) return files;
+
+  // Tier 3: Markdown code blocks with file path hints in comments or headers
+  const mdCommentBlockRegex = /(?:(?:###|##|#|\*\*|File:?)\s*[`*]?([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)[`*]?\s*\n\s*)?```(?:[a-zA-Z0-9_-]+)?(?:\s+(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+))?\s*(?:\n\s*(?:\/\/|\/\*|#)\s*(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)(?:\s*\*\/)?)?\n([\s\S]*?)```/g;
+  while ((m = mdCommentBlockRegex.exec(raw)) !== null) {
+    const pathHeader = m[1] || m[2] || m[3];
+    const code = m[4];
+    if (pathHeader && code && code.trim().length > 0) {
+      addFile(pathHeader, code, 'modify');
+    }
+  }
+
+  if (files.length > 0) return files;
+
+  // Tier 4: Search/Replace diff blocks
+  if (raw.includes('<<<<<<< SEARCH') && raw.includes('>>>>>>> REPLACE')) {
+    if (activeFilePath) {
+      addFile(activeFilePath, raw, 'modify');
+      return files;
+    }
+    for (const kp of knownFilePaths) {
+      const baseName = kp.split('/').pop()!;
+      if (raw.includes(baseName) || raw.includes(kp)) {
+        addFile(kp, raw, 'modify');
+        return files;
+      }
+    }
+    if (knownFilePaths.length > 0) {
+      addFile(knownFilePaths[0], raw, 'modify');
+      return files;
+    }
+  }
+
+  // Tier 5: Single markdown code block fallback
+  const singleCodeBlockRegex = /```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/;
+  const singleBlock = raw.match(singleCodeBlockRegex);
+  if (singleBlock && singleBlock[1] && singleBlock[1].trim().length > 0) {
+    const target = activeFilePath || (knownFilePaths.length > 0 ? knownFilePaths[0] : 'frontend/src/App.tsx');
+    addFile(target, singleBlock[1], 'modify');
+  }
+
+  return files;
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
