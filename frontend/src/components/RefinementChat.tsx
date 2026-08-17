@@ -176,31 +176,36 @@ export function RefinementChat({
   const anchorBounds = useAnchorBounds(anchorRef, layoutSyncKey);
   const vfs = useVFS();
 
-  // Route incoming agent code patches targeting existing VFS files to stageFileDiff
+  // Buffer code during streaming and stage complete diff to VFS once streaming completes
+  const prevIsRefiningRef = useRef(isRefining);
+
   useEffect(() => {
-    if (!messages || messages.length === 0) return;
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content) {
-      const codeBlockRegex = /```(?:\w+)?\s*(?:\/\/\s*(?:file(?:path)?:?\s*)?([^\n]+))\n([\s\S]*?)```/gi;
-      let match;
-      while ((match = codeBlockRegex.exec(lastMsg.content)) !== null) {
-        const rawPath = match[1]?.trim();
-        const code = match[2]?.trim();
-        if (rawPath && code) {
-          const matchingKey = Object.keys(vfs.files).find(
-            (k) =>
-              k === rawPath ||
-              k.endsWith(`/${rawPath}`) ||
-              rawPath.endsWith(`/${k}`) ||
-              k.split('/').pop() === rawPath
-          );
-          if (matchingKey && vfs.files[matchingKey]) {
-            vfs.stageFileDiff(matchingKey, code);
+    // When refinement finishes (transitions from true to false), parse full buffered code
+    if (prevIsRefiningRef.current && !isRefining && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content) {
+        const codeBlockRegex = /```(?:\w+)?\s*(?:\/\/\s*(?:file(?:path)?:?\s*)?([^\n]+))\n([\s\S]*?)```/gi;
+        let match;
+        while ((match = codeBlockRegex.exec(lastMsg.content)) !== null) {
+          const rawPath = match[1]?.trim();
+          const code = match[2]?.trim();
+          if (rawPath && code) {
+            const matchingKey = Object.keys(vfs.files).find(
+              (k) =>
+                k === rawPath ||
+                k.endsWith(`/${rawPath}`) ||
+                rawPath.endsWith(`/${k}`) ||
+                k.split('/').pop() === rawPath
+            );
+            if (matchingKey && vfs.files[matchingKey]) {
+              vfs.stageFileDiff(matchingKey, code, vfs.files[matchingKey]);
+            }
           }
         }
       }
     }
-  }, [messages, vfs]);
+    prevIsRefiningRef.current = isRefining;
+  }, [isRefining, messages, vfs]);
 
   // Listen for external stage diff window messages
   useEffect(() => {
