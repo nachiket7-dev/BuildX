@@ -7,7 +7,7 @@ import { css } from '@codemirror/lang-css';
 import { json } from '@codemirror/lang-json';
 import { sql } from '@codemirror/lang-sql';
 import { EditorView } from '@codemirror/view';
-import { EditorSelection } from '@codemirror/state';
+import { EditorState, EditorSelection } from '@codemirror/state';
 import { buildxEditorTheme, buildxSyntaxHighlighting, buildxExtensions } from './theme/buildxTheme';
 import type { Blueprint } from '../lib/types';
 import { formatSQL } from '../lib/utils';
@@ -219,6 +219,9 @@ export function CodeStudio({
   // CodeMirror Editor View Reference for Bidirectional Inspection
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const editorViewRef = useRef<EditorView | null>(null);
+  const diffContainerRef = useRef<HTMLDivElement>(null);
+  const diffEditorViewRef = useRef<EditorView | null>(null);
+
 
   const triggerPatchFlash = () => {
     setPatchFlash(true);
@@ -530,6 +533,51 @@ export function CodeStudio({
       if (diffId) setDiffKey(k => k + 1);
     }
   }, [currentStagedDiff]);
+
+
+  // ─── Raw DOM instantiation for CodeMirror 6 Merge View ───────────────────────
+  useEffect(() => {
+    if (isShowingDiff && currentStagedDiff && diffContainerRef.current) {
+      // Clean up previous editor if it exists
+      if (diffEditorViewRef.current) {
+        diffEditorViewRef.current.destroy();
+        diffEditorViewRef.current = null;
+      }
+
+      const state = EditorState.create({
+        doc: currentStagedDiff.incoming,
+        extensions: [
+          ...getLanguageExtension(activeFile?.name || 'file.tsx'),
+          unifiedMergeView({
+            original: currentStagedDiff.original,
+            highlightChanges: true,
+            syntaxHighlightDeletions: true,
+            mergeControls: false,
+            gutter: true,
+          }),
+          cursorInlineDiffTheme,
+          ...buildxExtensions,
+          buildxEditorTheme,
+          EditorView.lineWrapping,
+          EditorState.readOnly.of(true)
+        ]
+      });
+
+      const view = new EditorView({
+        state,
+        parent: diffContainerRef.current
+      });
+
+      diffEditorViewRef.current = view;
+
+      return () => {
+        if (diffEditorViewRef.current) {
+          diffEditorViewRef.current.destroy();
+          diffEditorViewRef.current = null;
+        }
+      };
+    }
+  }, [isShowingDiff, currentStagedDiff, activeFile]);
 
   // ─── Dev Test Diff Trigger ─────────────────────────────────────────────────
   const handleTestDiff = useCallback(() => {
@@ -1024,30 +1072,11 @@ export function CodeStudio({
                 </div>
               </div>
 
-              {/* CodeMirror 6 Unified Merge View Engine */}
-              <div className="flex-1 overflow-hidden relative min-h-0 bg-[#08080c]">
-                <CodeMirror
-                  key={`diff-${activeFile.path}-${diffKey}`}
-                  value={currentStagedDiff.incoming}
-                  height="100%"
-                  theme={buildxEditorTheme}
-                  extensions={[
-                    ...languageExts,
-                    unifiedMergeView({
-                      original: currentStagedDiff.original,
-                      highlightChanges: true,
-                      syntaxHighlightDeletions: true,
-                      mergeControls: false,
-                      gutter: true,
-                    }),
-                    cursorInlineDiffTheme,
-                    ...buildxExtensions,
-                    EditorView.lineWrapping,
-                  ]}
-                  editable={false}
-                  className="h-full text-xs font-mono"
-                />
-              </div>
+              {/* CodeMirror 6 Unified Merge View Engine - Raw DOM Mount */}
+              <div
+                className="flex-1 overflow-auto relative min-h-0 bg-[#08080c] [&>.cm-editor]:h-full [&>.cm-editor]:text-xs [&>.cm-editor]:font-mono"
+                ref={diffContainerRef}
+              />
             </div>
           ) : activeFile ? (
             /* ─── Standard CodeMirror 6 Live Editor ─── */
