@@ -41,6 +41,49 @@ export const buildxEditorTheme = EditorView.theme(
     '.cm-scroller': {
       overflow: 'auto',
     },
+
+    // ─── CodeMirror 6 Merge Visual Styles (Cursor-Style Inline Diff) ───────
+    '&.cm-editor .cm-merge-inserted, &.cm-editor .cm-insertedLine, .cm-insertedLine, .cm-merge-b .cm-insertedLine': {
+      backgroundColor: 'rgba(16, 185, 129, 0.15) !important',
+      color: '#34D399 !important',
+    },
+    '&.cm-editor .cm-insertedText, .cm-insertedText': {
+      backgroundColor: 'rgba(16, 185, 129, 0.28) !important',
+      color: '#34D399 !important',
+    },
+    '&.cm-editor .cm-merge-deleted, &.cm-editor .cm-deletedLine, .cm-deletedLine, .cm-deletedChunk, .cm-merge-b .cm-deletedLine': {
+      backgroundColor: 'rgba(239, 68, 68, 0.15) !important',
+      color: '#F87171 !important',
+      textDecoration: 'line-through !important',
+    },
+    '&.cm-editor .cm-deletedText, .cm-deletedText': {
+      backgroundColor: 'rgba(239, 68, 68, 0.28) !important',
+      color: '#F87171 !important',
+      textDecoration: 'line-through !important',
+    },
+    '&.cm-editor .cm-changedLine, .cm-changedLine': {
+      backgroundColor: 'rgba(16, 185, 129, 0.12) !important',
+    },
+    '&.cm-editor .cm-changedText, .cm-changedText': {
+      backgroundColor: 'rgba(16, 185, 129, 0.25) !important',
+    },
+    '.cm-deletedChunk': {
+      borderLeft: '3px solid #ef4444 !important',
+      backgroundColor: 'rgba(239, 68, 68, 0.08) !important',
+    },
+    '.cm-insertedChunk': {
+      borderLeft: '3px solid #10b981 !important',
+      backgroundColor: 'rgba(16, 185, 129, 0.08) !important',
+    },
+    '.cm-changeGutter, .cm-changedLineGutter': {
+      width: '4px',
+    },
+    '.cm-insertedLineGutter': {
+      backgroundColor: 'rgba(16, 185, 129, 0.4) !important',
+    },
+    '.cm-deletedLineGutter': {
+      backgroundColor: 'rgba(239, 68, 68, 0.4) !important',
+    },
   },
   { dark: true }
 );

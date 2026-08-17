@@ -25,6 +25,7 @@ export interface StagedDiff {
 interface VFSContextType {
   files: Record<string, string>;
   committedFiles: Record<string, string>;
+  pendingDiff: StagedDiff | null;
   pendingDiffs: Record<string, PendingDiff>;
   stagedDiffs: Record<string, StagedDiff>;
   fileList: VFSFile[];
@@ -50,6 +51,7 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [files, setFiles] = useState<Record<string, string>>({});
+  const [pendingDiff, setPendingDiff] = useState<StagedDiff | null>(null);
   const [pendingDiffs, setPendingDiffs] = useState<Record<string, PendingDiff>>({});
   const [stagedDiffs, setStagedDiffs] = useState<Record<string, StagedDiff>>({});
   const [fileList, setFileList] = useState<VFSFile[]>([]);
@@ -174,6 +176,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       incoming: incomingCode,
       filePath: path,
     };
+    setPendingDiff(diffObj);
     setStagedDiffs(prev => ({ ...prev, [path]: diffObj }));
     setPendingDiffs(prev => ({ ...prev, [path]: { original: orig, modified: incomingCode, filePath: path } }));
     setActiveFilePath(path);
@@ -183,10 +186,16 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const diffObj: PendingDiff = typeof diff === 'string'
       ? { original: files[path] || '', modified: diff }
       : diff;
+    const staged: StagedDiff = {
+      original: diffObj.original,
+      incoming: diffObj.modified,
+      filePath: path,
+    };
+    setPendingDiff(staged);
     setPendingDiffs(prev => ({ ...prev, [path]: diffObj }));
     setStagedDiffs(prev => ({
       ...prev,
-      [path]: { original: diffObj.original, incoming: diffObj.modified, filePath: path },
+      [path]: staged,
     }));
     setActiveFilePath(path);
   }, [files]);
@@ -194,7 +203,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const acceptDiff = useCallback(async (blueprintIdOrPath: string, pathParam?: string): Promise<void> => {
     const path = pathParam || blueprintIdOrPath;
     const blueprintId = pathParam ? blueprintIdOrPath : undefined;
-    const staged = stagedDiffs[path] || (pendingDiffs[path] ? { original: pendingDiffs[path].original, incoming: pendingDiffs[path].modified } : undefined);
+    const staged = stagedDiffs[path] || (pendingDiffs[path] ? { original: pendingDiffs[path].original, incoming: pendingDiffs[path].modified } : undefined) || (pendingDiff?.filePath === path ? pendingDiff : undefined);
     if (!staged) return;
 
     try {
@@ -230,11 +239,12 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         delete copy[path];
         return copy;
       });
+      setPendingDiff(prev => (prev?.filePath === path ? null : prev));
     } catch (err) {
       console.error('[VFSContext] Failed to accept and persist diff', err);
       throw err;
     }
-  }, [stagedDiffs, pendingDiffs]);
+  }, [stagedDiffs, pendingDiffs, pendingDiff]);
 
   const rejectDiff = useCallback((path: string) => {
     setStagedDiffs(prev => {
@@ -247,11 +257,13 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       delete copy[path];
       return copy;
     });
+    setPendingDiff(prev => (prev?.filePath === path ? null : prev));
   }, []);
 
   const clearAllDiffs = useCallback(() => {
     setStagedDiffs({});
     setPendingDiffs({});
+    setPendingDiff(null);
   }, []);
 
   const enhanceUi = useCallback(async (blueprintId: string): Promise<Record<string, string>> => {
@@ -299,6 +311,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         files,
         committedFiles: files,
+        pendingDiff,
         pendingDiffs,
         stagedDiffs,
         fileList,

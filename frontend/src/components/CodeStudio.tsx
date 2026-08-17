@@ -960,7 +960,7 @@ export function CodeStudio({
                     title="Accept Changes (⌘+Enter)"
                   >
                     <CheckCircle2 size={13} />
-                    <span>[ ⌘Enter Accept ]</span>
+                    <span>[ ⌘Enter Accept Changes ]</span>
                   </button>
                   <button
                     type="button"
