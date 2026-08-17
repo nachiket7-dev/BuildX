@@ -6,7 +6,7 @@ import {
 } from '@codesandbox/sandpack-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVFS } from '../context/VFSContext';
-import { AlertCircle, AlertTriangle, Loader2, Wand2, Zap, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Loader2, Wand2, Zap, X, Crosshair } from 'lucide-react';
 import { SchemaUISynthesizer } from './preview/SchemaUISynthesizer';
 import type { LayoutParadigm, ProductArchetype, Blueprint } from '../lib/types';
 
@@ -109,6 +109,79 @@ function SandpackErrorBridge({
   return null;
 }
 
+/**
+ * Resolves source file & matching line number by scanning VFS files for JSX tags,
+ * text snippets, IDs, classes, or attributes.
+ */
+function resolveSourceLocation(
+  files: Record<string, string>,
+  element: {
+    tagName?: string;
+    textContent?: string;
+    id?: string;
+    className?: string;
+    placeholder?: string;
+    title?: string;
+    ariaLabel?: string;
+  }
+): { targetFile: string; targetLine: number } | null {
+  const text = element.textContent?.trim();
+  const candidates: string[] = [];
+
+  if (text && text.length >= 2) {
+    candidates.push(text);
+  }
+  if (element.placeholder) {
+    candidates.push(`placeholder="${element.placeholder}"`);
+    candidates.push(`placeholder='${element.placeholder}'`);
+    candidates.push(element.placeholder);
+  }
+  if (element.ariaLabel) {
+    candidates.push(`aria-label="${element.ariaLabel}"`);
+    candidates.push(element.ariaLabel);
+  }
+  if (element.title) {
+    candidates.push(`title="${element.title}"`);
+  }
+  if (element.id) {
+    candidates.push(`id="${element.id}"`);
+    candidates.push(`id='${element.id}'`);
+  }
+  if (element.className && typeof element.className === 'string') {
+    const classTokens = element.className
+      .split(/\s+/)
+      .filter((c) => c.length > 5 && !c.includes(':') && !c.startsWith('hover:'));
+    if (classTokens.length > 0) {
+      candidates.push(classTokens[0]);
+    }
+  }
+  if (element.tagName && element.tagName !== 'div' && element.tagName !== 'span') {
+    candidates.push(`<${element.tagName}`);
+  }
+
+  // Filter code files in VFS
+  const codeEntries = Object.entries(files).filter(
+    ([p]) =>
+      !p.endsWith('.sql') &&
+      !p.endsWith('.md') &&
+      !p.endsWith('.json') &&
+      p !== 'preview.html'
+  );
+
+  for (const cand of candidates) {
+    if (!cand || cand.length < 2) continue;
+    for (const [filePath, content] of codeEntries) {
+      const idx = content.indexOf(cand);
+      if (idx !== -1) {
+        const line = content.substring(0, idx).split('\n').length;
+        return { targetFile: filePath, targetLine: line };
+      }
+    }
+  }
+
+  return null;
+}
+
 export function LivePreview({
   files: propFiles,
   activeFilePath: propActiveFilePath,
@@ -126,6 +199,7 @@ export function LivePreview({
   const activeFilePath = propActiveFilePath || vfs.activeFilePath;
 
   const [activeError, setActiveError] = useState<string | null>(null);
+  const [isInspectMode, setIsInspectMode] = useState<boolean>(false);
 
   // Resolve layout paradigm (explicit prop, blueprint property, or inferred)
   const layoutParadigm = useMemo(() => {
@@ -191,6 +265,73 @@ export function LivePreview({
     );
   }, [activeError, onPromptAgent]);
 
+  // Sync inspect mode to preview iframes
+  useEffect(() => {
+    const iframes = document.querySelectorAll('iframe');
+    iframes.forEach((ifr) => {
+      try {
+        ifr.contentWindow?.postMessage(
+          {
+            type: 'BUILDX_SET_INSPECT_MODE',
+            active: isInspectMode,
+          },
+          '*'
+        );
+      } catch (err) {
+        // ignore cross-origin if any
+      }
+    });
+  }, [isInspectMode]);
+
+  // Listen for inspected element clicks from preview iframe
+  useEffect(() => {
+    const handleElementClick = (event: MessageEvent) => {
+      if (event.data?.type === 'BUILDX_PREVIEW_ELEMENT_CLICK' && event.data.element) {
+        const el = event.data.element;
+        setIsInspectMode(false);
+
+        // Resolve source location by scanning files
+        const resolved = resolveSourceLocation(files, el);
+        if (resolved) {
+          // Switch active file in VFS if needed
+          vfs.setActiveFile?.(resolved.targetFile);
+
+          // Broadcast target file & line to CodeStudio
+          window.postMessage(
+            {
+              type: 'BUILDX_INSPECT_CODE_TARGET',
+              targetFile: resolved.targetFile,
+              targetLine: resolved.targetLine,
+              element: el,
+            },
+            '*'
+          );
+          window.dispatchEvent(
+            new CustomEvent('buildx:inspect_target', {
+              detail: {
+                targetFile: resolved.targetFile,
+                targetLine: resolved.targetLine,
+                element: el,
+              },
+            })
+          );
+        } else {
+          // Fallback: dispatch element click event
+          window.postMessage(
+            {
+              type: 'buildx:preview-element-click',
+              element: el,
+            },
+            '*'
+          );
+        }
+      }
+    };
+
+    window.addEventListener('message', handleElementClick);
+    return () => window.removeEventListener('message', handleElementClick);
+  }, [files, vfs]);
+
   // Convert the VFS files dictionary into Sandpack's required structure
   const sandpackFiles = useMemo(() => {
     const fileEntries = Object.entries(files || {}).filter(
@@ -216,7 +357,84 @@ export function LivePreview({
       acc['/App.tsx'] = { code: acc['/src/App.jsx'].code };
     }
 
-    // Default HTML with Tailwind CSS CDN for instant styling
+    const inspectorScript = `
+    <script>
+      (function() {
+        let isInspectActive = false;
+        let hoveredEl = null;
+
+        window.addEventListener('message', function(e) {
+          if (e.data && e.data.type === 'BUILDX_SET_INSPECT_MODE') {
+            isInspectActive = Boolean(e.data.active);
+            if (!isInspectActive && hoveredEl) {
+              hoveredEl.style.outline = '';
+              hoveredEl.style.outlineOffset = '';
+              hoveredEl.style.cursor = '';
+              hoveredEl = null;
+            }
+          }
+        });
+
+        document.addEventListener('mouseover', function(e) {
+          if (!isInspectActive) return;
+          const target = e.target;
+          if (!target || target === document.body || target === document.documentElement) return;
+          if (hoveredEl && hoveredEl !== target) {
+            hoveredEl.style.outline = '';
+            hoveredEl.style.outlineOffset = '';
+            hoveredEl.style.cursor = '';
+          }
+          hoveredEl = target;
+          hoveredEl.style.outline = '2px solid #38BDF8';
+          hoveredEl.style.outlineOffset = '1px';
+          hoveredEl.style.cursor = 'crosshair';
+        }, true);
+
+        document.addEventListener('mouseout', function(e) {
+          if (!isInspectActive) return;
+          const target = e.target;
+          if (target && target.style) {
+            target.style.outline = '';
+            target.style.outlineOffset = '';
+            target.style.cursor = '';
+          }
+        }, true);
+
+        document.addEventListener('click', function(e) {
+          if (!isInspectActive) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const target = e.target;
+          if (!target) return;
+
+          if (target.style) {
+            target.style.outline = '';
+            target.style.outlineOffset = '';
+            target.style.cursor = '';
+          }
+
+          const payload = {
+            tagName: target.tagName ? target.tagName.toLowerCase() : '',
+            textContent: (target.textContent || '').trim().slice(0, 80),
+            id: target.id || '',
+            className: typeof target.className === 'string' ? target.className : '',
+            placeholder: target.getAttribute ? target.getAttribute('placeholder') || '' : '',
+            title: target.getAttribute ? target.getAttribute('title') || '' : '',
+            ariaLabel: target.getAttribute ? target.getAttribute('aria-label') || '' : '',
+            name: target.getAttribute ? target.getAttribute('name') || '' : '',
+            href: target.getAttribute ? target.getAttribute('href') || '' : '',
+          };
+
+          window.parent.postMessage({
+            type: 'BUILDX_PREVIEW_ELEMENT_CLICK',
+            element: payload
+          }, '*');
+        }, true);
+      })();
+    </script>
+    `;
+
+    // Default HTML with Tailwind CSS CDN for instant styling + Click-to-Code inspector
     if (!acc['/public/index.html'] && !acc['/index.html']) {
       acc['/public/index.html'] = {
         code: `<!DOCTYPE html>
@@ -235,6 +453,7 @@ export function LivePreview({
   </head>
   <body class="bg-[#09090b] text-zinc-100 min-h-screen">
     <div id="root"></div>
+    ${inspectorScript}
   </body>
 </html>`,
       };
@@ -246,7 +465,7 @@ export function LivePreview({
         (k) => (k.endsWith('.tsx') || k.endsWith('.jsx')) && !k.includes('index') && !k.includes('main')
       );
       if (candidateKey) {
-        acc['/App.tsx'] = { code: acc[candidateKey].code };
+        acc['/App.tsx'] = { code: candidateKey ? acc[candidateKey].code : '' };
       } else {
         acc['/App.tsx'] = {
           code: `import React from 'react';
@@ -309,21 +528,39 @@ export default function App() {
           )}
         </div>
 
-        {/* Viewport Switcher */}
-        <div className="flex items-center gap-1 bg-[#121216] rounded-xl p-1 border border-white/10">
-          {VIEWPORTS.map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => setSelectedViewport(id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${
-                selectedViewport === id
-                  ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 font-semibold'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Right Action Rail: Inspect Toggle & Viewport Switcher */}
+        <div className="flex items-center gap-2">
+          {/* Visual Inspect Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsInspectMode((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold border transition-all ${
+              isInspectMode
+                ? 'bg-sky-500/20 text-sky-300 border-sky-500/50 shadow-sm shadow-sky-500/20 ring-1 ring-sky-400/40 animate-pulse'
+                : 'bg-[#121216] text-zinc-400 border-white/10 hover:text-white hover:bg-white/5'
+            }`}
+            title="Click any element in preview to jump to its source code in Code Studio"
+          >
+            <Crosshair size={13} className={isInspectMode ? 'text-sky-400' : 'text-zinc-400'} />
+            <span>[ 🎯 Inspect ]</span>
+          </button>
+
+          {/* Viewport Switcher */}
+          <div className="flex items-center gap-1 bg-[#121216] rounded-xl p-1 border border-white/10">
+            {VIEWPORTS.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setSelectedViewport(id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${
+                  selectedViewport === id
+                    ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 font-semibold'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -350,7 +587,13 @@ export default function App() {
               <span className="truncate">{appName || 'buildx-app'}.local.dev</span>
             </div>
           </div>
-          <div className="w-[56px]" />
+          <div className="flex items-center justify-end w-[90px]">
+            {isInspectMode && (
+              <span className="text-[10px] font-mono text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 animate-pulse">
+                Click element
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Canvas Display */}
