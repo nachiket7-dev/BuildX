@@ -4733,3 +4733,52 @@
     transform: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CodeMirror 6 Inline Diff Highlighting Overrides (Global)
+   Forces high-contrast green additions & red deletions on Obsidian dark theme.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.cm-merge-b,
+.cm-insertedLine,
+.cm-change-b {
+  background-color: rgba(16, 185, 129, 0.25) !important;
+  color: #34D399 !important;
+}
+
+.cm-merge-a,
+.cm-deletedLine,
+.cm-change-a {
+  background-color: rgba(239, 68, 68, 0.25) !important;
+  color: #F87171 !important;
+  text-decoration: line-through !important;
+}
+
+.cm-changedLine {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+
+.cm-changedText {
+  background-color: rgba(16, 185, 129, 0.28) !important;
+  color: #34D399 !important;
+}
+
+.cm-deletedChunk {
+  background-color: rgba(239, 68, 68, 0.18) !important;
+  border-left: 3px solid #ef4444 !important;
+  text-decoration: line-through !important;
+  color: #F87171 !important;
+}
+
+.cm-insertedChunk {
+  border-left: 3px solid #10b981 !important;
+}
+
+.cm-merge-gutter-b,
+.cm-gutterElement.cm-insertedLine {
+  background-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+.cm-merge-gutter-a,
+.cm-gutterElement.cm-deletedLine {
+  background-color: rgba(239, 68, 68, 0.4) !important;
+}
