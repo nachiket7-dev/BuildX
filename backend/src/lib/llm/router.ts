@@ -12,19 +12,21 @@ const DEFAULT_MODEL = DEFAULT_MODEL_KEY;
 export const GPT_OSS_FRONTEND_ID = 'gpt-oss-120b';
 export const GPT_OSS_MODEL_ID = 'openai/gpt-oss-120b';
 
-/** Primary models exposed in the UI (6 total) */
+/** Primary models exposed in the UI (7 total) */
 export const PRIMARY_MODEL_KEYS = [
   'gemini-3.5-flash',
   'gemini-3.1-pro',
+  'kimi-k3',
+  'glm-5.2',
+  'nemotron-3-550b',
   'qwen-3-32b',
   'gpt-oss-120b',
-  'nemotron-3-550b',
-  'kimi-k2.6',
-  'glm-5.2',
 ] as const;
 
 /** Legacy keys stored in DB / localStorage → current primary key */
 export const LEGACY_MODEL_ALIASES: Record<string, string> = {
+  'kimi-k2.6':             'kimi-k3',
+  'moonshotai/kimi-k2.6':  'kimi-k3',
   'llama-3.1-8b':          'gemini-3.5-flash',
   'llama-3.1-8b-instant':  'gemini-3.5-flash',
   'llama-3.3-70b':         'gemini-3.5-flash',
@@ -41,7 +43,7 @@ export const LEGACY_MODEL_ALIASES: Record<string, string> = {
 
 // ─── Subagent Specialized Model Constants ───────────────────────────────────
 export const PLANNER_MODEL = 'nemotron-3-550b';
-export const PATCH_MODEL = 'kimi-k2.6';
+export const PATCH_MODEL = 'kimi-k3';
 export const INGEST_MODEL = 'glm-5.2';
 export const VERIFIER_MODEL = 'gemini-3.5-flash';
 
@@ -63,9 +65,9 @@ export const MODEL_MAP: Record<string, { provider: string; modelId: string }> = 
   // NVIDIA NIM — Nemotron 3 Super 120B (lighter; available on free NVIDIA tier)
   'nemotron-3-super-120b':{ provider: 'nvidia',     modelId: 'nvidia/nemotron-3-super-120b-a12b' },
 
-  // OpenRouter — Moonshot Kimi K2.6 & K3 (Reasoning & Code synthesis)
+  // Moonshot Kimi K3 (NVIDIA NIM / OpenRouter)
+  'kimi-k3':              { provider: 'nvidia',     modelId: 'moonshotai/kimi-k3' },
   'kimi-k2.6':            { provider: 'openrouter', modelId: 'moonshotai/kimi-k2.6' },
-  'kimi-k3':              { provider: 'openrouter', modelId: 'moonshotai/kimi-k3' },
 
   // OpenRouter — GLM 5.2 (Deep context & Ingestion)
   'glm-5.2':              { provider: 'openrouter', modelId: 'z-ai/glm-5.2' },
@@ -145,15 +147,15 @@ export function getFriendlyModelName(modelKey?: string): string {
     case 'nemotron-3-super-120b':
     case 'nvidia/nemotron-3-super-120b-a12b':
       return 'Nemotron 3 Super 120B';
-    case 'kimi-k2.6':
-    case 'moonshotai/kimi-k2.6':
-      return 'Kimi K2.6 (OpenRouter)';
     case 'kimi-k3':
     case 'moonshotai/kimi-k3':
-      return 'Kimi K3 (OpenRouter)';
+      return 'Kimi K3';
+    case 'kimi-k2.6':
+    case 'moonshotai/kimi-k2.6':
+      return 'Kimi K2.6';
     case 'glm-5.2':
     case 'z-ai/glm-5.2':
-      return 'GLM 5.2 (OpenRouter)';
+      return 'GLM 5.2';
     case 'gpt-oss-120b':
     case 'openai/gpt-oss-120b':
       return 'GPT-OSS 120B';

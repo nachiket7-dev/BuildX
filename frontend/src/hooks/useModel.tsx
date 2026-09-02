@@ -3,34 +3,39 @@ import { fetchLlmProviderHealth } from '../lib/api';
 
 /** Supported models — must stay in sync with backend MODEL_MAP primary keys */
 export const AVAILABLE_MODELS = [
-  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', badge: 'Ultra Fast',        provider: 'gemini' as const },
-  { id: 'gemini-3.1-pro',   label: 'Gemini 3.1 Pro',   badge: 'Coding Expert',     provider: 'gemini' as const },
-  { id: 'qwen-3-32b',       label: 'Qwen 3 32B',       badge: 'Coding Pro',        provider: 'groq'   as const },
-  { id: 'gpt-oss-120b',     label: 'GPT-OSS 120B',     badge: 'Premium (5/day)',   provider: 'groq'   as const },
-  { id: 'nemotron-3-550b',  label: 'Nemotron-3 Ultra', badge: '550B · Reasoning', provider: 'nvidia' as const },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', badge: 'Ultra Fast',        provider: 'gemini'     as const },
+  { id: 'gemini-3.1-pro',   label: 'Gemini 3.1 Pro',   badge: 'Coding Expert',     provider: 'gemini'     as const },
+  { id: 'kimi-k3',          label: 'Kimi K3',          badge: 'Reasoning & Code',  provider: 'nvidia'     as const },
+  { id: 'glm-5.2',          label: 'GLM 5.2',          badge: 'Ingest & Context',  provider: 'openrouter' as const },
+  { id: 'nemotron-3-550b',  label: 'Nemotron-3 Ultra', badge: '550B · Reasoning', provider: 'nvidia'     as const },
+  { id: 'qwen-3-32b',       label: 'Qwen 3 32B',       badge: 'Coding Pro',        provider: 'groq'       as const },
+  { id: 'gpt-oss-120b',     label: 'GPT-OSS 120B',     badge: 'Premium (5/day)',   provider: 'groq'       as const },
 ] as const;
 
 export type ModelId = typeof AVAILABLE_MODELS[number]['id'];
 
 export const MODEL_PROVIDER_LABELS: Record<string, string> = {
-  groq:   'Groq — Fast & Free',
-  gemini: 'Google AI Studio — Free',
-  nvidia: 'NVIDIA NIM',
+  gemini:     'Google AI Studio — Free',
+  nvidia:     'NVIDIA NIM',
+  openrouter: 'OpenRouter',
+  groq:       'Groq — Fast & Free',
 };
 
 /** Maps old localStorage / saved blueprint keys to current model IDs */
 export const LEGACY_MODEL_ALIASES: Record<string, ModelId> = {
-  'llama-3.1-8b':           'gemini-3.5-flash',
-  'llama-3.1-8b-instant':   'gemini-3.5-flash',
-  'llama-3.3-70b':          'gemini-3.5-flash',
-  'llama-3.3-70b-versatile': 'gemini-3.5-flash',
-  'llama3-70b-8192':        'gemini-3.5-flash',
-  'llama3-8b-8192':         'gemini-3.5-flash',
-  'gemini-2.5-flash':       'gemini-3.5-flash',
-  'gemini-2.5-pro':         'gemini-3.1-pro',
-  'gemini-3.0-flash':       'gemini-3.5-flash',
-  'gemini-3.0-pro':         'gemini-3.1-pro',
-  'gemini-3-flash-preview': 'gemini-3.5-flash',
+  'kimi-k2.6':             'kimi-k3',
+  'moonshotai/kimi-k2.6':  'kimi-k3',
+  'llama-3.1-8b':          'gemini-3.5-flash',
+  'llama-3.1-8b-instant':  'gemini-3.5-flash',
+  'llama-3.3-70b':         'gemini-3.5-flash',
+  'llama-3.3-70b-versatile':'gemini-3.5-flash',
+  'llama3-70b-8192':       'gemini-3.5-flash',
+  'llama3-8b-8192':        'gemini-3.5-flash',
+  'gemini-2.5-flash':      'gemini-3.5-flash',
+  'gemini-2.5-pro':        'gemini-3.1-pro',
+  'gemini-3.0-flash':      'gemini-3.5-flash',
+  'gemini-3.0-pro':        'gemini-3.1-pro',
+  'gemini-3-flash-preview':'gemini-3.5-flash',
 };
 
 interface ModelContextType {

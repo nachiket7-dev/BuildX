@@ -130,7 +130,7 @@ test('unified router fails over immediately on a rate-limited preferred model', 
 
   assert.equal(result.text, 'fallback response');
   assert.equal(result.usedFallback, true);
-  assert.deepEqual(calls, ['gemini-3.5-flash', 'kimi-k2.6']);
+  assert.deepEqual(calls, ['gemini-3.5-flash', 'kimi-k3']);
   assert.equal(await isModelCoolingDown('gemini-3.5-flash'), true);
   await resetAllCooldowns();
 });

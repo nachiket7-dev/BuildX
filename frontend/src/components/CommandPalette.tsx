@@ -188,12 +188,12 @@ const MODEL_ITEMS: CommandItem[] = [
   },
   {
     id: 'model-kimi',
-    label: 'Switch to Kimi K2.6',
-    description: 'Moonshot AI — Precision code synthesis',
+    label: 'Switch to Kimi K3',
+    description: 'Moonshot AI — Precision code synthesis & reasoning',
     category: 'model',
     icon: <Cpu size={14} className="text-violet-400" />,
-    action: { type: 'model', modelKey: 'kimi-k2.6' },
-    keywords: ['kimi', 'moonshot', 'code', 'synthesis'],
+    action: { type: 'model', modelKey: 'kimi-k3' },
+    keywords: ['kimi', 'k3', 'moonshot', 'code', 'synthesis', 'reasoning'],
   },
   {
     id: 'model-glm',

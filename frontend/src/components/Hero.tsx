@@ -37,10 +37,10 @@ const rightColVariants = slideFromRight;
 // ─── Simulated Multi-Model Pipeline Widget ───────────────────────────────────
 
 const HERO_PIPELINE_STAGES = [
-  { id: 'plan',   label: 'Gemini Flash',  role: 'PLANNING',        icon: Bot,       color: 'indigo' },
-  { id: 'ingest', label: 'GLM-5.2',       role: 'INGESTION',       icon: Zap,       color: 'blue'   },
-  { id: 'diff',   label: 'Gemini Flash',  role: 'DIFF_GENERATION', icon: GitBranch, color: 'purple' },
-  { id: 'fix',    label: 'Gemini Flash',  role: 'AUTO_FIX',        icon: Shield,    color: 'emerald'},
+  { id: 'plan',   label: 'Nemotron 3 Ultra', role: 'PLANNING',        icon: Bot,       color: 'indigo' },
+  { id: 'ingest', label: 'GLM-5.2',          role: 'INGESTION',       icon: Zap,       color: 'blue'   },
+  { id: 'diff',   label: 'Kimi K3',          role: 'DIFF_GENERATION', icon: GitBranch, color: 'purple' },
+  { id: 'fix',    label: 'Gemini 3.5 Flash', role: 'AUTO_FIX',        icon: Shield,    color: 'emerald'},
 ] as const;
 
 const STREAM_LINES = [

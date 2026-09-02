@@ -106,6 +106,7 @@ function formatAgentModelName(modelKey?: string): string {
     'nemotron-3-super-120b': 'Nemotron 3 Super',
     'nemotron-3-550b': 'Nemotron 3 Ultra',
     'nemotron-3-ultra-550b': 'Nemotron 3 Ultra',
+    'kimi-k3': 'Kimi K3',
     'kimi-k2.6': 'Kimi K2.6',
     'glm-5.2': 'GLM 5.2',
     'gpt-oss-120b': 'GPT-OSS 120B',
