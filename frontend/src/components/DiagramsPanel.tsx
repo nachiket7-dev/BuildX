@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import type { Blueprint } from '../lib/types';
 import { generateERDiagram, generateArchDiagram, generateAPIFlow } from '../lib/diagrams';

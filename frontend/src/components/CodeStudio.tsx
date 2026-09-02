@@ -8,7 +8,7 @@ import { json } from '@codemirror/lang-json';
 import { sql } from '@codemirror/lang-sql';
 import { EditorView } from '@codemirror/view';
 import { EditorState, EditorSelection } from '@codemirror/state';
-import { buildxEditorTheme, buildxSyntaxHighlighting, buildxExtensions } from './theme/buildxTheme';
+import { buildxEditorTheme, buildxExtensions } from './theme/buildxTheme';
 import type { Blueprint } from '../lib/types';
 import { formatSQL } from '../lib/utils';
 import {
@@ -30,9 +30,8 @@ import {
   CheckCircle2,
   XCircle,
   Wand2,
-  Terminal,
-  MousePointerClick,
-  FlaskConical
+  FlaskConical,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../hooks/useToast';
@@ -221,6 +220,13 @@ export function CodeStudio({
   const editorViewRef = useRef<EditorView | null>(null);
   const diffContainerRef = useRef<HTMLDivElement>(null);
   const diffEditorViewRef = useRef<EditorView | null>(null);
+  const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    return () => {
+      Object.values(saveTimersRef.current).forEach(clearTimeout);
+    };
+  }, []);
 
 
   const triggerPatchFlash = () => {
@@ -257,62 +263,10 @@ export function CodeStudio({
     return result;
   };
 
-  const generateFallbackMongooseCode = (): string => {
-    const schema = blueprint.schema || [];
-    if (schema.length === 0) return '// No schema defined';
-    const lines: string[] = ["const mongoose = require('mongoose');", ''];
-    for (const table of schema) {
-      const modelName =
-        (table.table || 'Model').charAt(0).toUpperCase() +
-        (table.table || 'model').slice(1).replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-      lines.push(`// ── ${modelName} ─────────────────────────`);
-      lines.push(`const ${modelName}Schema = new mongoose.Schema({`);
-      for (const col of table.columns || []) {
-        if (col.name === '_id' || col.name === 'id') continue;
-        const t = col.type.toUpperCase();
-        let mongoType = 'String';
-        if (t.includes('OBJECTID')) mongoType = 'mongoose.Schema.Types.ObjectId';
-        else if (t.includes('INT') || t.includes('FLOAT') || t.includes('DECIMAL') || t === 'NUMBER')
-          mongoType = 'Number';
-        else if (t.includes('BOOL')) mongoType = 'Boolean';
-        else if (t.includes('DATE') || t.includes('TIMESTAMP')) mongoType = 'Date';
-        else if (t.includes('JSON') || t.includes('MIXED')) mongoType = 'mongoose.Schema.Types.Mixed';
-
-        const noteStr = col.note || '';
-        const noteLower = noteStr.toLowerCase();
-        const extras: string[] = [];
-        if (noteLower.includes('unique')) extras.push('unique: true');
-        if (noteLower.includes('required') || noteLower.includes('not null')) extras.push('required: true');
-        const refMatch = noteStr.match(/ref:\s*(\w+)/i);
-        if (refMatch) {
-          const refModel = refMatch[1].charAt(0).toUpperCase() + refMatch[1].slice(1);
-          lines.push(`  ${col.name}: { type: mongoose.Schema.Types.ObjectId, ref: '${refModel}' },`);
-        } else if (extras.length > 0) {
-          lines.push(`  ${col.name}: { type: ${mongoType}, ${extras.join(', ')} },`);
-        } else {
-          lines.push(`  ${col.name}: ${mongoType},`);
-        }
-      }
-      lines.push('}, { timestamps: true });');
-      lines.push('');
-      lines.push(`const ${modelName} = mongoose.model('${modelName}', ${modelName}Schema);`);
-      lines.push('');
-    }
-    const exports = schema.map((t) => {
-      return (
-        (t.table || 'Model').charAt(0).toUpperCase() +
-        (t.table || 'model').slice(1).replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
-      );
-    });
-    lines.push(`module.exports = { ${exports.join(', ')} };`);
-    return lines.join('\n');
-  };
-
   const getSchemaCode = (): string => {
     const raw = unescapeString(blueprint.code?.sql || '');
     if (raw.trim() && raw.trim() !== '-- No SQL generated') return isMongo ? raw : formatSQL(raw);
-    if (isMongo) return generateFallbackMongooseCode();
-    return raw || '-- No SQL generated';
+    return raw || '-- No SQL/Schema defined';
   };
 
   // Merge VFS files and codegen files
@@ -393,6 +347,7 @@ export function CodeStudio({
   const activeFile = files.find((f) => f.path === activeFilePath) || files[0];
 
   // ─── Bidirectional Click-to-Code Visual Inspection Listener ────────────────
+  // ─── Bidirectional Click-to-Code Visual Inspection Listener ────────────────
   useEffect(() => {
     const handleInspectTarget = (targetFile?: string, targetLine?: number, el?: any) => {
       // 1. If targetFile is provided and not currently active, open and select it
@@ -401,7 +356,6 @@ export function CodeStudio({
           setOpenFiles((prev) => [...prev, targetFile]);
         }
         setActiveFilePath(targetFile);
-        vfs.setActiveFile?.(targetFile);
       }
 
       // 2. Scroll and highlight line in CodeMirror 6
@@ -417,6 +371,7 @@ export function CodeStudio({
             scrollIntoView: true,
           });
           view.focus();
+          triggerPatchFlash();
           const fname = (targetFile || activeFilePath || '').split('/').pop() || 'file';
           toast(`Inspected element: jumped to line ${clampedLine} in ${fname}`, 'info');
           return;
@@ -457,6 +412,7 @@ export function CodeStudio({
               scrollIntoView: true,
             });
             view.focus();
+            triggerPatchFlash();
             toast(`Inspected element: "${candidates[0]}"`, 'info');
           }
         }
@@ -464,6 +420,11 @@ export function CodeStudio({
 
       setTimeout(applySelection, 70);
     };
+
+    // Also respond to VFSContext activeFileLine changes
+    if (vfs.activeFilePath && vfs.activeFileLine) {
+      handleInspectTarget(vfs.activeFilePath, vfs.activeFileLine);
+    }
 
     const handleWindowMessage = (event: MessageEvent) => {
       if (event.data?.type === 'BUILDX_INSPECT_CODE_TARGET') {
@@ -488,7 +449,7 @@ export function CodeStudio({
       window.removeEventListener('message', handleWindowMessage);
       window.removeEventListener('buildx:inspect_target', handleCustomInspectEvent);
     };
-  }, [activeFilePath, toast, openFiles, vfs]);
+  }, [activeFilePath, toast, openFiles, vfs.activeFilePath, vfs.activeFileLine]);
 
   // ─── Keyboard Shortcuts for Diff Review (⌘Enter / Esc) ─────────────────────
   const currentStagedDiff = activeFile
@@ -538,11 +499,12 @@ export function CodeStudio({
   // ─── Raw DOM instantiation for CodeMirror 6 Merge View ───────────────────────
   useEffect(() => {
     if (isShowingDiff && currentStagedDiff && diffContainerRef.current) {
-      // Clean up previous editor if it exists
+      // Clean up previous editor and DOM content if it exists
       if (diffEditorViewRef.current) {
         diffEditorViewRef.current.destroy();
         diffEditorViewRef.current = null;
       }
+      diffContainerRef.current.innerHTML = '';
 
       const state = EditorState.create({
         doc: currentStagedDiff.incoming,
@@ -559,13 +521,13 @@ export function CodeStudio({
           ...buildxExtensions,
           buildxEditorTheme,
           EditorView.lineWrapping,
-          EditorState.readOnly.of(true)
-        ]
+          EditorState.readOnly.of(true),
+        ],
       });
 
       const view = new EditorView({
         state,
-        parent: diffContainerRef.current
+        parent: diffContainerRef.current,
       });
 
       diffEditorViewRef.current = view;
@@ -577,15 +539,15 @@ export function CodeStudio({
         }
       };
     }
-  }, [isShowingDiff, currentStagedDiff, activeFile]);
+  }, [isShowingDiff, currentStagedDiff, activeFile, diffKey]);
 
   // ─── Dev Test Diff Trigger ─────────────────────────────────────────────────
   const handleTestDiff = useCallback(() => {
     if (!activeFile) return;
-    const testAddition = '\n// ✅ Test Green Addition Line — delete after verifying inline diff visuals';
+    const testAddition = '\n// Test Green Addition Line — delete after verifying inline diff visuals';
     vfs.stageDiff(activeFile.path, activeFile.content + testAddition);
     setIsDiffMode(true);
-    toast('🧪 Test diff staged — verify green/red highlights below', 'info');
+    toast('Test diff staged — verify green/red highlights below', 'info');
   }, [activeFile, vfs, toast]);
 
   const handleAcceptDiff = useCallback(async () => {
@@ -628,26 +590,13 @@ export function CodeStudio({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentStagedDiff, handleAcceptDiff, handleRejectDiff]);
 
-  // ─── File Open/Close Handlers ──────────────────────────────────────────────
+  // ─── File Open Handler ─────────────────────────────────────────────────────
   const handleOpenFile = (path: string) => {
     if (!openFiles.includes(path)) {
       setOpenFiles((prev) => [...prev, path]);
     }
     setActiveFilePath(path);
     vfs.setActiveFile?.(path);
-  };
-
-  const handleCloseFile = (path: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const filtered = openFiles.filter((p) => p !== path);
-    setOpenFiles(filtered);
-    if (activeFilePath === path) {
-      if (filtered.length > 0) {
-        setActiveFilePath(filtered[filtered.length - 1]);
-      } else {
-        setActiveFilePath('');
-      }
-    }
   };
 
   const handleCopyCode = () => {
@@ -868,8 +817,9 @@ export function CodeStudio({
             </div>
           )
         ) : (
-          <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/25 rounded-xl max-w-sm text-amber-400/90 text-xs font-medium">
-            ⚠️ Save this blueprint to unlock the codebase generator and preview sandbox.
+          <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/25 rounded-xl max-w-sm text-amber-400/90 text-xs font-medium flex items-center gap-2">
+            <AlertTriangle size={15} className="text-amber-400 shrink-0" />
+            <span>Save this blueprint to unlock the codebase generator and preview sandbox.</span>
           </div>
         )}
       </div>
@@ -906,7 +856,23 @@ export function CodeStudio({
   const languageExts = activeFile ? getLanguageExtension(activeFile.name) : [javascript({ jsx: true, typescript: true })];
 
   return (
-    <div className="flex flex-col md:flex-row rounded-xl border border-white/10 bg-[#0e0e14] overflow-hidden h-full w-full select-none">
+    <div className="relative flex flex-col md:flex-row rounded-xl border border-white/10 bg-[#0e0e14] overflow-hidden h-full w-full select-none">
+      {codegenProgress.status === 'error' && codegenProgress.retryable && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-3 py-2 rounded-lg border border-red-500/30 bg-[#160d12]/95 backdrop-blur-xl shadow-xl text-xs max-w-[min(90%,42rem)]">
+          <span className="text-red-300 font-mono truncate">
+            {codegenProgress.partialOutput
+              ? 'Generation stopped after partial output.'
+              : 'Generation failed before the workspace commit.'}
+          </span>
+          <button
+            type="button"
+            onClick={() => generateCode(blueprintId)}
+            className="shrink-0 px-2.5 py-1 rounded-md bg-red-500/15 hover:bg-red-500/25 text-red-200 border border-red-500/30 font-mono"
+          >
+            Retry stage
+          </button>
+        </div>
+      )}
       {/* File Tree Explorer (Left) */}
       <div className="w-full md:w-64 bg-[#09090c] border-b md:border-b-0 md:border-r border-white/10 flex flex-col h-48 md:h-full shrink-0">
         <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2 shrink-0">
@@ -1001,11 +967,11 @@ export function CodeStudio({
             <button
               type="button"
               onClick={handleTestDiff}
-              className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg hover:bg-amber-500/20 hover:text-amber-300 font-mono flex items-center gap-1 transition-colors shrink-0"
+              className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg hover:bg-amber-500/20 hover:text-amber-300 font-mono flex items-center gap-1.5 transition-colors shrink-0"
               title="Test diff visuals with a sample addition"
             >
-              <FlaskConical size={11} />
-              <span>🧪 Test Diff</span>
+              <FlaskConical size={12} />
+              <span>Test Diff</span>
             </button>
             <div className="w-px h-4 bg-white/10 shrink-0" />
             <button
@@ -1058,7 +1024,8 @@ export function CodeStudio({
                     title="Accept Changes (⌘+Enter)"
                   >
                     <CheckCircle2 size={13} />
-                    <span>[ ⌘Enter Accept Changes ]</span>
+                    <span>Accept Changes</span>
+                    <kbd className="text-[10px] opacity-60 font-sans ml-1">⌘Enter</kbd>
                   </button>
                   <button
                     type="button"
@@ -1067,13 +1034,15 @@ export function CodeStudio({
                     title="Reject (Esc)"
                   >
                     <XCircle size={13} />
-                    <span>[ Esc Reject ]</span>
+                    <span>Reject</span>
+                    <kbd className="text-[10px] opacity-60 font-sans ml-1">Esc</kbd>
                   </button>
                 </div>
               </div>
 
               {/* CodeMirror 6 Unified Merge View Engine - Raw DOM Mount */}
               <div
+                key={`diff-${activeFilePath}-${diffKey}`}
                 className="flex-1 overflow-auto relative min-h-0 bg-[#08080c] [&>.cm-editor]:h-full [&>.cm-editor]:text-xs [&>.cm-editor]:font-mono"
                 ref={diffContainerRef}
               />
@@ -1097,7 +1066,15 @@ export function CodeStudio({
                 }}
                 onChange={(val) => {
                   if (blueprintId && activeFile) {
-                    vfs.updateFile(blueprintId, activeFile.path, val);
+                    const path = activeFile.path;
+                    const previousTimer = saveTimersRef.current[path];
+                    if (previousTimer) clearTimeout(previousTimer);
+                    saveTimersRef.current[path] = setTimeout(() => {
+                      delete saveTimersRef.current[path];
+                      vfs.updateFile(blueprintId, path, val).catch((err: Error) => {
+                        toast(err.message || 'Failed to save file changes', 'error');
+                      });
+                    }, 400);
                   }
                 }}
                 className="h-full text-xs font-mono"

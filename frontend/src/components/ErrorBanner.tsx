@@ -1,11 +1,10 @@
-import React from 'react';
-
 interface ErrorBannerProps {
   message: string;
   onDismiss: () => void;
+  onRetry?: () => void;
 }
 
-export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
+export function ErrorBanner({ message, onDismiss, onRetry }: ErrorBannerProps) {
   return (
     <div
       className="mx-6 mb-6 max-w-3xl mx-auto px-5 py-4 rounded-xl flex items-start gap-3 border"
@@ -21,6 +20,14 @@ export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
       <div className="flex-1 text-sm font-mono leading-relaxed">{message}</div>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          className="flex-shrink-0 px-2.5 py-1 rounded-md border border-red-400/30 bg-red-400/10 hover:bg-red-400/20 text-xs font-mono"
+        >
+          Retry
+        </button>
+      )}
       <button
         onClick={onDismiss}
         className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"

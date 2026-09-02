@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { PartialBlueprint, PipelineStage, PipelineStageEvent } from '../lib/types';
 import type { AgentEvent } from '../hooks/useStreamBlueprint';
-import { FileText, Database, Webhook, Palette, Code, ShieldCheck, ChevronDown, ChevronUp, Cpu, Wrench, Brain, Zap, GitCompare } from 'lucide-react';
+import { FileText, Database, Webhook, Palette, Code, ShieldCheck, ChevronUp, Cpu, Wrench, Brain, Zap, GitCompare } from 'lucide-react';
 import { SpotlightCard } from './SpotlightCard';
 import { StreamingSections } from './StreamingSections';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,7 +30,7 @@ const PIPELINE_STAGE_BADGES: Record<
   PLANNING: {
     label: 'PLANNING',
     Icon: Brain,
-    models: 'Nemotron 3 Ultra / GLM-5.2',
+    models: 'Gemini 3.5 Flash / Nemotron Ultra',
     color: 'text-purple-400',
     border: 'border-purple-500/40',
     bg: 'bg-purple-500/10',
@@ -39,7 +39,7 @@ const PIPELINE_STAGE_BADGES: Record<
   INGESTION: {
     label: 'INGESTION',
     Icon: Zap,
-    models: 'Gemini 3.5 Flash / GLM-5.2',
+    models: 'GLM 5.2 / Gemini 3.5 Flash',
     color: 'text-sky-400',
     border: 'border-sky-500/40',
     bg: 'bg-sky-500/10',
@@ -48,7 +48,7 @@ const PIPELINE_STAGE_BADGES: Record<
   DIFF_GENERATION: {
     label: 'DIFF GENERATION',
     Icon: GitCompare,
-    models: 'Z-AI GLM-5.2 / Gemini 3.5 Flash',
+    models: 'Gemini 3.5 Flash / Kimi K2.6',
     color: 'text-emerald-400',
     border: 'border-emerald-500/40',
     bg: 'bg-emerald-500/10',
@@ -57,16 +57,52 @@ const PIPELINE_STAGE_BADGES: Record<
   AUTO_FIX: {
     label: 'AUTO-FIX & QA',
     Icon: Wrench,
-    models: 'Moonshot Kimi K2.6 / GLM-5.2',
+    models: 'Gemini 3.5 Flash / Kimi K2.6',
     color: 'text-amber-400',
     border: 'border-amber-500/40',
     bg: 'bg-amber-500/10',
     glow: 'shadow-amber-500/20',
   },
+  SCHEMA_VERIFIER: {
+    label: 'SCHEMA VERIFIER',
+    Icon: ShieldCheck,
+    models: 'Gemini 3.5 Flash / Qwen 3.6',
+    color: 'text-orange-400',
+    border: 'border-orange-500/40',
+    bg: 'bg-orange-500/10',
+    glow: 'shadow-orange-500/20',
+  },
+  CODE_GENERATION: {
+    label: 'CODE GENERATION',
+    Icon: Code,
+    models: 'Gemini 3.5 Flash / Kimi K2.6',
+    color: 'text-cyan-400',
+    border: 'border-cyan-500/40',
+    bg: 'bg-cyan-500/10',
+    glow: 'shadow-cyan-500/20',
+  },
+  REFINEMENT: {
+    label: 'REFINEMENT',
+    Icon: Brain,
+    models: 'Gemini 3.5 Flash / Kimi K2.6',
+    color: 'text-violet-400',
+    border: 'border-violet-500/40',
+    bg: 'bg-violet-500/10',
+    glow: 'shadow-violet-500/20',
+  },
+  PREVIEW_GENERATION: {
+    label: 'PREVIEW GENERATION',
+    Icon: Palette,
+    models: 'Gemini 3.5 Flash / Kimi K2.6',
+    color: 'text-fuchsia-400',
+    border: 'border-fuchsia-500/40',
+    bg: 'bg-fuchsia-500/10',
+    glow: 'shadow-fuchsia-500/20',
+  },
 };
 
 // Stage ordering for isDone logic
-const STAGE_ORDER: PipelineStage[] = ['PLANNING', 'INGESTION', 'DIFF_GENERATION', 'AUTO_FIX'];
+const STAGE_ORDER: PipelineStage[] = ['PLANNING', 'INGESTION', 'DIFF_GENERATION', 'AUTO_FIX', 'SCHEMA_VERIFIER', 'CODE_GENERATION', 'REFINEMENT', 'PREVIEW_GENERATION'];
 
 export function StreamingView({
   progress,
@@ -392,9 +428,9 @@ export function StreamingView({
                   );
                 })}
 
-                <div className="flex items-center gap-1">
-                  <span style={{ color: 'var(--text3)' }}>[{new Date().toLocaleTimeString()}]</span>
-                  <span className="font-semibold text-emerald-400">[PIPELINE]</span>
+                <div className="flex items-center gap-2">
+                  <span style={{ color: 'var(--text3)' }}>{new Date().toLocaleTimeString()}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-mono font-semibold text-emerald-400">PIPELINE</span>
                   <span style={{ color: 'var(--text)' }}>Executing {activeStage || 'stages'}…</span>
                   <span className="terminal-cursor" aria-hidden />
                 </div>

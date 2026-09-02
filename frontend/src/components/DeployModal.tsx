@@ -9,10 +9,11 @@ import {
 import {
   exportBlueprintToGithub,
   downloadBlueprintZip,
-  getBlueprintPreviewUrl,
+  createBlueprintPreviewLink,
 } from '../lib/api';
 import { useVFS } from '../context/VFSContext';
 import type { Blueprint } from '../lib/types';
+import { startGithubOAuth } from '../lib/utils';
 
 interface DeployModalProps {
   isOpen: boolean;
@@ -87,7 +88,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
     try {
       if (selected === 'sandbox') {
         const previewUrl = blueprintId
-          ? getBlueprintPreviewUrl(blueprintId)
+          ? await createBlueprintPreviewLink(blueprintId)
           : `${window.location.origin}/blueprint/${blueprintId || 'demo'}`;
         setDeploymentUrl(previewUrl);
         setDeploySuccess(true);
@@ -200,6 +201,10 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  function handleGithubConnect() {
+    startGithubOAuth('link', window.location.pathname + window.location.search);
   }
 
   function handleClose() {
@@ -323,13 +328,14 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                           <div className="flex-1">
                             <p>{deployError}</p>
                             {requireGithubAuth && (
-                              <a
-                                href={`${import.meta.env.VITE_API_URL ?? ''}/api/auth/github`}
+                              <button
+                                type="button"
+                                onClick={handleGithubConnect}
                                 className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white font-medium text-xs font-sans transition-colors"
                               >
                                 <LogIn size={13} />
                                 <span>Connect GitHub Account</span>
-                              </a>
+                              </button>
                             )}
                           </div>
                         </div>

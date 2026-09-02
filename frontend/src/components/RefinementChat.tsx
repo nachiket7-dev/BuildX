@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronUp, Send, Cpu, AlertTriangle, Wrench, X, Brain, Zap, GitCompare, Sparkles, MessageSquare, Terminal, User, Bot } from 'lucide-react';
+import { ChevronUp, Send, AlertTriangle, Wrench, X, Brain, Zap, GitCompare, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVFS } from '../context/VFSContext';
 import type { ChatMessage } from '../hooks/useRefinement';
@@ -64,6 +64,22 @@ function resolveSuggestions(blueprint?: Blueprint): string[] {
     'Add automated database audit trail tables',
     'Add OAuth 2.0 social login support',
   ];
+}
+
+function formatModelName(modelKey?: string): string {
+  if (!modelKey) return 'Gemini 3.5 Flash';
+  const map: Record<string, string> = {
+    'gemini-3.5-flash': 'Gemini 3.5 Flash',
+    'gemini-3.1-pro': 'Gemini 3.1 Pro',
+    'nemotron-3-super-120b': 'Nemotron 3 Super',
+    'nemotron-3-550b': 'Nemotron 3 Ultra',
+    'nemotron-3-ultra-550b': 'Nemotron 3 Ultra',
+    'kimi-k2.6': 'Kimi K2.6',
+    'glm-5.2': 'GLM 5.2',
+    'gpt-oss-120b': 'GPT-OSS 120B',
+    'qwen-3-32b': 'Qwen 3 32B',
+  };
+  return map[modelKey] || modelKey.split('/').pop() || modelKey;
 }
 
 const SHELL_TRANSITION_MS = 320;
@@ -233,29 +249,61 @@ export function RefinementChat({
     }
   }, [messages, isRefining]);
 
-  // Listen for sandbox errors from live preview iframe postMessage
+  // Listen for sandbox errors and autofix triggers from live preview iframe postMessage & window events
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       if (event.data?.type === 'BUILDX_SANDBOX_ERROR') {
         const errPayload = event.data.error;
-        const msg = errPayload?.message || 'Runtime execution error captured';
+        const msg = typeof errPayload === 'string'
+          ? errPayload
+          : errPayload?.message || 'Runtime execution error captured';
         setSandboxError(msg);
       } else if (event.data?.type === 'BUILDX_TRIGGER_AUTO_FIX') {
-        if (sandboxError) triggerAutoFix(sandboxError);
+        const err = event.data.error;
+        const prompt = event.data.prompt || (err
+          ? `Fix runtime preview error in file ${err.path || 'active component'}: ${err.message || err}${err.line ? ` at line ${err.line}` : ''}`
+          : sandboxError
+            ? `Fix sandbox execution error: ${sandboxError}`
+            : null);
+        if (prompt) {
+          triggerAutoFix(prompt);
+        }
       }
     }
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [sandboxError]);
 
-  const triggerAutoFix = (errMsg: string) => {
+    function handleCustomAutoFix(e: Event) {
+      if (isRefining || isAutoFixing) return;
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail;
+      const prompt = detail?.message || detail?.prompt || (detail?.error
+        ? `Fix runtime preview error in file ${detail.error.path || 'active component'}: ${detail.error.message || detail.error}${detail.error.line ? ` at line ${detail.error.line}` : ''}`
+        : null);
+      if (prompt) {
+        triggerAutoFix(prompt);
+      }
+    }
+
+    window.addEventListener('message', handleMessage);
+    window.addEventListener('buildx:trigger-autofix', handleCustomAutoFix);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('buildx:trigger-autofix', handleCustomAutoFix);
+    };
+  }, [sandboxError, isRefining, isAutoFixing]);
+
+  const triggerAutoFix = (promptText: string) => {
+    if (isRefining || isAutoFixing) return;
     setIsAutoFixing(true);
     setIsExpanded(true);
-    onSend(`[AUTO-FIX DISPATCH] Fix sandbox execution error: ${errMsg}`);
+    const fullPrompt = promptText.startsWith('Fix ') || promptText.startsWith('[AUTO-FIX')
+      ? promptText
+      : `[AUTO-FIX DISPATCH] Fix sandbox execution error: ${promptText}`;
+    onSend(fullPrompt);
     setTimeout(() => {
       setIsAutoFixing(false);
       setSandboxError(null);
-    }, 1500);
+    }, 2000);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -409,10 +457,63 @@ export function RefinementChat({
                   {/* Assistant Answer Node */}
                   {turn.assistant ? (
                     <motion.div variants={timelineNodeSlide} className="timeline-node relative">
-                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400">
-                        <span className="font-mono text-[10px] text-emerald-400 font-semibold">02 / PATCH_DIFF</span>
-                        <span className="text-zinc-600">•</span>
-                        <span>BuildX Cortex Multi-Model Stream</span>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5 text-[10px] text-zinc-400">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[10px] text-emerald-400 font-semibold">02 / SUBAGENT PIPELINE</span>
+                          <span className="text-zinc-600">•</span>
+                          <span>Multi-Model Stream</span>
+                        </div>
+
+                        {/* Active Model Badges with Fallback Highlighting */}
+                        <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9px]">
+                          <span
+                            className={`px-1.5 py-0.5 rounded flex items-center gap-1 border ${
+                              turn.assistant.telemetry?.planner?.wasFallback
+                                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                                : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
+                            }`}
+                          >
+                            <Brain size={9} />
+                            <span>
+                              PLAN: {formatModelName(turn.assistant.telemetry?.planner?.modelUsed || 'nemotron-3-550b')}
+                            </span>
+                            {turn.assistant.telemetry?.planner?.wasFallback && (
+                              <span className="px-0.5 rounded bg-amber-500/30 text-[8px] font-bold">FALLBACK</span>
+                            )}
+                          </span>
+
+                          <span className="text-zinc-600">•</span>
+
+                          <span className="px-1.5 py-0.5 rounded flex items-center gap-1 border bg-sky-500/15 border-sky-500/30 text-sky-300">
+                            <Zap size={9} />
+                            <span>INGEST: GLM 5.2</span>
+                          </span>
+
+                          <span className="text-zinc-600">•</span>
+
+                          <span
+                            className={`px-1.5 py-0.5 rounded flex items-center gap-1 border ${
+                              turn.assistant.telemetry?.patches?.[0]?.wasFallback
+                                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                                : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                            }`}
+                          >
+                            <GitCompare size={9} />
+                            <span>
+                              PATCH: {formatModelName(turn.assistant.telemetry?.patches?.[0]?.modelUsed || 'kimi-k2.6')}
+                            </span>
+                            {turn.assistant.telemetry?.patches?.[0]?.wasFallback && (
+                              <span className="px-0.5 rounded bg-amber-500/30 text-[8px] font-bold">FALLBACK</span>
+                            )}
+                          </span>
+
+                          <span className="text-zinc-600">•</span>
+
+                          <span className="px-1.5 py-0.5 rounded flex items-center gap-1 border bg-amber-500/15 border-amber-500/30 text-amber-300">
+                            <Wrench size={9} />
+                            <span>GUARD: Gemini 3.5 Flash</span>
+                          </span>
+                        </div>
                       </div>
                       <div className="p-3.5 rounded-xl bg-[#111116] border border-white/10 text-neutral-300 leading-relaxed font-sans text-xs">
                         {turn.assistant.content}
@@ -421,21 +522,31 @@ export function RefinementChat({
                   ) : pendingUserMessage?.timestamp === turn.user.timestamp && isRefining ? (
                     <motion.div variants={timelineNodeSlide} className="timeline-node relative">
                       <div className="flex items-center gap-2 mb-1.5 text-[10px] text-amber-400">
-                        <span className="font-mono text-[10px] font-semibold">03 / AUTO_FIX</span>
+                        <span className="font-mono text-[10px] font-semibold">03 / SUBAGENT_EXECUTION</span>
                         <span className="text-zinc-600">•</span>
-                        <span>Kimi K2.6 Engine Pipeline</span>
+                        <span>Cortex Multi-Stage Routing</span>
                       </div>
                       <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
                         <div className="flex items-center gap-2 text-indigo-300 font-mono text-xs">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span>Refining blueprint via Multi-Model Pipeline…</span>
+                          <span>Refining code via Subagent Pipeline…</span>
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-indigo-300/80 pt-2 border-t border-indigo-500/20 font-mono">
-                          <span className="flex items-center gap-1"><Brain size={10} className="text-purple-400" /> 01 / ARCHITECT</span>
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-300">
+                            <Brain size={10} className="text-purple-400" /> PLAN: Nemotron 3 Ultra
+                          </span>
                           <span className="text-neutral-600">›</span>
-                          <span className="flex items-center gap-1"><GitCompare size={10} className="text-emerald-400" /> 02 / PATCH_DIFF</span>
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-sky-300">
+                            <Zap size={10} className="text-sky-400" /> INGEST: GLM 5.2
+                          </span>
                           <span className="text-neutral-600">›</span>
-                          <span className="flex items-center gap-1 text-amber-400 font-semibold"><Wrench size={10} /> 03 / AUTO_FIX</span>
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+                            <GitCompare size={10} className="text-emerald-400" /> PATCH: Kimi K2.6
+                          </span>
+                          <span className="text-neutral-600">›</span>
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 font-semibold">
+                            <Wrench size={10} /> GUARD: Gemini 3.5 Flash
+                          </span>
                         </div>
                       </div>
                     </motion.div>
