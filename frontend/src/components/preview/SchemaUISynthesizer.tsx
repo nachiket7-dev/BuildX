@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Search, ChevronDown, MoreVertical, Plus, Filter, ArrowUpRight, ArrowDownRight, Eye, Edit, Trash } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Search, ChevronDown, MoreVertical, Plus, Filter, ArrowUpRight, ArrowDownRight, Eye, Edit, Trash, FileText, Layout } from 'lucide-react';
 import type { Blueprint, UiScreen, SchemaTable, SchemaColumn, ApiEndpoint } from '../../lib/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -490,7 +490,7 @@ function DetailView({ table, screenName }: { table: SchemaTable; screenName: str
 
         {/* Key-Value pairs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-white/[0.04] rounded-xl overflow-hidden border border-white/[0.06]">
-          {table.columns.slice(0, 8).map((col, i) => (
+          {table.columns.slice(0, 8).map((col) => (
             <div key={col.name} className="bg-[#0c0c10] px-4 py-3 flex items-start justify-between gap-3">
               <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider whitespace-nowrap">
                 {col.name.replace(/_/g, ' ')}
@@ -595,7 +595,7 @@ function GenericView({ screen, table }: { screen: UiScreen; table: SchemaTable |
               className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 hover:border-white/[0.15] transition-all group cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-3 group-hover:scale-110 transition-transform">
-                <span className="text-sm">{screen.icon || '📄'}</span>
+                <FileText size={15} className="text-indigo-400" />
               </div>
               <h4 className="text-xs font-semibold text-white mb-1">{item}</h4>
               <p className="text-[10px] text-zinc-500 leading-relaxed">
@@ -608,7 +608,9 @@ function GenericView({ screen, table }: { screen: UiScreen; table: SchemaTable |
         <ListView table={table} screenName={screen.name} />
       ) : (
         <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-8 text-center">
-          <div className="text-3xl mb-3">{screen.icon || '📄'}</div>
+          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3 text-zinc-400">
+            <FileText size={22} />
+          </div>
           <h3 className="text-sm font-semibold text-white mb-1">{screen.name}</h3>
           <p className="text-xs text-zinc-500">{screen.components || 'Screen content'}</p>
         </div>
@@ -651,7 +653,9 @@ export function SchemaUISynthesizer({ blueprint, activeScreenId }: SynthesizerPr
     return (
       <div className="flex items-center justify-center h-full text-center p-8">
         <div>
-          <div className="text-4xl mb-3 opacity-40">📐</div>
+          <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3 text-zinc-500">
+            <Layout size={28} />
+          </div>
           <h3 className="text-sm font-semibold text-white mb-1">No Schema Data</h3>
           <p className="text-xs text-zinc-500 max-w-xs">
             This blueprint doesn't have screen or schema definitions yet. Generate code with the AI agent to see a live preview.
@@ -689,7 +693,7 @@ export function SchemaUISynthesizer({ blueprint, activeScreenId }: SynthesizerPr
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5 border border-transparent'
                 }`}
               >
-                <span className="text-xs">{screen.icon || '📄'}</span>
+                <FileText size={12} className={currentScreen?.name === screen.name ? 'text-white' : 'text-zinc-400'} />
                 <span>{screen.name}</span>
               </button>
             ))}

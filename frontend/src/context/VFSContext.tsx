@@ -27,16 +27,30 @@ export interface StagedDiff {
   summary?: string;
 }
 
+export interface RuntimeErrorPayload {
+  title?: string;
+  message: string;
+  line?: number;
+  column?: number;
+  path?: string;
+}
+
 interface VFSContextType {
   files: Record<string, string>;
   committedFiles: Record<string, string>;
+  previewFiles: Record<string, string>;
   pendingDiff: PendingDiff | null;
   pendingDiffs: Record<string, PendingDiff>;
   stagedDiffs: Record<string, StagedDiff>;
   fileList: VFSFile[];
   activeFile: VFSFile | null;
   activeFilePath: string | null;
+  activeFileLine: number | null;
+  runtimeError: RuntimeErrorPayload | null;
+  setRuntimeError: (err: RuntimeErrorPayload | null) => void;
+  clearRuntimeError: () => void;
   setActiveFile: (file: VFSFile | string | null) => void;
+  setActiveFileAndLine: (filePath: string, lineNumber?: number | null) => void;
   updateFile: (blueprintId: string, path: string, content: string) => Promise<void>;
   stageDiff: (filePath: string, incomingCode: string | PendingDiff) => void;
   stageFileDiff: (path: string, incomingCode: string, originalCode?: string) => void;
@@ -48,6 +62,26 @@ interface VFSContextType {
   enhanceUi: (blueprintId: string) => Promise<Record<string, string>>;
   isLoadingVFS: boolean;
   isEnhancingUi: boolean;
+  streamAgentPrompt: (
+    blueprintId: string,
+    prompt: string,
+    model: string,
+    callbacks?: AgentStreamCallbacks
+  ) => Promise<void>;
+  cancelAgentStream: () => void;
+  isAgentExecuting: boolean;
+}
+
+export interface AgentStreamCallbacks {
+  onThinking?: (step: string) => void;
+  onTelemetry?: (telemetry: any) => void;
+  onPlan?: (plan: string[]) => void;
+  onPatch?: (patch: any) => void;
+  onStagedDiff?: (diff: { path: string; original: string; modified: string }) => void;
+  onPipelineHeartbeat?: (heartbeat: { elapsedMs: number; activeStage: string; activeModel: string }) => void;
+  onPipelineStage?: (stagePayload: { stage: string; state: string; detail?: string }) => void;
+  onDone?: (payload: any) => void;
+  onError?: (error: string) => void;
 }
 
 const VFSContext = createContext<VFSContextType | undefined>(undefined);
@@ -61,8 +95,32 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [stagedDiffs, setStagedDiffs] = useState<Record<string, StagedDiff>>({});
   const [fileList, setFileList] = useState<VFSFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  const [activeFileLine, setActiveFileLine] = useState<number | null>(null);
+  const [runtimeError, setRuntimeError] = useState<RuntimeErrorPayload | null>(null);
   const [isLoadingVFS, setIsLoadingVFS] = useState<boolean>(false);
   const [isEnhancingUi, setIsEnhancingUi] = useState<boolean>(false);
+
+  const clearRuntimeError = useCallback(() => {
+    setRuntimeError((prev) => (prev ? null : prev));
+  }, []);
+
+  const setRuntimeErrorSafe = useCallback((err: RuntimeErrorPayload | null) => {
+    setRuntimeError((prev) => {
+      if (!prev && !err) return prev;
+      if (
+        prev &&
+        err &&
+        prev.message === err.message &&
+        prev.title === err.title &&
+        prev.path === err.path &&
+        prev.line === err.line &&
+        prev.column === err.column
+      ) {
+        return prev;
+      }
+      return err;
+    });
+  }, []);
 
   const getLanguageFromPath = (path: string): string => {
     const ext = path.split('.').pop()?.toLowerCase() ?? '';
@@ -96,7 +154,13 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setFiles(map);
     setFileList(fileArray);
 
-    if (fileArray.length > 0 && !activeFilePath) {
+    if (fileArray.length === 0) {
+      setActiveFilePath('');
+      return;
+    }
+
+    const activeFile = fileArray.find(f => f.path === activeFilePath);
+    if (!activeFile) {
       const first = fileArray.find(
         f => f.path !== 'preview.html' && (f.path.endsWith('.tsx') || f.path.endsWith('.ts'))
       ) || fileArray[0];
@@ -111,7 +175,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         headers: getAuthHeaders(),
       });
       const data = res.data?.data;
-      if (data && data.files && data.files.length > 0) {
+      if (data && Array.isArray(data.files)) {
         syncFilesState(data.files);
         return data.fileTree || {};
       }
@@ -272,6 +336,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return copy;
       });
       setPendingDiff(prev => (prev?.filePath === path ? null : prev));
+      setRuntimeError(null);
     } catch (err) {
       console.error('[VFSContext] Failed to accept and persist diff', err);
       throw err;
@@ -331,6 +396,12 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       setActiveFilePath(file.path);
     }
+    setActiveFileLine(null);
+  }, []);
+
+  const setActiveFileAndLine = useCallback((filePath: string, lineNumber?: number | null) => {
+    setActiveFilePath(filePath);
+    setActiveFileLine(lineNumber ?? 1);
   }, []);
 
   const activeFile = activeFilePath
@@ -341,18 +412,197 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     : null;
 
+  // Unified previewFiles map: base files overlaid with any actively staged incoming diffs
+  const previewFiles = React.useMemo(() => {
+    const overlaid = { ...files };
+    for (const [p, staged] of Object.entries(stagedDiffs)) {
+      const incoming = staged.incomingCode || staged.incoming || (staged as any).modified;
+      if (incoming !== undefined) {
+        overlaid[p] = incoming;
+      }
+    }
+    if (pendingDiff?.filePath) {
+      const incoming = pendingDiff.incomingCode || pendingDiff.incoming || (pendingDiff as any).modified;
+      if (incoming !== undefined) {
+        overlaid[pendingDiff.filePath] = incoming;
+      }
+    }
+    return overlaid;
+  }, [files, stagedDiffs, pendingDiff]);
+
+  const agentAbortRef = React.useRef<AbortController | null>(null);
+  const [isAgentExecuting, setIsAgentExecuting] = useState(false);
+  const agentLockRef = React.useRef(false);
+
+  const cancelAgentStream = useCallback(() => {
+    if (agentAbortRef.current) {
+      agentAbortRef.current.abort();
+      agentAbortRef.current = null;
+    }
+    agentLockRef.current = false;
+    setIsAgentExecuting(false);
+  }, []);
+
+  const streamAgentPrompt = useCallback(
+    async (
+      blueprintId: string,
+      prompt: string,
+      model: string,
+      callbacks?: AgentStreamCallbacks
+    ): Promise<void> => {
+      if (agentLockRef.current || isAgentExecuting) {
+        console.warn('[VFSContext] Agent pipeline already active; ignoring concurrent trigger');
+        return;
+      }
+      agentLockRef.current = true;
+      setIsAgentExecuting(true);
+
+      const controller = new AbortController();
+      agentAbortRef.current = controller;
+
+      const token = localStorage.getItem('buildx_token');
+      let gotDone = false;
+
+      try {
+        const response = await fetch(`${BASE_URL}/api/agent/${blueprintId}/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            prompt,
+            model,
+            activeFilePath,
+            activeFileContent: activeFilePath ? files[activeFilePath] : undefined,
+            previewErrors: runtimeError ? [runtimeError] : undefined,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok || !response.body) {
+          const errBody = await response.text().catch(() => '');
+          throw new Error(errBody || `Agent request failed (${response.status})`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        for (;;) {
+          if (controller.signal.aborted) {
+            console.warn('[VFSContext:DIAG] Reader loop exiting: controller.signal.aborted=true');
+            break;
+          }
+          const { done, value } = await reader.read();
+          if (done) {
+            console.log(`[VFSContext:DIAG] Reader loop exiting: done=true, gotDone=${gotDone}, aborted=${controller.signal.aborted}`);
+            break;
+          }
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          let pendingEvent = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              pendingEvent = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              const raw = line.slice(6).trim();
+              try {
+                const payload = JSON.parse(raw);
+                if (pendingEvent === 'thinking') {
+                  callbacks?.onThinking?.(payload.step ?? '');
+                } else if (pendingEvent === 'pipeline_heartbeat') {
+                  callbacks?.onPipelineHeartbeat?.(payload);
+                } else if (pendingEvent === 'pipeline_stage') {
+                  callbacks?.onPipelineStage?.(payload);
+                } else if (pendingEvent === 'agent_telemetry') {
+                  callbacks?.onTelemetry?.(payload);
+                } else if (pendingEvent === 'agent_plan') {
+                  callbacks?.onPlan?.(payload.plan || []);
+                } else if (pendingEvent === 'file_patch' || pendingEvent === 'agent_patch') {
+                  callbacks?.onPatch?.(payload);
+                  if (payload.filePath && payload.content) {
+                    const orig = files[payload.filePath] || '';
+                    if (orig.length > 200 && payload.content.length < 100) {
+                      console.warn(`[VFSContext] Refusing to stage corrupt patch (<100 chars) for ${payload.filePath}`);
+                    } else {
+                      stageFileDiff(payload.filePath, payload.content, orig);
+                    }
+                  }
+                } else if (pendingEvent === 'staged_diff') {
+                  callbacks?.onStagedDiff?.(payload);
+                  if (payload.path && payload.modified) {
+                    const orig = payload.original || files[payload.path] || '';
+                    if (orig.length > 200 && payload.modified.length < 100) {
+                      console.warn(`[VFSContext] Refusing to stage corrupt diff (<100 chars) for ${payload.path}`);
+                    } else {
+                      stageFileDiff(payload.path, payload.modified, orig);
+                    }
+                  }
+                } else if (pendingEvent === 'done' || pendingEvent === 'agent_complete') {
+                  if (!gotDone) {
+                    gotDone = true;
+                    callbacks?.onDone?.(payload);
+                  }
+                } else if (pendingEvent === 'error') {
+                  gotDone = true;
+                  callbacks?.onError?.(payload.error || 'Agent encountered an error');
+                }
+              } catch {
+                // ignore individual SSE parse lines
+              }
+            } else if (line === '') {
+              pendingEvent = '';
+            }
+          }
+        }
+
+        if (!gotDone && !controller.signal.aborted) {
+          console.error('[VFSContext:DIAG] Stream ended without done event. gotDone=false, aborted=false. This means the server closed the connection prematurely.');
+          callbacks?.onError?.(
+            'Connection closed before the agent finished. Try switching to Gemini 3.5 Flash for faster responses.'
+          );
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError' || controller.signal.aborted) {
+          console.log('[VFSContext] Agent stream aborted by user action.');
+        } else {
+          callbacks?.onError?.(err.message || 'Failed to connect to agent');
+        }
+      } finally {
+        agentLockRef.current = false;
+        setIsAgentExecuting(false);
+        if (agentAbortRef.current === controller) {
+          agentAbortRef.current = null;
+        }
+        // Auto-sync files from backend to guarantee fresh workspace state
+        loadVFS(blueprintId).catch(() => {});
+      }
+    },
+    [files, stageFileDiff, isAgentExecuting]
+  );
+
   return (
     <VFSContext.Provider
       value={{
         files,
         committedFiles: files,
+        previewFiles,
         pendingDiff,
         pendingDiffs,
         stagedDiffs,
         fileList,
         activeFile,
         activeFilePath,
+        activeFileLine,
+        runtimeError,
+        setRuntimeError: setRuntimeErrorSafe,
+        clearRuntimeError,
         setActiveFile: handleSetActiveFile,
+        setActiveFileAndLine,
         updateFile,
         stageDiff,
         stageFileDiff,
@@ -364,6 +614,9 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         enhanceUi,
         isLoadingVFS,
         isEnhancingUi,
+        streamAgentPrompt,
+        cancelAgentStream,
+        isAgentExecuting,
       }}
     >
       {children}
