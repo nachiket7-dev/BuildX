@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
 // ─── Request schema ────────────────────────────────────────
+export const StackSpecSchema = z.object({
+  framework: z.enum(['next', 'express', 'fastify']).optional(),
+  db: z.enum(['postgres', 'supabase', 'mongo']).optional(),
+  auth: z.enum(['jwt', 'clerk', 'nextauth']).optional(),
+}).optional();
+
+export type StackSpec = z.infer<typeof StackSpecSchema>;
+
 export const BlueprintRequestSchema = z.object({
   idea: z
     .string()
@@ -8,6 +16,7 @@ export const BlueprintRequestSchema = z.object({
     .max(1000, 'Idea must be under 1000 characters')
     .trim(),
   model: z.string().optional(),
+  stack: StackSpecSchema,
 });
 
 export type BlueprintRequest = z.infer<typeof BlueprintRequestSchema>;
@@ -192,3 +201,26 @@ export const BlueprintSchema = z.object({
   githubUrl: z.string().optional(),
   modelUsed: z.string().optional(),
 });
+
+// ─── Subagent Pipeline Contracts ──────────────────────────
+
+export const PlannerOutputSchema = z.object({
+  plan: z.array(z.string()),
+  targetFiles: z.array(z.string()),
+});
+export type PlannerOutput = z.infer<typeof PlannerOutputSchema>;
+
+export const PatchFileSchema = z.object({
+  filePath: z.string(),
+  content: z.string(),
+});
+export type PatchFile = z.infer<typeof PatchFileSchema>;
+
+export const PatchGeneratorOutputSchema = z.array(PatchFileSchema);
+export type PatchGeneratorOutput = z.infer<typeof PatchGeneratorOutputSchema>;
+
+export type SubagentStreamEvent =
+  | { type: 'agent_plan'; data: { plan: string[]; targetFiles: string[] } }
+  | { type: 'agent_patch'; data: { filePath: string; content: string } }
+  | { type: 'agent_complete'; data: { success: boolean; modifiedFiles: string[]; message?: string } }
+  | { type: 'file_patch'; data: { filePath: string; content: string } };

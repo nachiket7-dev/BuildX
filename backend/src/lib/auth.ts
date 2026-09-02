@@ -14,6 +14,11 @@ export interface AuthPayload {
   email: string;
 }
 
+interface PreviewTokenPayload {
+  kind: 'blueprint-preview';
+  blueprintId: string;
+}
+
 // Extend Express Request to include user info
 declare global {
   namespace Express {
@@ -64,6 +69,22 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
  */
 export function generateToken(payload: AuthPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+}
+
+/** Create a short-lived, URL-safe token for opening a private preview link. */
+export function generatePreviewToken(blueprintId: string): string {
+  return jwt.sign({ kind: 'blueprint-preview', blueprintId } satisfies PreviewTokenPayload, JWT_SECRET, {
+    expiresIn: '1h',
+  });
+}
+
+export function isValidPreviewToken(token: string, blueprintId: string): boolean {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as Partial<PreviewTokenPayload>;
+    return payload.kind === 'blueprint-preview' && payload.blueprintId === blueprintId;
+  } catch {
+    return false;
+  }
 }
 
 function extractToken(req: Request): string | null {

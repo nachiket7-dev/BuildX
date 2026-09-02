@@ -110,7 +110,14 @@ export function getDatabaseStatus(): {
 
 async function ensureDb() {
   if (initPromise) return initPromise;
-  initPromise = initDatabase();
+  initPromise = initDatabase().catch((err) => {
+    // Do not permanently cache a transient startup failure. The next request
+    // should be able to retry after the database becomes reachable.
+    initPromise = null;
+    dbMode = 'unconfigured';
+    initError = err instanceof Error ? err.message : String(err);
+    throw err;
+  });
   return initPromise;
 }
 
@@ -532,6 +539,16 @@ export async function getBlueprintForUser(
   };
 }
 
+/** Load a blueprint only when the requesting user owns it. */
+export async function getBlueprintOwnedByUser(
+  id: string,
+  userId: string
+): Promise<(SavedBlueprintRow & { parsedBlueprint: Blueprint; userId: string | null }) | null> {
+  const blueprint = await getBlueprintForUser(id, userId, { incrementViews: false });
+  if (!blueprint || blueprint.userId !== userId) return null;
+  return blueprint;
+}
+
 export async function updateBlueprintJson(
   id: string,
   userId: string,
@@ -596,6 +613,11 @@ export interface BlueprintListItem {
   complexity: string;
   createdAt: string;
   views: number;
+  endpointsCount?: number;
+  schemaCount?: number;
+  screensCount?: number;
+  productArchetype?: string;
+  isPublic?: boolean;
 }
 
 export async function listBlueprints(limit: number = 20): Promise<BlueprintListItem[]> {
@@ -612,11 +634,19 @@ export async function listBlueprints(limit: number = 20): Promise<BlueprintListI
       let appName = 'Untitled';
       let description = '';
       let complexity = 'Medium';
+      let endpointsCount = 0;
+      let schemaCount = 0;
+      let screensCount = 0;
+      let productArchetype: string | undefined = undefined;
       try {
         const bp = JSON.parse(row.blueprint);
         appName = bp.appName || appName;
         description = bp.description || description;
         complexity = bp.complexity || complexity;
+        endpointsCount = Array.isArray(bp.endpoints) ? bp.endpoints.length : 0;
+        schemaCount = Array.isArray(bp.schema) ? bp.schema.length : 0;
+        screensCount = Array.isArray(bp.screens) ? bp.screens.length : 0;
+        productArchetype = bp.productArchetype || undefined;
       } catch {
         // ignore parse errors
       }
@@ -626,6 +656,11 @@ export async function listBlueprints(limit: number = 20): Promise<BlueprintListI
         appName,
         description,
         complexity,
+        endpointsCount,
+        schemaCount,
+        screensCount,
+        productArchetype,
+        isPublic: Boolean(row.is_public),
         createdAt: new Date(row.created_at).toISOString(),
         views: row.views,
       };
@@ -633,7 +668,7 @@ export async function listBlueprints(limit: number = 20): Promise<BlueprintListI
   }
 
   const result = await pool.query(
-    'SELECT id, idea, blueprint, created_at as "createdAt", views FROM blueprints WHERE is_public = true ORDER BY created_at DESC LIMIT $1',
+    'SELECT id, idea, blueprint, is_public as "is_public", created_at as "createdAt", views FROM blueprints WHERE is_public = true ORDER BY created_at DESC LIMIT $1',
     [limit]
   );
   
@@ -641,11 +676,19 @@ export async function listBlueprints(limit: number = 20): Promise<BlueprintListI
     let appName = 'Untitled';
     let description = '';
     let complexity = 'Medium';
+    let endpointsCount = 0;
+    let schemaCount = 0;
+    let screensCount = 0;
+    let productArchetype: string | undefined = undefined;
     try {
       const bp = JSON.parse(row.blueprint);
       appName = bp.appName || appName;
       description = bp.description || description;
       complexity = bp.complexity || complexity;
+      endpointsCount = Array.isArray(bp.endpoints) ? bp.endpoints.length : 0;
+      schemaCount = Array.isArray(bp.schema) ? bp.schema.length : 0;
+      screensCount = Array.isArray(bp.screens) ? bp.screens.length : 0;
+      productArchetype = bp.productArchetype || undefined;
     } catch {
       // ignore parse errors
     }
@@ -655,6 +698,11 @@ export async function listBlueprints(limit: number = 20): Promise<BlueprintListI
       appName,
       description,
       complexity,
+      endpointsCount,
+      schemaCount,
+      screensCount,
+      productArchetype,
+      isPublic: Boolean(row.is_public),
       createdAt: new Date(row.createdAt).toISOString(),
       views: row.views,
     };
@@ -697,6 +745,39 @@ export interface UserRow {
   createdAt: string;
   githubId?: string;
   githubToken?: string;
+}
+
+const GITHUB_TOKEN_PREFIX = 'enc:v1:';
+
+function githubTokenKey(): Buffer {
+  const secret = process.env.GITHUB_TOKEN_ENCRYPTION_KEY || process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('GITHUB_TOKEN_ENCRYPTION_KEY or JWT_SECRET is required to protect GitHub tokens');
+  }
+  return crypto.createHash('sha256').update(secret).digest();
+}
+
+function encryptGithubToken(token: string): string {
+  if (!token || token.startsWith(GITHUB_TOKEN_PREFIX)) return token;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', githubTokenKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${GITHUB_TOKEN_PREFIX}${iv.toString('hex')}.${tag.toString('hex')}.${encrypted.toString('hex')}`;
+}
+
+function decryptGithubToken(value?: string): string | undefined {
+  if (!value || !value.startsWith(GITHUB_TOKEN_PREFIX)) return value;
+  try {
+    const [ivHex, tagHex, encryptedHex] = value.slice(GITHUB_TOKEN_PREFIX.length).split('.');
+    if (!ivHex || !tagHex || !encryptedHex) return undefined;
+    const decipher = crypto.createDecipheriv('aes-256-gcm', githubTokenKey(), Buffer.from(ivHex, 'hex'));
+    decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+    return Buffer.concat([decipher.update(Buffer.from(encryptedHex, 'hex')), decipher.final()]).toString('utf8');
+  } catch (err) {
+    console.error('[Auth] Unable to decrypt stored GitHub token:', err instanceof Error ? err.message : err);
+    return undefined;
+  }
 }
 
 export async function createUser(name: string, email: string, hashedPassword: string): Promise<string> {
@@ -744,7 +825,7 @@ export async function getUserByEmail(email: string): Promise<UserRow | null> {
       password: row.password,
       createdAt: new Date(row.created_at).toISOString(),
       githubId: row.github_id,
-      githubToken: row.github_token
+      githubToken: decryptGithubToken(row.github_token)
     };
   }
 
@@ -761,7 +842,7 @@ export async function getUserByEmail(email: string): Promise<UserRow | null> {
     password: row.password,
     createdAt: new Date(row.createdAt).toISOString(),
     githubId: row.githubId,
-    githubToken: row.githubToken
+    githubToken: decryptGithubToken(row.githubToken)
   };
 }
 
@@ -778,7 +859,7 @@ export async function getUserById(id: string): Promise<Omit<UserRow, 'password'>
       email: row.email,
       createdAt: new Date(row.created_at).toISOString(),
       githubId: row.github_id,
-      githubToken: row.github_token
+      githubToken: decryptGithubToken(row.github_token)
     };
   }
 
@@ -794,7 +875,7 @@ export async function getUserById(id: string): Promise<Omit<UserRow, 'password'>
     email: row.email,
     createdAt: new Date(row.createdAt).toISOString(),
     githubId: row.githubId,
-    githubToken: row.githubToken
+    githubToken: decryptGithubToken(row.githubToken)
   };
 }
 
@@ -812,7 +893,7 @@ export async function getUserByGithubId(githubId: string): Promise<UserRow | nul
       password: row.password,
       createdAt: new Date(row.created_at).toISOString(),
       githubId: row.github_id,
-      githubToken: row.github_token
+      githubToken: decryptGithubToken(row.github_token)
     };
   }
 
@@ -829,7 +910,7 @@ export async function getUserByGithubId(githubId: string): Promise<UserRow | nul
     password: row.password,
     createdAt: new Date(row.createdAt).toISOString(),
     githubId: row.githubId,
-    githubToken: row.githubToken
+    githubToken: decryptGithubToken(row.githubToken)
   };
 }
 
@@ -852,7 +933,7 @@ export async function createGithubUser(name: string, email: string, githubId: st
         email,
         password: placeholderPassword,
         github_id: githubId,
-        github_token: githubToken,
+        github_token: encryptGithubToken(githubToken),
         created_at: new Date().toISOString(),
       });
       writeLocalDb(db);
@@ -862,7 +943,7 @@ export async function createGithubUser(name: string, email: string, githubId: st
 
   await pool.query(
     'INSERT INTO users (id, name, email, password, github_id, github_token) VALUES ($1, $2, $3, $4, $5, $6)',
-    [id, name, email, placeholderPassword, githubId, githubToken]
+    [id, name, email, placeholderPassword, githubId, encryptGithubToken(githubToken)]
   );
   return id;
 }
@@ -876,7 +957,7 @@ export async function linkUserGithub(userId: string, githubId: string, githubTok
       const row = db.users.find((u) => u.id === userId);
       if (!row) return false;
       row.github_id = githubId;
-      row.github_token = githubToken;
+      row.github_token = encryptGithubToken(githubToken);
       writeLocalDb(db);
       return true;
     });
@@ -884,7 +965,7 @@ export async function linkUserGithub(userId: string, githubId: string, githubTok
 
   const result = await pool.query(
     'UPDATE users SET github_id = $1, github_token = $2 WHERE id = $3',
-    [githubId, githubToken, userId]
+    [githubId, encryptGithubToken(githubToken), userId]
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -905,11 +986,19 @@ export async function listUserBlueprints(userId: string, limit: number = 30): Pr
       let appName = 'Untitled';
       let description = '';
       let complexity = 'Medium';
+      let endpointsCount = 0;
+      let schemaCount = 0;
+      let screensCount = 0;
+      let productArchetype: string | undefined = undefined;
       try {
         const bp = JSON.parse(row.blueprint);
         appName = bp.appName || appName;
         description = bp.description || description;
         complexity = bp.complexity || complexity;
+        endpointsCount = Array.isArray(bp.endpoints) ? bp.endpoints.length : 0;
+        schemaCount = Array.isArray(bp.schema) ? bp.schema.length : 0;
+        screensCount = Array.isArray(bp.screens) ? bp.screens.length : 0;
+        productArchetype = bp.productArchetype || undefined;
       } catch {
         // ignore
       }
@@ -919,6 +1008,11 @@ export async function listUserBlueprints(userId: string, limit: number = 30): Pr
         appName, 
         description, 
         complexity, 
+        endpointsCount,
+        schemaCount,
+        screensCount,
+        productArchetype,
+        isPublic: Boolean(row.is_public),
         createdAt: new Date(row.created_at).toISOString(), 
         views: row.views 
       };
@@ -926,7 +1020,7 @@ export async function listUserBlueprints(userId: string, limit: number = 30): Pr
   }
 
   const result = await pool.query(
-    'SELECT id, idea, blueprint, created_at as "createdAt", views FROM blueprints WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
+    'SELECT id, idea, blueprint, is_public as "is_public", created_at as "createdAt", views FROM blueprints WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
     [userId, limit]
   );
   
@@ -934,11 +1028,19 @@ export async function listUserBlueprints(userId: string, limit: number = 30): Pr
     let appName = 'Untitled';
     let description = '';
     let complexity = 'Medium';
+    let endpointsCount = 0;
+    let schemaCount = 0;
+    let screensCount = 0;
+    let productArchetype: string | undefined = undefined;
     try {
       const bp = JSON.parse(row.blueprint);
       appName = bp.appName || appName;
       description = bp.description || description;
       complexity = bp.complexity || complexity;
+      endpointsCount = Array.isArray(bp.endpoints) ? bp.endpoints.length : 0;
+      schemaCount = Array.isArray(bp.schema) ? bp.schema.length : 0;
+      screensCount = Array.isArray(bp.screens) ? bp.screens.length : 0;
+      productArchetype = bp.productArchetype || undefined;
     } catch {
       // ignore
     }
@@ -948,6 +1050,11 @@ export async function listUserBlueprints(userId: string, limit: number = 30): Pr
       appName, 
       description, 
       complexity, 
+      endpointsCount,
+      schemaCount,
+      screensCount,
+      productArchetype,
+      isPublic: Boolean(row.is_public),
       createdAt: new Date(row.createdAt).toISOString(), 
       views: row.views 
     };
@@ -1160,6 +1267,66 @@ export async function saveBlueprintFile(
   );
 }
 
+/**
+ * Persist a generated file set atomically. Code generation keeps all model
+ * output in memory until every file succeeds, then uses one transaction so a
+ * late provider failure cannot leave the workspace half-updated.
+ */
+export async function saveBlueprintFilesAtomically(
+  blueprintId: string,
+  files: SavedBlueprintFile[]
+): Promise<void> {
+  await ensureDb();
+
+  if (dbMode === 'fallback') {
+    await withLocalDbLock(() => {
+      const db = readLocalDb();
+      if (!db.blueprint_files) db.blueprint_files = [];
+
+      for (const file of files) {
+        const fileId = `${blueprintId}:${file.path}`;
+        const record = {
+          id: fileId,
+          blueprint_id: blueprintId,
+          file_path: file.path,
+          content: file.content,
+          language: file.language,
+          generated_at: new Date().toISOString(),
+        };
+        const index = db.blueprint_files.findIndex(
+          (existing) => existing.blueprint_id === blueprintId && existing.file_path === file.path
+        );
+        if (index >= 0) db.blueprint_files[index] = record;
+        else db.blueprint_files.push(record);
+      }
+
+      writeLocalDb(db);
+    });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const file of files) {
+      const fileId = `${blueprintId}:${file.path}`;
+      await client.query(
+        `INSERT INTO blueprint_files (id, blueprint_id, file_path, content, language)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (blueprint_id, file_path)
+         DO UPDATE SET content = EXCLUDED.content, language = EXCLUDED.language`,
+        [fileId, blueprintId, file.path, file.content, file.language]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function getBlueprintFiles(blueprintId: string): Promise<SavedBlueprintFile[]> {
   await ensureDb();
 
@@ -1204,5 +1371,3 @@ export async function getBlueprintFile(blueprintId: string, filePath: string): P
   if (result.rows.length === 0) return null;
   return result.rows[0];
 }
-
-

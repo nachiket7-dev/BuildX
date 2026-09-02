@@ -1,65 +1,30 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response } from 'express';
 import { requireAuth } from '../lib/auth';
-import { getBlueprintForUser, getBlueprintMeta, getBlueprintFiles, saveBlueprintFile, saveChatMessage, getChatMessages } from '../lib/db';
-import { completeWithPipelineFallback, getPipelineMaxTokens } from '../lib/llm/router';
-import { extractJSON, extractFieldsFromBrokenJson, parseFilesRaw, extractFilesFromBrokenJsonOrText } from '../lib/jsonExtract';
-import { parseDiffBlocks, applySearchReplace } from '../lib/codegen/diffParser';
-import { DIFF_PATCH_SYSTEM_PROMPT, buildDiffPatchPrompt, buildAutoFixPrompt } from '../lib/codegen/prompts';
+import { getBlueprintOwnedByUser, getBlueprintFiles, saveChatMessage, getChatMessages } from '../lib/db';
+import { runSubagentRefinementPipeline } from '../lib/orchestrator';
 import type { PipelineStage } from '../lib/llm/types';
+import type { PatchFile, PlannerOutput } from '../lib/types';
 
 const router = Router();
 
-// Standard full-file generation fallback prompt schema with strict escaping constraints
-const AGENT_SYSTEM_PROMPT = `You are BuildX Code Agent — an elite autonomous coding agent and principal full-stack engineer.
-Your workspace contains a Virtual File System (VFS) of a full-stack React and Express application.
-Your goal is to follow user commands, modify codebase files dynamically, and explain your changes.
+// Set of workspace IDs currently running an active subagent pipeline
+const activePipelines = new Set<string>();
 
-You MUST respond with a single valid JSON object of EXACTLY this schema — nothing else:
-{
-  "plan": "- [x] Step 1\\n- [ ] Step 2",
-  "message": "Markdown explanation of what was changed and why.",
-  "files": [
-    {
-      "path": "frontend/src/pages/Dashboard.tsx",
-      "content": "<complete source code OR Search/Replace diff blocks>",
-      "action": "modify"
-    }
-  ]
+// Helper: emit a single SSE event safely
+function sseEvent(res: Response, event: string, data: object, isAborted?: boolean) {
+  if (isAborted || res.writableEnded) return;
+  try {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  } catch (err: any) {
+    console.warn(`[Agent SSE] Write failed (${event}):`, err.message);
+  }
 }
 
-CRITICAL JSON & CODE FORMATTING CONSTRAINTS — MUST FOLLOW STRICTLY:
-1. Return ONLY the raw JSON object. Do NOT wrap the JSON in outer markdown code fences (\`\`\`json). No preamble or trailing conversational text.
-2. ESCAPE ALL CODE STRINGS IN JSON:
-   - Double quotes (\") inside code must be escaped as \\"
-   - Backslashes (\\) inside code must be escaped as \\\\
-   - Newlines inside code strings must be encoded as \\n
-   - Tabs inside code strings must be encoded as \\t
-   - Do NOT output unescaped raw newlines or control characters inside JSON string values.
-3. "files" array MUST contain an entry for EVERY file you create, edit, or touch. Never omit files.
-4. "content" MUST contain either:
-   - The COMPLETE, production-ready source code for the file, OR
-   - Strict Search/Replace diff blocks matching exact original lines:
-     <<<<<<< SEARCH
-     <exact lines from original file>
-     =======
-     <replacement lines>
-     >>>>>>> REPLACE
-5. "action" MUST be "modify" (for existing files) or "create" (for new files) or "delete".
-6. Frontend files: React 18, Tailwind CSS, Lucide React icons.
-7. Backend files: Express + TypeScript.
-8. Only include files in "files" that strictly need modifications. Keep "plan" and "message" concise.`;
-
-// Helper: emit a single SSE event
-function sseEvent(res: Response, event: string, data: object) {
-  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-}
-
-router.post('/:id/chat', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+const chatHandler = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const {
     prompt,
     model,
-    mode,
     activeFilePath,
     activeFileContent,
     previewErrors,
@@ -78,21 +43,112 @@ router.post('/:id/chat', requireAuth, async (req: Request, res: Response, next: 
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
+  // Disable socket-level idle timeouts for this long-lived SSE connection.
+  // Without this, Node.js may close the socket during long LLM calls (60s+),
+  // which fires req 'close' and falsely aborts the pipeline.
+  if (req.socket) {
+    req.socket.setTimeout(0);
+    req.socket.setKeepAlive(true, 30000);
+  }
+  if (res.setTimeout) {
+    res.setTimeout(0);
+  }
+
+  // Guard against concurrent executions for the same workspace ID
+  if (activePipelines.has(id)) {
+    console.warn(`[Agent] Pipeline execution already in progress for workspace ${id}. Rejecting concurrent request.`);
+    sseEvent(res, 'error', { error: 'A pipeline execution is already in progress for this workspace. Please wait for it to finish.' });
+    if (!res.writableEnded) res.end();
+    return;
+  }
+
+  activePipelines.add(id);
+  let isAborted = false;
+  const pipelineStartTime = Date.now();
+  let currentStage: PipelineStage = 'INGESTION';
+  let currentModelName = 'GLM 5.2';
+
+  // ── Continuous 2-second SSE keepalive & progress heartbeat ────────────────
+  const heartbeatInterval = setInterval(() => {
+    if (isAborted || res.writableEnded) {
+      clearInterval(heartbeatInterval);
+      return;
+    }
+    try {
+      res.write(': keepalive-ping\n\n');
+      sseEvent(res, 'pipeline_heartbeat', {
+        elapsedMs: Date.now() - pipelineStartTime,
+        activeStage: currentStage,
+        activeModel: currentModelName,
+      }, isAborted);
+    } catch {
+      clearInterval(heartbeatInterval);
+    }
+  }, 2000);
+
+  // DIAGNOSTIC: Track socket-level events to find the true abort source
+  let closeReason = 'unknown';
+  if (req.socket) {
+    req.socket.on('timeout', () => {
+      closeReason = 'socket-timeout';
+      console.warn(`[Agent:DIAG] Socket TIMEOUT fired for workspace ${id} after ${((Date.now() - pipelineStartTime) / 1000).toFixed(1)}s`);
+    });
+    req.socket.on('error', (err: any) => {
+      closeReason = `socket-error: ${err.code || err.message}`;
+      console.warn(`[Agent:DIAG] Socket ERROR for workspace ${id}: ${err.code || err.message}`);
+    });
+  }
+
+  req.on('close', () => {
+    clearInterval(heartbeatInterval);
+
+    const elapsed = ((Date.now() - pipelineStartTime) / 1000).toFixed(1);
+    const diagnostics = {
+      elapsed: `${elapsed}s`,
+      resWritableFinished: res.writableFinished,
+      resWritableEnded: res.writableEnded,
+      reqDestroyed: req.destroyed,
+      reqComplete: req.complete,
+      socketDestroyed: req.socket?.destroyed,
+      socketReadableEnded: req.socket?.readableEnded,
+      closeReason,
+      currentStage,
+    };
+
+    if (res.writableFinished) {
+      // Normal completion — we called res.end() ourselves. NOT a client abort.
+      activePipelines.delete(id);
+      console.log(`[Agent] Normal close for workspace ${id} after ${elapsed}s`);
+      return;
+    }
+
+    // Something closed the connection while pipeline was still running
+    isAborted = true;
+    activePipelines.delete(id);
+    console.warn(`[Agent] Connection closed mid-pipeline for workspace ${id}`, JSON.stringify(diagnostics, null, 2));
+  });
+
   const think = (step: string, stage?: PipelineStage) => {
+    if (isAborted) return;
+    if (stage) currentStage = stage;
     console.log(`[Agent:think${stage ? `:${stage}` : ''}] ${step}`);
-    sseEvent(res, 'thinking', { step, stage });
+    sseEvent(res, 'thinking', { step, stage }, isAborted);
   };
 
   const notifyPipelineStage = (stage: PipelineStage, state: 'start' | 'completed' | 'fallback', detail?: string) => {
-    sseEvent(res, 'pipeline_stage', { stage, state, detail });
+    if (isAborted) return;
+    currentStage = stage;
+    sseEvent(res, 'pipeline_stage', { stage, state, detail }, isAborted);
   };
 
   try {
+    // Initial connection comment
+    res.write(': connection-active\n\n');
     // ─── STAGE 1: INGESTION ──────────────────────────────────────────────────
     notifyPipelineStage('INGESTION', 'start', 'Parsing workspace VFS and runtime context');
     think('🔍 Verifying workspace access and loading blueprint metadata…', 'INGESTION');
-    const meta = await getBlueprintMeta(id, req.user!.userId);
-    if (!meta) {
+    const blueprint = await getBlueprintOwnedByUser(id, req.user!.userId);
+    if (!blueprint) {
       console.error(`[Agent] Workspace ${id} not found for user ${req.user!.userId}`);
       sseEvent(res, 'error', { error: 'Workspace not found or access denied' });
       res.end();
@@ -100,14 +156,6 @@ router.post('/:id/chat', requireAuth, async (req: Request, res: Response, next: 
     }
 
     think('📋 Loading application blueprint & database schema specifications…', 'INGESTION');
-    const blueprint = await getBlueprintForUser(id, req.user!.userId);
-    if (!blueprint) {
-      console.error(`[Agent] Blueprint ${id} specifications not found`);
-      sseEvent(res, 'error', { error: 'Blueprint specifications not found' });
-      res.end();
-      return;
-    }
-
     think('📁 Reading current Virtual File System (VFS)…', 'INGESTION');
     const files = await getBlueprintFiles(id);
     console.log(`[Agent] VFS contains ${files.length} file(s)`);
@@ -117,23 +165,17 @@ router.post('/:id/chat', requireAuth, async (req: Request, res: Response, next: 
 
     await saveChatMessage(id, req.user!.userId, 'user', prompt);
 
-    // Build compact file context — cap individual files at 4000 chars
+    // Build clean file context
     const cleanFiles = files
       .filter(f => f.path !== 'preview.html')
       .map(f => ({
         path: f.path,
-        content: f.content.length > 4000
-          ? f.content.slice(0, 4000) + '\n... [truncated for context window]'
-          : f.content,
+        content: f.content,
       }));
 
     notifyPipelineStage('INGESTION', 'completed', `VFS ingested (${cleanFiles.length} files) with runtime telemetry`);
 
-    // ─── STAGE 2: AUTO_FIX & INTENT ANALYSIS ────────────────────────────────
-    notifyPipelineStage('AUTO_FIX', 'start', 'Dispatching Cortex LLM router for reasoning & diff planning');
-    think(`🧠 Analyzing user instruction against ${cleanFiles.length} VFS file(s)…`, 'AUTO_FIX');
-
-    // Construct comprehensive context payload including active file, schema, and preview errors
+    // ─── STAGES 2, 3, 4: SUBAGENT REFINEMENT PIPELINE (Planner -> Patch Gen -> Verifier) ─
     const bp = blueprint.parsedBlueprint;
     const schemaContext = {
       schema: bp.schema || [],
@@ -141,224 +183,128 @@ router.post('/:id/chat', requireAuth, async (req: Request, res: Response, next: 
       screens: bp.screens || [],
     };
 
-    const errorSection = previewErrors
-      ? `\nACTIVE PREVIEW RUNTIME ERRORS / STACK TRACE:\n${typeof previewErrors === 'string' ? previewErrors : JSON.stringify(previewErrors, null, 2)}\n`
-      : '';
-
-    const consoleSection = consoleLogs
-      ? `\nBROWSER CONSOLE LOGS:\n${typeof consoleLogs === 'string' ? consoleLogs : JSON.stringify(consoleLogs, null, 2)}\n`
-      : '';
-
-    const activeFileSection = activeFilePath
-      ? `\nCURRENTLY ACTIVE EDITOR FILE: "${activeFilePath}"\n` +
-        (activeFileContent
-          ? `ACTIVE FILE CODE:\n\`\`\`\n${activeFileContent.slice(0, 4000)}\n\`\`\`\n`
-          : '')
-      : '';
-
-    const agentPrompt = `APPLICATION DETAILS:
-Name: ${bp.appName || (bp as any).title || 'BuildX App'}
-Description: ${bp.description || 'Full-Stack Application'}
-Layout Paradigm: ${bp.layoutParadigm || 'LEFT_SIDEBAR_DASHBOARD'}
-
-DATABASE BLUEPRINT SCHEMA & SPECIFICATIONS:
-${JSON.stringify(schemaContext, null, 2)}
-${activeFileSection}${errorSection}${consoleSection}
-CURRENT WORKSPACE FILES (VFS):
-${JSON.stringify(cleanFiles, null, 2)}
-
-RECENT CHAT HISTORY:
-${JSON.stringify(history.slice(-6).map((h: any) => ({ role: h.role, content: h.content })), null, 2)}
-
-USER INSTRUCTION:
-${prompt}
-
-DIFF GENERATION INSTRUCTION:
-- For modifying existing files, use Search/Replace diff blocks inside "content" to minimize latency:
-<<<<<<< SEARCH
-<exact lines from original file>
-=======
-<replacement lines>
->>>>>>> REPLACE
-- For creating new files, write the full content.
-- Respond with ONLY the JSON object matching the required schema.`;
-
-    const autoFixResult = await completeWithPipelineFallback(
-      'AUTO_FIX',
-      [
-        { role: 'system', content: AGENT_SYSTEM_PROMPT },
-        { role: 'user', content: agentPrompt },
-      ],
-      { temperature: 0.15, maxTokens: getPipelineMaxTokens('AUTO_FIX') }
+    const pipelineResult = await runSubagentRefinementPipeline(
+      prompt,
+      cleanFiles,
+      {
+        appName: bp.appName || (bp as any).title || 'BuildX App',
+        schema: schemaContext,
+        activeFilePath,
+        activeFileContent,
+        previewErrors,
+        consoleLogs,
+        requestedModel: typeof model === 'string' ? model : undefined,
+        history: history.slice(-6).map((h: any) => ({ role: h.role, content: h.content })),
+      },
+      {
+        think,
+        pipelineStage: notifyPipelineStage,
+        agentPlan: (planData: PlannerOutput & { modelUsed?: string; executionTimeMs?: number; wasFallback?: boolean }) => {
+          sseEvent(res, 'agent_plan', planData, isAborted);
+        },
+        filePatch: (patch: PatchFile & { modelUsed?: string; executionTimeMs?: number; wasFallback?: boolean }) => {
+          sseEvent(res, 'file_patch', patch, isAborted);
+        },
+        agentPatch: (patch: PatchFile & { modelUsed?: string; executionTimeMs?: number; wasFallback?: boolean }) => {
+          sseEvent(res, 'agent_patch', patch, isAborted);
+        },
+        stagedDiff: (diff: { path: string; original: string; modified: string }) => {
+          sseEvent(res, 'staged_diff', diff, isAborted);
+        },
+        agentTelemetry: (telemetry: { stage: string; modelName?: string; modelUsed: string; executionTimeMs: number; wasFallback: boolean }) => {
+          sseEvent(res, 'agent_telemetry', telemetry, isAborted);
+        },
+      }
     );
 
-    if (autoFixResult.usedFallback) {
-      notifyPipelineStage('AUTO_FIX', 'fallback', `Primary failed. Dispatched GLM-5.2 fallback model`);
-    } else {
-      notifyPipelineStage('AUTO_FIX', 'completed', `Reasoning completed via ${autoFixResult.model}`);
-    }
+    // Keep generated files staged until the user explicitly accepts them in the UI.
+    const modifiedPaths = pipelineResult.modifiedFiles.map((file) => file.path);
 
-    const rawResponse = autoFixResult.text;
-    console.log(`[Agent] Raw response received — length: ${rawResponse.length} chars (usedModel=${autoFixResult.model})`);
+    const planSummary = pipelineResult.plan.length > 0
+      ? pipelineResult.plan.map((p) => `- [x] ${p}`).join('\n')
+      : '- [x] Completed requested modifications';
 
-    think('✅ Response received — parsing JSON plan and target modifications…', 'DIFF_GENERATION');
+    await saveChatMessage(id, req.user!.userId, 'assistant', pipelineResult.message);
+    console.log(`[Agent] Subagent pipeline complete. Staged ${modifiedPaths.length} files: ${modifiedPaths.join(', ')}`);
 
-    const existingPaths = files.map((f: any) => f.path);
-    let parsed: any = null;
+    // Emit agent_complete event with telemetry
+    sseEvent(res, 'agent_complete', {
+      success: true,
+      modifiedFiles: modifiedPaths,
+      message: pipelineResult.message,
+      plan: planSummary,
+      stagedDiffs: pipelineResult.stagedDiffs,
+      telemetry: pipelineResult.telemetry,
+    }, isAborted);
 
-    try {
-      const cleanJson = extractJSON(rawResponse);
-      parsed = JSON.parse(cleanJson);
-    } catch (parseError: any) {
-      console.warn('[Agent] Primary JSON parse failed:', parseError.message, '— attempting field extraction fallback...');
-
-      // ── Fallback 1: Field-level extraction from broken JSON ───────────────
-      const fields = extractFieldsFromBrokenJson(rawResponse);
-      if (fields) {
-        console.info('[Agent] Field extraction fallback recovered partial fields.');
-        parsed = {
-          plan: fields['plan'] || '',
-          message: fields['message'] || 'Workspace files have been updated.',
-          files: Array.isArray(fields['files']) ? fields['files'] : [],
-        };
-
-        if (parsed.files.length === 0 && fields['files_raw']) {
-          parsed.files = parseFilesRaw(fields['files_raw']);
-        }
-        console.log(`[Agent] Fallback recovered ${parsed.files.length} file(s)`);
-      }
-    }
-
-    // ── Fallback 2: Universal extractor for code fences, diffs & JSON objects ─
-    if (!parsed) {
-      parsed = {
-        plan: '- [x] Applied requested code modifications',
-        message: 'Workspace files have been updated.',
-        files: [],
-      };
-    }
-
-    if (!parsed.files || parsed.files.length === 0) {
-      parsed.files = extractFilesFromBrokenJsonOrText(rawResponse, activeFilePath, existingPaths);
-      console.log(`[Agent] Universal fallback extracted ${parsed.files.length} file(s) from raw response`);
-    }
-
-    const plan = parsed.plan || '';
-    const message = parsed.message || 'Workspace files have been updated.';
-    let outputFiles: Array<{ path: string; content: string; action?: string }> = parsed.files || [];
-
-    // If outputFiles is still empty, attempt one final search/replace diff scan
-    if (outputFiles.length === 0) {
-      outputFiles = extractFilesFromBrokenJsonOrText(rawResponse, activeFilePath, existingPaths);
-    }
-
-    // ─── STAGE 3: DIFF_GENERATION & SURGICAL PATCHING ────────────────────────
-    notifyPipelineStage('DIFF_GENERATION', 'start', 'Applying surgical diff patches to workspace VFS');
-    think(`⚡ Applying surgical patches to ${outputFiles.length} file(s)…`, 'DIFF_GENERATION');
-
-    const vfsMap = new Map<string, string>(files.map(f => [f.path, f.content]));
-    const savedList: string[] = [];
-    const stagedDiffs: Record<string, { original: string; modified: string }> = {};
-
-    const EXT_LANG: Record<string, string> = {
-      ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
-      css: 'css', html: 'html', json: 'json', md: 'markdown', sql: 'sql',
-      py: 'python', sh: 'bash', env: 'text', txt: 'text',
-    };
-
-    for (const file of outputFiles) {
-      if (!file.path || !file.content) continue;
-
-      let finalContent = file.content;
-      const existingContent = vfsMap.get(file.path) || (file.path === activeFilePath ? activeFileContent : '');
-
-      // Check if file.content contains Search/Replace diff blocks
-      const diffBlocks = parseDiffBlocks(file.content);
-      if (Array.isArray(diffBlocks) && diffBlocks.length > 0 && existingContent) {
-        think(`   🩹 Applying ${diffBlocks.length} Search/Replace patch block(s) to ${file.path}…`, 'DIFF_GENERATION');
-        const patchResult = applySearchReplace(existingContent, file.content);
-        finalContent = patchResult.code;
-        console.log(`[Agent] Patch applied to ${file.path}: ${patchResult.applied} block(s) applied, ${patchResult.failed.length} failed`);
-        sseEvent(res, 'patch_apply', {
-          path: file.path,
-          applied: patchResult.applied,
-          failedCount: patchResult.failed.length,
-        });
-      }
-
-      if (existingContent && existingContent !== finalContent) {
-        stagedDiffs[file.path] = {
-          original: existingContent,
-          modified: finalContent,
-        };
-        sseEvent(res, 'staged_diff', {
-          path: file.path,
-          original: existingContent,
-          modified: finalContent,
-        });
-      }
-
-      const ext = file.path.split('.').pop()?.toLowerCase() || 'txt';
-      const language = EXT_LANG[ext] || 'text';
-
-      try {
-        await saveBlueprintFile(id, file.path, finalContent, language);
-        savedList.push(file.path);
-        console.log(`[Agent] ✔ Saved: ${file.path} (${finalContent.length} chars, lang=${language})`);
-        think(`   ✔ Saved: ${file.path}`, 'DIFF_GENERATION');
-      } catch (writeError: any) {
-        console.error(`[Agent] ✗ Failed to save ${file.path}:`, writeError.message);
-        think(`   ✗ Failed to save ${file.path}: ${writeError.message}`, 'DIFF_GENERATION');
-      }
-    }
-
-    // ─── Step 3: Catch Zero-File Execution Drops ─────────────────────────────
-    if (savedList.length === 0 && outputFiles.length === 0) {
-      console.warn(`[Agent] Zero files extracted from response. Raw response snippet: ${rawResponse.slice(0, 300)}`);
-      const fallbackMsg = 'The model generated a response, but no file changes could be safely extracted. Please rephrase or specify which file to update (e.g. "Modify frontend/src/App.tsx to add...")';
-      await saveChatMessage(id, req.user!.userId, 'assistant', fallbackMsg);
-      sseEvent(res, 'done', {
-        success: false,
-        message: fallbackMsg,
-        plan: '',
-        modifiedFiles: [],
-        stagedDiffs: {},
-        pipelineUsed: {
-          ingestion: 'gemini-3.5-flash',
-          autoFix: autoFixResult.model,
-          diffGen: 'z-ai/glm-5.2',
-        },
-      });
-      res.end();
-      return;
-    }
-
-    notifyPipelineStage('DIFF_GENERATION', 'completed', `Successfully updated ${savedList.length} workspace file(s)`);
-
-    await saveChatMessage(id, req.user!.userId, 'assistant', message);
-    console.log(`[Agent] Pipeline complete. Saved ${savedList.length} files: ${savedList.join(', ')}`);
-
+    // Emit done event for backwards-compatible listeners
     sseEvent(res, 'done', {
       success: true,
-      message,
-      plan,
-      modifiedFiles: savedList,
-      stagedDiffs,
-      pipelineUsed: {
-        ingestion: 'gemini-3.5-flash',
-        autoFix: autoFixResult.model,
-        diffGen: 'z-ai/glm-5.2',
-      },
-    });
+      message: pipelineResult.message,
+      plan: planSummary,
+      modifiedFiles: modifiedPaths,
+      stagedDiffs: pipelineResult.stagedDiffs,
+      telemetry: pipelineResult.telemetry,
+    }, isAborted);
 
-    res.end();
+    if (!isAborted && !res.writableEnded) {
+      res.end();
+    }
   } catch (err: any) {
     console.error('[Agent] Pipeline error:', err.message, err.stack);
-    const errMsg = err.message || 'Agent pipeline process failed unexpectedly';
-    await saveChatMessage(id, req.user!.userId, 'assistant', `⚠️ Error: ${errMsg}`);
-    sseEvent(res, 'error', { error: errMsg });
-    res.end();
+    try {
+      await saveChatMessage(id, req.user!.userId, 'assistant', '⚠️ Agent pipeline failed unexpectedly.');
+    } catch {}
+    sseEvent(res, 'error', { error: 'Agent pipeline failed unexpectedly. Please try again.' }, isAborted);
+    if (!isAborted && !res.writableEnded) {
+      res.end();
+    }
+  } finally {
+    clearInterval(heartbeatInterval);
+    activePipelines.delete(id);
   }
+};
+
+router.post('/:id/chat', requireAuth, chatHandler);
+
+/**
+ * POST /:id/auto-heal — Autonomous Self-Healing Endpoint
+ *
+ * Accepts runtime error context from the Sandpack preview and dispatches
+ * a targeted subagent fix using the same SSE pipeline as normal chat.
+ */
+router.post('/:id/auto-heal', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const {
+    errorMessage,
+    errorPath,
+    errorLine,
+    errorColumn,
+    activeFileContent,
+    model,
+  } = req.body;
+
+  if (!errorMessage || typeof errorMessage !== 'string') {
+    res.status(400).json({ error: 'errorMessage is required' });
+    return;
+  }
+
+  // Build a focused auto-heal prompt
+  const targetFile = errorPath || 'the active component';
+  const lineInfo = errorLine ? ` at line ${errorLine}` : '';
+  const columnInfo = errorColumn ? `:${errorColumn}` : '';
+  const healPrompt = `CRITICAL FIX NEEDED: Fix the runtime preview error in file "${targetFile}"${lineInfo}${columnInfo}.\n\nError message: ${errorMessage}\n\nInstructions:\n1. Identify the exact cause of this runtime error\n2. Fix ONLY the broken code — do not refactor or change unrelated logic\n3. Ensure the fix compiles and runs without errors\n4. Preserve all existing functionality`;
+
+  // Delegate to the existing chat handler by rewriting the body and forwarding
+  req.body = {
+    prompt: healPrompt,
+    model: model || 'gemini-3.5-flash',
+    mode: 'auto-heal',
+    activeFilePath: errorPath,
+    activeFileContent,
+    previewErrors: [{ message: errorMessage, path: errorPath, line: errorLine, column: errorColumn }],
+  };
+
+  await chatHandler(req, res);
 });
 
 export default router;

@@ -2,7 +2,7 @@ import type { Blueprint } from '../lib/types';
 import { completeWithPipelineFallback } from '../lib/llm/router';
 import { UI_GENERATOR_SYSTEM_PROMPT } from '../prompts/uiGenerator';
 import {
-  getBlueprintAny,
+  getBlueprintForUser,
   getBlueprintFiles,
   saveBlueprintFile,
 } from '../lib/db';
@@ -73,11 +73,11 @@ Output the upgraded App component now:`;
  * Core UI Enhancement Service
  * Calls the LLM to upgrade the App.tsx in VFS with a rich, production-grade dark glassmorphic UI.
  */
-export async function enhanceVfsUi(blueprintId: string): Promise<EnhanceUIResult> {
+export async function enhanceVfsUi(blueprintId: string, userId: string): Promise<EnhanceUIResult> {
   // 1. Load blueprint metadata
-  const rawBlueprint = await getBlueprintAny(blueprintId);
+  const rawBlueprint = await getBlueprintForUser(blueprintId, userId, { incrementViews: false });
   if (!rawBlueprint) {
-    throw new Error(`Blueprint ${blueprintId} not found`);
+    throw new Error(`Blueprint ${blueprintId} not found or not owned by you`);
   }
   const blueprint: Blueprint = (rawBlueprint as any).parsedBlueprint || rawBlueprint;
 
@@ -113,7 +113,7 @@ export async function enhanceVfsUi(blueprintId: string): Promise<EnhanceUIResult
     },
   ];
 
-  // 4. Call LLM via INGESTION pipeline (Gemini 3.5 Flash primary, GLM-5.2 fallback)
+  // 4. Call the unified INGESTION pipeline (GLM 5.2 primary, Gemini fallback)
   const { text: enhancedCode, usedFallback, model: modelUsed } = await completeWithPipelineFallback(
     'INGESTION',
     messages,

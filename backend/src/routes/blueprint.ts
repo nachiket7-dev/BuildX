@@ -1,13 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { BlueprintRequestSchema, BlueprintSchema, type Blueprint } from '../lib/types';
-import { generateBlueprint } from '../lib/generator';
 import { generateBlueprintAgentic, runAgenticBlueprintPipeline } from '../lib/orchestrator';
 import { generateApplicationCode } from '../lib/codegen/agent';
-import { generatePreviewHtml, buildDeterministicPreview, buildDynamicRunner } from '../lib/codegen/preview';
+import { generatePreviewHtml, buildDeterministicPreview } from '../lib/codegen/preview';
 import {
   saveBlueprint,
   getBlueprintForUser,
-  getBlueprintAny,
+  getBlueprintOwnedByUser,
   getBlueprintMeta,
   listBlueprints,
   getUsageCount,
@@ -17,6 +16,7 @@ import {
   updateBlueprintJson,
   getUserById,
   saveBlueprintFile,
+  getBlueprintAny,
   getBlueprintFiles,
   getBlueprintFile,
   clearBlueprintFiles,
@@ -30,7 +30,7 @@ import {
   isPremiumModel,
   getProviderHealth,
 } from '../lib/llm/router';
-import { requireAuth, optionalAuth } from '../lib/auth';
+import { generatePreviewToken, isValidPreviewToken, requireAuth, optionalAuth } from '../lib/auth';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -48,7 +48,9 @@ const blueprintLimiter = rateLimit({
 const GPT_OSS_DAILY_LIMIT = 5;
 
 function attachModelMeta(blueprint: Blueprint, model?: string): Blueprint {
-  return model ? { ...blueprint, modelUsed: model } : blueprint;
+  // The pipeline records the provider/model that actually completed the first
+  // stage. Preserve it instead of relabeling the result with the request key.
+  return blueprint.modelUsed ? blueprint : model ? { ...blueprint, modelUsed: model } : blueprint;
 }
 
 async function assertPremiumUsageAllowed(userId: string, model?: string): Promise<void> {
@@ -143,13 +145,13 @@ router.post(
       return;
     }
 
-    const { idea, model } = parseResult.data;
+    const { idea, model, stack } = parseResult.data;
     const userId = req.user!.userId;
-    console.log(`[Blueprint] Generating for idea: "${idea.slice(0, 80)}..."`);
+    console.log(`[Blueprint] Generating for idea: "${idea.slice(0, 80)}..." with stack:`, stack);
 
     try {
       await assertPremiumUsageAllowed(userId, model);
-      const blueprint = await generateBlueprint(idea, model);
+      const blueprint = await runAgenticBlueprintPipeline(idea, model, undefined, stack);
       const id = await saveBlueprint(idea, attachModelMeta(blueprint, model), userId, false);
       await recordPremiumUsageIfNeeded(userId, model);
       console.log(`[Blueprint] Success: ${blueprint.appName} (id: ${id})`);
@@ -179,18 +181,15 @@ router.post('/generate-stream', requireAuth, blueprintLimiter, async (req: Reque
     return;
   }
 
-  const { idea, model } = parseResult.data;
+  const { idea, model, stack } = parseResult.data;
   const userId = req.user!.userId;
-  console.log(`[Blueprint:stream] Generating for idea: "${idea.slice(0, 80)}..."`);
+  console.log(`[Blueprint:stream] Generating for idea: "${idea.slice(0, 80)}..." with stack:`, stack);
 
   try {
     await assertPremiumUsageAllowed(userId, model);
-    const blueprint = await generateBlueprintAgentic(idea, res, model);
+    const blueprint = await generateBlueprintAgentic(idea, res, model, stack);
 
-    if (isClientAborted(req)) {
-      return;
-    }
-
+    // Unconditional DB persistence: generated blueprint specs are always preserved
     try {
       const id = await saveBlueprint(idea, attachModelMeta(blueprint, model), userId, false);
       await recordPremiumUsageIfNeeded(userId, model);
@@ -231,7 +230,7 @@ router.post('/generate-stream', requireAuth, blueprintLimiter, async (req: Reque
 });
 
 /** Triggers streaming file-by-file code generation for a blueprint */
-router.post('/:id/codegen', requireAuth, blueprintLimiter, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/:id/codegen', requireAuth, blueprintLimiter, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const { model } = req.body;
 
@@ -241,17 +240,13 @@ router.post('/:id/codegen', requireAuth, blueprintLimiter, async (req: Request, 
   }
 
   try {
-    const meta = await getBlueprintMeta(id, req.user!.userId);
-    if (!meta) {
-      res.status(404).json({ error: 'Blueprint not found or access denied' });
+    const blueprint = await getBlueprintOwnedByUser(id, req.user!.userId);
+    if (!blueprint) {
+      res.status(404).json({ error: 'Blueprint not found or not owned by you' });
       return;
     }
 
-    const blueprint = await getBlueprintForUser(id, req.user!.userId);
-    if (!blueprint) {
-      res.status(404).json({ error: 'Blueprint not found' });
-      return;
-    }
+    await assertPremiumUsageAllowed(req.user!.userId, model);
 
     // Set up SSE streaming response — extend socket timeout for large models (Nemotron 550B etc.)
     req.socket.setTimeout(10 * 60 * 1000); // 10 minutes
@@ -259,15 +254,17 @@ router.post('/:id/codegen', requireAuth, blueprintLimiter, async (req: Request, 
 
     // Run the codegen agent
     await generateApplicationCode(id, blueprint.parsedBlueprint, res, model);
+    await recordPremiumUsageIfNeeded(req.user!.userId, model);
     
     // Close SSE connection
     endSSE(res);
   } catch (err: any) {
     console.error('[Codegen Route] Error:', err.message);
+    const message = 'Code generation failed. Please try again.';
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message || 'Code generation failed' });
+      res.status(500).json({ error: message });
     } else if (!res.writableEnded) {
-      sendSSE(res, 'error', { message: err.message || 'Code generation failed' });
+      sendSSE(res, 'error', { message });
       endSSE(res);
     }
   }
@@ -665,7 +662,7 @@ router.post('/check-github-repo', requireAuth, async (req: Request, res: Respons
     // 3. If we found a repository, self-heal/update the database blueprint record with the githubUrl
     if (exists && resolvedUrl && blueprintId && !isHeuristicMatch) {
       try {
-        const blueprintRecord = await getBlueprintForUser(blueprintId, userId, { incrementViews: false });
+        const blueprintRecord = await getBlueprintOwnedByUser(blueprintId, userId);
         if (blueprintRecord && !blueprintRecord.parsedBlueprint.githubUrl) {
           const updatedBlueprint = { ...blueprintRecord.parsedBlueprint, githubUrl: resolvedUrl };
           await updateBlueprintJson(blueprintId, userId, updatedBlueprint);
@@ -716,6 +713,14 @@ router.post('/refine', requireAuth, blueprintLimiter, async (req: Request, res: 
   }
 
   try {
+    if (blueprintId) {
+      const ownedBlueprint = await getBlueprintOwnedByUser(blueprintId, userId);
+      if (!ownedBlueprint) {
+        res.status(404).json({ error: 'Blueprint not found or not owned by you' });
+        return;
+      }
+    }
+
     await assertPremiumUsageAllowed(userId, model);
     const refined = await refineBlueprint(coercedBlueprint, message.trim(), model);
     const refinedWithModel = attachModelMeta(refined, model || coercedBlueprint.modelUsed);
@@ -772,7 +777,7 @@ router.post('/regenerate-stream', requireAuth, blueprintLimiter, async (req: Req
   }
 
   try {
-    const existing = await getBlueprintForUser(blueprintId, userId, { incrementViews: false });
+    const existing = await getBlueprintOwnedByUser(blueprintId, userId);
     if (!existing) {
       res.status(404).json({ error: 'Blueprint not found or not owned by you' });
       return;
@@ -842,7 +847,7 @@ router.post('/regenerate', requireAuth, blueprintLimiter, async (req: Request, r
   }
 
   try {
-    const existing = await getBlueprintForUser(blueprintId, userId, { incrementViews: false });
+    const existing = await getBlueprintOwnedByUser(blueprintId, userId);
     if (!existing) {
       res.status(404).json({ error: 'Blueprint not found or not owned by you' });
       return;
@@ -1055,7 +1060,7 @@ router.get('/:id/files/*', optionalAuth, async (req: Request, res: Response, nex
 // ─── Live Preview API Endpoints ──────────────────────────────
 
 /** Fetch the compiled preview HTML page for the sandbox iframe */
-router.get('/:id/preview', optionalAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/:id/preview', optionalAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   if (!validateBlueprintId(id)) {
     res.status(400).json({ error: 'Invalid blueprint ID' });
@@ -1063,7 +1068,13 @@ router.get('/:id/preview', optionalAuth, async (req: Request, res: Response, nex
   }
 
   try {
-    const blueprint = await getBlueprintAny(id);
+    const ownedOrPublicBlueprint = await getBlueprintForUser(id, req.user?.userId || '', { incrementViews: false });
+    const previewToken = typeof req.query.token === 'string' ? req.query.token : '';
+    const blueprint = ownedOrPublicBlueprint || (
+      previewToken && isValidPreviewToken(previewToken, id)
+        ? await getBlueprintAny(id)
+        : null
+    );
     if (!blueprint) {
       res.status(404).json({ error: 'Blueprint not found' });
       return;
@@ -1077,12 +1088,32 @@ router.get('/:id/preview', optionalAuth, async (req: Request, res: Response, nex
     res.send(html);
   } catch (err: any) {
     console.error('[Preview Route] Error:', err.message);
-    res.status(500).send(`<html><body><h3>Preview Generation Failed</h3><p>${err.message || 'Unknown error'}</p></body></html>`);
+    res.status(500).send('<html><body><h3>Preview Generation Failed</h3><p>Unable to generate preview.</p></body></html>');
   }
 });
 
+/** Create a short-lived URL that can be opened in a new tab or shared. */
+router.post('/:id/preview/link', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  if (!validateBlueprintId(id)) {
+    res.status(400).json({ error: 'Invalid blueprint ID' });
+    return;
+  }
+
+  const blueprint = await getBlueprintOwnedByUser(id, req.user!.userId);
+  if (!blueprint) {
+    res.status(404).json({ error: 'Blueprint not found or not owned by you' });
+    return;
+  }
+
+  res.json({
+    success: true,
+    data: { path: `/api/blueprint/${id}/preview?token=${encodeURIComponent(generatePreviewToken(id))}` },
+  });
+});
+
 /** Force-regenerate the preview HTML page */
-router.post('/:id/preview/regenerate', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/:id/preview/regenerate', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const { model } = req.body;
 
@@ -1092,15 +1123,9 @@ router.post('/:id/preview/regenerate', requireAuth, async (req: Request, res: Re
   }
 
   try {
-    const meta = await getBlueprintMeta(id, req.user!.userId);
-    if (!meta) {
-      res.status(404).json({ error: 'Blueprint not found or not owned by you' });
-      return;
-    }
-
-    const blueprint = await getBlueprintForUser(id, req.user!.userId);
+    const blueprint = await getBlueprintOwnedByUser(id, req.user!.userId);
     if (!blueprint) {
-      res.status(404).json({ error: 'Blueprint specifications not found' });
+      res.status(404).json({ error: 'Blueprint not found or not owned by you' });
       return;
     }
 
@@ -1111,7 +1136,7 @@ router.post('/:id/preview/regenerate', requireAuth, async (req: Request, res: Re
     res.json({ success: true, message: 'Preview regenerated successfully' });
   } catch (err: any) {
     console.error('[Preview Route] Regenerate Error:', err.message);
-    res.status(500).json({ error: err.message || 'Failed to regenerate preview' });
+    res.status(500).json({ error: 'Failed to regenerate preview' });
   }
 });
 
@@ -1146,7 +1171,7 @@ router.post('/:id/refine', requireAuth, blueprintLimiter, async (req: Request, r
   }
 
   // ── Fetch existing blueprint from DB ─────────────────────────────────────
-  const stored = await getBlueprintForUser(id, userId);
+  const stored = await getBlueprintOwnedByUser(id, userId);
   if (!stored) {
     res.status(404).json({ error: 'Blueprint not found or not owned by you' });
     return;

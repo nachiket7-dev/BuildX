@@ -47,14 +47,15 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // Check if email already exists
-  const existing = await getUserByEmail(email.toLowerCase().trim());
-  if (existing) {
-    res.status(409).json({ error: 'An account with this email already exists' });
-    return;
-  }
-
   try {
+    // Check if email already exists inside the guarded block so database
+    // outages are converted into a controlled response.
+    const existing = await getUserByEmail(email.toLowerCase().trim());
+    if (existing) {
+      res.status(409).json({ error: 'An account with this email already exists' });
+      return;
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const id = await createUser(name.trim(), email.toLowerCase().trim(), hashedPassword);
 
@@ -123,21 +124,26 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 // Returns: { success, user: { id, name, email } }
 // ─────────────────────────────────────────────────────────────
 router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const user = await getUserById(req.user!.userId);
-  if (!user) {
-    res.status(404).json({ error: 'User not found' });
-    return;
-  }
+  try {
+    const user = await getUserById(req.user!.userId);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
 
-  res.json({
-    success: true,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      githubLinked: Boolean(user.githubId),
-    },
-  });
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        githubLinked: Boolean(user.githubId),
+      },
+    });
+  } catch (err) {
+    console.error('[Auth] /me error:', (err as Error).message);
+    res.status(500).json({ error: 'Failed to load account' });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -322,7 +328,7 @@ router.post('/github/callback', async (req: Request, res: Response): Promise<voi
         user = await getUserByGithubId(githubId);
       } else {
         // Create new user
-        const userId = await createGithubUser(githubName, normalizedEmail, githubId, accessToken);
+        await createGithubUser(githubName, normalizedEmail, githubId, accessToken);
         user = await getUserByGithubId(githubId);
       }
     }
@@ -342,7 +348,7 @@ router.post('/github/callback', async (req: Request, res: Response): Promise<voi
   } catch (err) {
     const errMsg = (err as Error).message;
     console.error('[Auth] GitHub OAuth error:', errMsg);
-    res.status(500).json({ error: 'GitHub authentication failed', details: errMsg });
+    res.status(500).json({ error: 'GitHub authentication failed' });
   }
 });
 
@@ -430,7 +436,7 @@ router.post('/github/link', requireAuth, async (req: Request, res: Response): Pr
   } catch (err) {
     const errMsg = (err as Error).message;
     console.error('[Auth] GitHub link error:', errMsg);
-    res.status(500).json({ error: 'Failed to link GitHub account', details: errMsg });
+    res.status(500).json({ error: 'Failed to link GitHub account' });
   }
 });
 

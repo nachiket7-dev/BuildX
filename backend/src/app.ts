@@ -66,10 +66,10 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // ─── Routes ───────────────────────────────────────────────
 app.use('/api/auth', authRouter);
-app.use('/api/blueprint', blueprintRouter);
+app.use('/api/agent', agentRouter);
 app.use('/api/blueprints', vfsRouter);
 app.use('/api/blueprint', vfsRouter); // Route alias for VFS workspace compatibility
-app.use('/api/agent', agentRouter);
+app.use('/api/blueprint', blueprintRouter);
 
 // ─── 404 ──────────────────────────────────────────────────
 app.use((_req: Request, res: Response) => {
