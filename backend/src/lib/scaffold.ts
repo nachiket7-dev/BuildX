@@ -1,15 +1,9 @@
 import archiver from 'archiver';
 import { Response } from 'express';
 import type { Blueprint } from './types';
+import { isPlausibleSourceCode } from './codegen/skeletonizer';
 
 // ─── Helpers ───────────────────────────────────────────────
-
-function toSnakeCase(str: string): string {
-  return str
-    .replace(/([a-z])([A-Z])/g, '$1_$2')
-    .replace(/[\s\-]+/g, '_')
-    .toLowerCase();
-}
 
 function toKebabCase(str: string): string {
   return str
@@ -50,10 +44,6 @@ function isPrimaryKey(col: { name: string; type: string; note?: string }): boole
   return t.includes('PRIMARY KEY') || t.includes('PK');
 }
 
-function hasDefault(type: string): boolean {
-  return type.toUpperCase().includes('DEFAULT');
-}
-
 // ─── File generators ───────────────────────────────────────
 
 function generateRootPackageJson(bp: Blueprint): string {
@@ -82,28 +72,56 @@ function generateRootPackageJson(bp: Blueprint): string {
 function generateBackendPackageJson(bp: Blueprint): string {
   const name = toKebabCase(bp.appName) + '-backend';
   const isMongo = bp.architecture.database.toLowerCase().includes('mongo');
+  const isSupabase = bp.architecture.database.toLowerCase().includes('supabase');
+  const isFastify = bp.architecture.backend.toLowerCase().includes('fastify');
+  const isClerk = bp.architecture.auth.toLowerCase().includes('clerk');
+  const isNextAuth = bp.architecture.auth.toLowerCase().includes('nextauth') || bp.architecture.auth.toLowerCase().includes('auth.js');
   
   const dependencies: Record<string, string> = {
-    cors: '^2.8.5',
     dotenv: '^16.3.1',
-    express: '^4.18.2',
-    helmet: '^7.1.0',
     zod: '^3.22.4',
+    // The generated route modules use the Express Router contract for every
+    // stack, so keep the runtime dependency present even when Fastify is also
+    // requested as an integration option.
+    express: '^4.18.2',
+    cors: '^2.8.5',
+    helmet: '^7.1.0',
   };
   
   const devDependencies: Record<string, string> = {
-    '@types/cors': '^2.8.17',
-    '@types/express': '^4.17.21',
     '@types/node': '^20.10.0',
     'ts-node-dev': '^2.0.0',
     typescript: '^5.3.2',
+    '@types/express': '^4.17.21',
+    '@types/cors': '^2.8.17',
   };
+
+  if (isFastify) {
+    dependencies['fastify'] = '^4.25.0';
+    dependencies['@fastify/cors'] = '^9.0.0';
+    dependencies['@fastify/helmet'] = '^11.1.1';
+  }
 
   if (isMongo) {
     dependencies['mongoose'] = '^8.0.0';
+  } else if (isSupabase) {
+    dependencies['@supabase/supabase-js'] = '^2.39.0';
+    dependencies['@prisma/client'] = '^5.7.0';
+    devDependencies['prisma'] = '^5.7.0';
   } else {
     dependencies['@prisma/client'] = '^5.7.0';
     devDependencies['prisma'] = '^5.7.0';
+  }
+
+  if (isClerk) {
+    dependencies['@clerk/clerk-sdk-node'] = '^4.13.0';
+  } else if (isNextAuth) {
+    dependencies['next-auth'] = '^4.24.5';
+  } else {
+    dependencies['jsonwebtoken'] = '^9.0.2';
+    dependencies['bcryptjs'] = '^2.4.3';
+    devDependencies['@types/jsonwebtoken'] = '^9.0.5';
+    devDependencies['@types/bcryptjs'] = '^2.4.6';
   }
 
   return JSON.stringify(
@@ -207,6 +225,22 @@ datasource db {
 }
 
 function generateBackendIndex(bp: Blueprint): string {
+  const isFastify = bp.architecture.backend.toLowerCase().includes('fastify');
+  if (isFastify) {
+    return `import 'dotenv/config';
+import app from './app';
+
+const PORT = parseInt(process.env.PORT || '3001', 10);
+
+app.listen({ port: PORT, host: '0.0.0.0' })
+  .then(() => console.log(\`\\n⚡ ${bp.appName} API running on http://localhost:\${PORT}\\n\`))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+`;
+  }
+
   return `import 'dotenv/config';
 import app from './app';
 
@@ -220,6 +254,7 @@ app.listen(PORT, () => {
 }
 
 function generateBackendApp(bp: Blueprint): string {
+  const isFastify = bp.architecture.backend.toLowerCase().includes('fastify');
   // Collect unique resource names from endpoints
   const resources = new Set<string>();
   for (const ep of bp.endpoints) {
@@ -237,6 +272,31 @@ function generateBackendApp(bp: Blueprint): string {
   const routes = Array.from(resources)
     .map((r) => `app.use('/api/${r}', ${toCamelCase(r)}Router);`)
     .join('\n');
+
+  if (isFastify) {
+    const fastifyImports = Array.from(resources)
+      .map((r) => `import ${toCamelCase(r)}Routes from './routes/${r}';`)
+      .join('\n');
+    const fastifyRegistrations = Array.from(resources)
+      .map((r) => `app.register(${toCamelCase(r)}Routes, { prefix: '/api/${r}' });`)
+      .join('\n');
+    return `import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+
+${fastifyImports}
+
+const app = Fastify({ logger: true });
+
+app.register(cors);
+app.register(helmet);
+app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
+
+${fastifyRegistrations}
+
+export default app;
+`;
+  }
 
   return `import express from 'express';
 import cors from 'cors';
@@ -267,15 +327,33 @@ export default app;
 `;
 }
 
-function generateRouteFile(resource: string, endpoints: Blueprint['endpoints']): string {
+function generateRouteFile(resource: string, endpoints: Blueprint['endpoints'], isFastify = false): string {
+  if (isFastify) return generateFastifyRouteFile(resource, endpoints);
+
   const filtered = endpoints.filter((ep) => {
     const parts = ep.path.split('/').filter(Boolean);
     return parts.length >= 2 && parts[1] === resource;
   });
 
-  let code = `import { Router, Request, Response } from 'express';
+  let code = `import crypto from 'crypto';
+import { Router, Request, Response, NextFunction } from 'express';
 
+type ResourceRecord = Record<string, unknown> & { id: string };
 const router = Router();
+const records: ResourceRecord[] = [];
+
+function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  if (!req.headers.authorization) {
+    res.status(401).json({ error: 'Authorization header is required' });
+    return;
+  }
+  next();
+}
+
+function requestId(req: Request): string | undefined {
+  const values = Object.values(req.params);
+  return values.length > 0 ? String(values[0]) : undefined;
+}
 
 `;
 
@@ -285,14 +363,55 @@ const router = Router();
     const subPath = '/' + parts.slice(2).join('/') || '/';
     const expressPath = subPath.replace(/:(\w+)/g, ':$1');
     const method = ep.method.toLowerCase();
+    const routeDescription = JSON.stringify(ep.description || `${method.toUpperCase()} ${expressPath}`);
+    const authGuard = ep.auth ? 'requireAuth, ' : '';
 
     code += `// ${ep.description}${ep.auth ? ' [AUTH]' : ''}
-router.${method}('${expressPath}', async (req: Request, res: Response) => {
+router.${method}(${JSON.stringify(expressPath)}, ${authGuard}async (req: Request, res: Response) => {
   try {
-    // TODO: Implement ${ep.description}
-    res.json({ message: '${ep.description}' });
+    const id = requestId(req);
+    if ('${method}' === 'get') {
+      const data = id ? records.filter((record) => record.id === id) : records;
+      res.json({ data, message: ${routeDescription} });
+      return;
+    }
+    if ('${method}' === 'post') {
+      const record: ResourceRecord = { id: crypto.randomUUID(), ...(req.body || {}) };
+      records.push(record);
+      res.status(201).json({ data: record, message: ${routeDescription} });
+      return;
+    }
+    if ('${method}' === 'put' || '${method}' === 'patch') {
+      if (!id) {
+        res.status(400).json({ error: 'A resource id is required for updates' });
+        return;
+      }
+      const record = records.find((candidate) => candidate.id === id);
+      if (!record) {
+        res.status(404).json({ error: 'Resource not found' });
+        return;
+      }
+      Object.assign(record, req.body || {});
+      res.json({ data: record, message: ${routeDescription} });
+      return;
+    }
+    if ('${method}' === 'delete') {
+      if (!id) {
+        res.status(400).json({ error: 'A resource id is required for deletion' });
+        return;
+      }
+      const index = records.findIndex((candidate) => candidate.id === id);
+      if (index === -1) {
+        res.status(404).json({ error: 'Resource not found' });
+        return;
+      }
+      const [deleted] = records.splice(index, 1);
+      res.json({ data: deleted, message: ${routeDescription} });
+      return;
+    }
+    res.status(501).json({ error: 'HTTP method is not supported by this generated route' });
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' });
   }
 });
 
@@ -303,59 +422,821 @@ router.${method}('${expressPath}', async (req: Request, res: Response) => {
   return code;
 }
 
+function generateFastifyRouteFile(resource: string, endpoints: Blueprint['endpoints']): string {
+  const filtered = endpoints.filter((ep) => {
+    const parts = ep.path.split('/').filter(Boolean);
+    return parts.length >= 2 && parts[1] === resource;
+  });
+  const functionName = `${toCamelCase(resource)}Routes`;
+  let code = `import crypto from 'crypto';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+
+type ResourceRecord = Record<string, unknown> & { id: string };
+const records: ResourceRecord[] = [];
+
+function requireAuth(request: FastifyRequest, reply: FastifyReply, done: () => void): void {
+  if (!request.headers.authorization) {
+    reply.code(401).send({ error: 'Authorization header is required' });
+    return;
+  }
+  done();
+}
+
+export default async function ${functionName}(app: FastifyInstance): Promise<void> {
+`;
+
+  for (const ep of filtered) {
+    const parts = ep.path.split('/').filter(Boolean);
+    const routePath = '/' + parts.slice(2).join('/') || '/';
+    const method = ep.method.toLowerCase();
+    const description = JSON.stringify(ep.description || `${method.toUpperCase()} ${routePath}`);
+    const options = ep.auth ? `, { preHandler: requireAuth }` : '';
+
+    code += `  app.${method}(${JSON.stringify(routePath)}${options}, async (request, reply) => {
+    const params = (request.params || {}) as Record<string, string>;
+    const body = (request.body || {}) as Record<string, unknown>;
+    const id = Object.values(params)[0];
+    if ('${method}' === 'get') {
+      reply.send({ data: id ? records.filter((record) => record.id === id) : records, message: ${description} });
+      return;
+    }
+    if ('${method}' === 'post') {
+      const record: ResourceRecord = { id: crypto.randomUUID(), ...body };
+      records.push(record);
+      reply.code(201).send({ data: record, message: ${description} });
+      return;
+    }
+    if ('${method}' === 'put' || '${method}' === 'patch') {
+      if (!id) { reply.code(400).send({ error: 'A resource id is required for updates' }); return; }
+      const record = records.find((candidate) => candidate.id === id);
+      if (!record) { reply.code(404).send({ error: 'Resource not found' }); return; }
+      Object.assign(record, body);
+      reply.send({ data: record, message: ${description} });
+      return;
+    }
+    if ('${method}' === 'delete') {
+      if (!id) { reply.code(400).send({ error: 'A resource id is required for deletion' }); return; }
+      const index = records.findIndex((candidate) => candidate.id === id);
+      if (index === -1) { reply.code(404).send({ error: 'Resource not found' }); return; }
+      const [deleted] = records.splice(index, 1);
+      reply.send({ data: deleted, message: ${description} });
+      return;
+    }
+    reply.code(501).send({ error: 'HTTP method is not supported by this generated route' });
+  });
+
+`;
+  }
+
+  code += `}
+`;
+  return code;
+}
+
 function generateFrontendPackageJson(bp: Blueprint): string {
   const name = toKebabCase(bp.appName) + '-frontend';
+  const isNext = bp.architecture.frontend.toLowerCase().includes('next');
+  const isClerk = bp.architecture.auth.toLowerCase().includes('clerk');
+  const isSupabase = bp.architecture.database.toLowerCase().includes('supabase');
+
+  const dependencies: Record<string, string> = {
+    axios: '^1.6.2',
+    react: '^18.2.0',
+    'react-dom': '^18.2.0',
+    'lucide-react': '^0.300.0',
+  };
+
+  const devDependencies: Record<string, string> = {
+    '@types/node': '^20.10.0',
+    '@types/react': '^18.2.43',
+    '@types/react-dom': '^18.2.17',
+    autoprefixer: '^10.4.16',
+    postcss: '^8.4.32',
+    tailwindcss: '^3.3.6',
+    typescript: '^5.3.2',
+  };
+
+  if (isNext) {
+    dependencies['next'] = '^14.1.0';
+  } else {
+    dependencies['react-router-dom'] = '^7.18.2';
+    devDependencies['@vitejs/plugin-react'] = '^4.2.1';
+    devDependencies['vite'] = '^5.0.8';
+  }
+
+  if (isClerk) {
+    dependencies['@clerk/clerk-react'] = '^4.30.0';
+    if (isNext) dependencies['@clerk/nextjs'] = '^4.29.0';
+  }
+
+  if (isSupabase) {
+    dependencies['@supabase/supabase-js'] = '^2.39.0';
+  }
+
   return JSON.stringify(
     {
       name,
       version: '0.1.0',
       private: true,
-      type: 'module',
-      scripts: {
-        dev: 'vite',
-        build: 'tsc && vite build',
-        preview: 'vite preview',
-      },
-      dependencies: {
-        axios: '^1.6.2',
-        react: '^18.2.0',
-        'react-dom': '^18.2.0',
-        'react-router-dom': '^6.21.0',
-      },
-      devDependencies: {
-        '@types/react': '^18.2.43',
-        '@types/react-dom': '^18.2.17',
-        '@vitejs/plugin-react': '^4.2.1',
-        autoprefixer: '^10.4.16',
-        postcss: '^8.4.32',
-        tailwindcss: '^3.3.6',
-        typescript: '^5.3.2',
-        vite: '^5.0.8',
-      },
+      type: isNext ? undefined : 'module',
+      scripts: isNext
+        ? {
+            dev: 'next dev',
+            build: 'next build',
+            start: 'next start',
+          }
+        : {
+            dev: 'vite',
+            build: 'tsc && vite build',
+            preview: 'vite preview',
+          },
+      dependencies,
+      devDependencies,
     },
     null,
     2
   );
 }
 
-function generateFrontendPage(screen: Blueprint['screens'][number]): string {
-  const componentName = toPascalCase(screen.name.replace(/[^a-zA-Z0-9]/g, ''));
-  return `import React from 'react';
+function generateFrontendViteConfig(): string {
+  return `import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-/**
- * ${screen.name} ${screen.icon}
- * Components: ${screen.components}
- */
-export default function ${componentName}Page() {
+export default defineConfig({
+  plugins: [react()],
+});
+`;
+}
+
+function generateTailwindConfig(isNext: boolean): string {
+  const config = `{
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  theme: { extend: {} },
+  plugins: [],
+}`;
+  return isNext
+    ? `/** @type {import('tailwindcss').Config} */\nmodule.exports = ${config};\n`
+    : `export default ${config};\n`;
+}
+
+function generatePostcssConfig(isNext: boolean): string {
+  const config = `{ plugins: { tailwindcss: {}, autoprefixer: {} } }`;
+  return isNext ? `module.exports = ${config};\n` : `export default ${config};\n`;
+}
+
+function generateNextLayout(bp: Blueprint): string {
+  return `import type { ReactNode } from 'react';
+import './globals.css';
+
+export const metadata = {
+  title: ${JSON.stringify(bp.appName || 'BuildX App')},
+  description: ${JSON.stringify(bp.description || '')},
+};
+
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">${screen.icon} ${screen.name}</h1>
-      <p className="text-gray-600 mb-6">
-        Components needed: ${screen.components}
-      </p>
-      {/* TODO: Implement ${screen.name} */}
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-400">
-        Implement: ${screen.components}
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+`;
+}
+
+function generateNextPage(bp: Blueprint): string {
+  const source = isPlausibleSourceCode(bp.code.frontend, 'App.tsx')
+    ? bp.code.frontend
+    : generateFrontendApp(bp);
+  return `'use client';
+
+${source}
+`;
+}
+
+export function generateFrontendPage(screen: Blueprint['screens'][number], _bp?: Partial<Blueprint>): string {
+  const componentName = toPascalCase(screen.name.replace(/[^a-zA-Z0-9]/g, ''));
+  const screenName = JSON.stringify(screen.name);
+  const text = `${screen.name} ${screen.components || ''}`.toLowerCase();
+
+  // 1. Authentication & Onboarding Screen
+  if (/login|signup|sign.?up|register|auth|onboarding|account/.test(text)) {
+    return `import React, { useState } from 'react';
+import { Shield, Lock, Mail, User, ArrowRight, CheckCircle2 } from 'lucide-react';
+
+export default function ${componentName}Page() {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [role, setRole] = useState<'customer' | 'partner'>('customer');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSuccess(true);
+    setTimeout(() => setIsSuccess(false), 3500);
+  };
+
+  return (
+    <div className="min-h-[600px] w-full flex items-center justify-center p-6 bg-[#090a0f] text-slate-100 font-sans">
+      <div className="w-full max-w-md p-8 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-xl shadow-2xl space-y-6">
+        <div className="text-center space-y-2">
+          <div className="inline-flex p-3 rounded-2xl bg-gradient-to-tr from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-indigo-400 mb-1">
+            <Shield size={26} />
+          </div>
+          <h2 className="text-2xl font-bold text-white tracking-tight">{${screenName}}</h2>
+          <p className="text-xs text-slate-400 font-mono">Secure Access & Partner Gateway</p>
+        </div>
+
+        {/* Mode & Role Switcher */}
+        <div className="flex p-1 rounded-xl bg-black/40 border border-white/5 text-xs font-mono">
+          <button
+            type="button"
+            onClick={() => setMode('login')}
+            className={\`flex-1 py-1.5 rounded-lg transition-all \${mode === 'login' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'}\`}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('register')}
+            className={\`flex-1 py-1.5 rounded-lg transition-all \${mode === 'register' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'}\`}
+          >
+            Create Account
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'register' && (
+            <div>
+              <label className="block text-xs font-mono text-slate-400 mb-1.5">Full Name</label>
+              <div className="relative">
+                <User size={14} className="absolute left-3.5 top-3 text-slate-500" />
+                <input
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Sarah Jenkins"
+                  className="w-full pl-9 pr-4 py-2 bg-white/[0.04] border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-xs text-white placeholder-slate-600 outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-mono text-slate-400 mb-1.5">Email Address</label>
+            <div className="relative">
+              <Mail size={14} className="absolute left-3.5 top-3 text-slate-500" />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="sarah.j@example.com"
+                className="w-full pl-9 pr-4 py-2 bg-white/[0.04] border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-xs text-white placeholder-slate-600 outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-mono text-slate-400 mb-1.5">Password</label>
+            <div className="relative">
+              <Lock size={14} className="absolute left-3.5 top-3 text-slate-500" />
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full pl-9 pr-4 py-2 bg-white/[0.04] border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 rounded-xl text-xs text-white placeholder-slate-600 outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-xs font-mono text-slate-400 pt-1">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={role === 'partner'}
+                onChange={(e) => setRole(e.target.checked ? 'partner' : 'customer')}
+                className="rounded border-white/10 bg-white/5 text-indigo-600 focus:ring-0"
+              />
+              <span>Restaurant Partner Onboarding</span>
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold text-xs tracking-wide shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 transition-all"
+          >
+            <span>{mode === 'login' ? 'Authenticate & Enter' : 'Complete Registration'}</span>
+            <ArrowRight size={14} />
+          </button>
+        </form>
+
+        {isSuccess && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono animate-in fade-in">
+            <CheckCircle2 size={16} className="shrink-0 text-emerald-400" />
+            <span>Authentication successful! Access granted.</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+`;
+  }
+
+  // 2. Discovery & Recommendation / Menu Screen
+  if (/discovery|menu|cart|catalog|store|shop|food|recommendation/.test(text)) {
+    return `import React, { useState } from 'react';
+import { Search, Star, Clock, ShoppingBag, Plus, Sparkles, Filter } from 'lucide-react';
+
+export default function ${componentName}Page() {
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [cartCount, setCartCount] = useState(3);
+
+  const categories = ['All', 'Wood-Fired Pizza', 'Artisan Sushi', 'Gourmet Burgers', 'Healthy Bowls', 'Desserts'];
+
+  const items = [
+    { id: 1, name: 'Truffle Wood-Fired Pizza', cat: 'Wood-Fired Pizza', price: '$19.50', rating: '4.9', time: '20-30 min', desc: 'San Marzano tomatoes, buffalo mozzarella, white truffle oil & wild arugula.', match: '98% AI Match', img: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=60' },
+    { id: 2, name: 'Tokyo Tonkotsu Ramen', cat: 'Artisan Sushi', price: '$16.75', rating: '4.8', time: '15-25 min', desc: '16-hour simmered pork bone broth, soft-boiled egg, fresh scallions, chashu pork.', match: '95% AI Match', img: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=500&auto=format&fit=crop&q=60' },
+    { id: 3, name: 'Avocado Quinoa Power Bowl', cat: 'Healthy Bowls', price: '$14.25', rating: '4.7', time: '10-20 min', desc: 'Organic tri-color quinoa, Hass avocado, roasted sweet potato, kale & tahini dressing.', match: '91% AI Match', img: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=60' },
+    { id: 4, name: 'Smoked Angus Truffle Burger', cat: 'Gourmet Burgers', price: '$18.00', rating: '4.9', time: '20-25 min', desc: 'Prime aged angus beef, smoked cheddar, caramelized shallots & brioche bun.', match: '89% AI Match', img: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60' },
+    { id: 5, name: 'Classic Venetian Tiramisu', cat: 'Desserts', price: '$8.50', rating: '5.0', time: '10-15 min', desc: 'Espresso-soaked savoiardi, mascarpone cream & dusted Dutch cocoa.', match: '96% AI Match', img: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=500&auto=format&fit=crop&q=60' },
+    { id: 6, name: 'Wild Dragon Roll Combo', cat: 'Artisan Sushi', price: '$22.00', rating: '4.9', time: '20-30 min', desc: 'Fresh Atlantic salmon, unagi eel, tobiko caviar & avocado glaze.', match: '94% AI Match', img: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=500&auto=format&fit=crop&q=60' }
+  ];
+
+  const filtered = items.filter(i => {
+    const matchCat = selectedCategory === 'All' || i.cat === selectedCategory;
+    const matchSearch = i.name.toLowerCase().includes(search.toLowerCase()) || i.desc.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchSearch;
+  });
+
+  return (
+    <div className="min-h-screen bg-[#090a0f] text-slate-100 p-6 space-y-6 font-sans">
+      {/* Header & Search */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400">
+              <Sparkles size={18} />
+            </span>
+            <h1 className="text-2xl font-bold text-white tracking-tight">{${screenName}}</h1>
+          </div>
+          <p className="text-xs text-slate-400 font-mono mt-1">Real-Time AI Curation & Dynamic Storefront</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="relative min-w-[260px]">
+            <Search size={14} className="absolute left-3.5 top-3 text-slate-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search dishes, ingredients, tags..."
+              className="w-full pl-9 pr-4 py-2 bg-white/[0.04] border border-white/10 focus:border-orange-500/50 rounded-xl text-xs text-white placeholder-slate-500 outline-none"
+            />
+          </div>
+
+          <button
+            onClick={() => setCartCount(c => c + 1)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-lg shadow-orange-500/20 transition-all"
+          >
+            <ShoppingBag size={14} />
+            <span>Cart ({cartCount})</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Category Pills */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setSelectedCategory(cat)}
+            className={\`px-3.5 py-1.5 rounded-xl text-xs font-mono whitespace-nowrap transition-all \${
+              selectedCategory === cat
+                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40 font-semibold shadow-sm'
+                : 'bg-white/[0.03] text-slate-400 border border-white/5 hover:text-white hover:bg-white/5'
+            }\`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Product Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filtered.map((item) => (
+          <div key={item.id} className="group rounded-2xl bg-white/[0.02] border border-white/5 hover:border-orange-500/30 overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/5 flex flex-col">
+            <div className="relative h-44 overflow-hidden bg-black/40">
+              <img src={item.img} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
+                <Sparkles size={10} />
+                <span>{item.match}</span>
+              </div>
+              <div className="absolute top-3 right-3 px-2 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono font-bold text-amber-300 flex items-center gap-1">
+                <Star size={10} className="fill-amber-300" />
+                <span>{item.rating}</span>
+              </div>
+            </div>
+
+            <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-bold text-sm text-white group-hover:text-orange-300 transition-colors">{item.name}</h3>
+                  <span className="font-mono text-sm font-bold text-orange-400">{item.price}</span>
+                </div>
+                <p className="text-xs text-slate-400 line-clamp-2 mt-1 leading-relaxed">{item.desc}</p>
+              </div>
+
+              <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-1 text-[11px] font-mono text-slate-500">
+                  <Clock size={12} />
+                  <span>{item.time}</span>
+                </div>
+                <button
+                  onClick={() => setCartCount(c => c + 1)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-orange-500 text-slate-200 hover:text-white text-xs font-semibold transition-all"
+                >
+                  <Plus size={13} />
+                  <span>Add</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+`;
+  }
+
+  // 3. Tracking & Live Map Screen
+  if (/tracking|map|telemetry|dispatch|live/.test(text)) {
+    return `import React, { useState, useEffect } from 'react';
+import { MapPin, Navigation, Phone, MessageSquare, CheckCircle2, Clock, ShieldCheck } from 'lucide-react';
+
+export default function ${componentName}Page() {
+  const [eta, setEta] = useState(18);
+
+  useEffect(() => {
+    const timer = setInterval(() => setEta(t => Math.max(t - 1, 1)), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-[#090a0f] text-slate-100 p-6 space-y-6 font-sans">
+      <div className="flex items-center justify-between border-b border-white/5 pb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">{${screenName}}</h1>
+          <p className="text-xs text-slate-400 font-mono">Order #BST-9482 · Live GPS Driver Telemetry</p>
+        </div>
+        <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-bold flex items-center gap-2 animate-pulse">
+          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          <span>Driver on Route ({eta} mins)</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Map Simulator Panel */}
+        <div className="lg:col-span-2 rounded-2xl bg-slate-900 border border-white/10 relative overflow-hidden h-[420px] flex items-center justify-center">
+          <div className="absolute inset-0 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:24px_24px] opacity-20" />
+          
+          {/* Simulated Route Line */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-2/3 h-0.5 bg-gradient-to-r from-orange-500 via-indigo-500 to-emerald-500 relative">
+              <div className="absolute -top-3 left-0 p-1.5 rounded-full bg-orange-500 text-white shadow-lg shadow-orange-500/50">
+                <MapPin size={14} />
+              </div>
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 p-2 rounded-full bg-indigo-600 text-white animate-bounce shadow-lg shadow-indigo-500/50">
+                <Navigation size={14} />
+              </div>
+              <div className="absolute -top-3 right-0 p-1.5 rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/50">
+                <CheckCircle2 size={14} />
+              </div>
+            </div>
+          </div>
+
+          <div className="absolute bottom-4 left-4 right-4 p-4 rounded-xl bg-black/70 backdrop-blur-md border border-white/10 flex items-center justify-between text-xs font-mono">
+            <div className="flex items-center gap-3">
+              <span className="p-2 rounded-lg bg-indigo-500/20 text-indigo-300">
+                <Navigation size={16} />
+              </span>
+              <div>
+                <p className="font-bold text-white">Carlos M. (Toyota Prius · CA 8KZ9)</p>
+                <p className="text-slate-400">0.8 miles away · Heading south on Mission St</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white"><Phone size={14} /></button>
+              <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white"><MessageSquare size={14} /></button>
+            </div>
+          </div>
+        </div>
+
+        {/* Stepper Timeline & Order Details */}
+        <div className="space-y-4">
+          <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">Status Stepper</h3>
+            <div className="space-y-3 font-mono text-xs">
+              <div className="flex items-center gap-3 text-emerald-400">
+                <CheckCircle2 size={16} />
+                <span>1. Order Confirmed & Paid</span>
+              </div>
+              <div className="flex items-center gap-3 text-emerald-400">
+                <CheckCircle2 size={16} />
+                <span>2. Kitchen Prepared Dish</span>
+              </div>
+              <div className="flex items-center gap-3 text-indigo-300 font-bold animate-pulse">
+                <Clock size={16} />
+                <span>3. Out for Delivery</span>
+              </div>
+              <div className="flex items-center gap-3 text-slate-600">
+                <CheckCircle2 size={16} />
+                <span>4. Delivered to Door</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3 font-mono text-xs">
+            <h3 className="font-bold text-slate-300">Digital Receipt</h3>
+            <div className="flex justify-between text-slate-400">
+              <span>2x Truffle Wood-Fired Pizza</span>
+              <span className="text-white">$39.00</span>
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>1x Classic Tiramisu</span>
+              <span className="text-white">$8.50</span>
+            </div>
+            <div className="flex justify-between text-slate-400 pt-2 border-t border-white/5">
+              <span>Delivery Fee & Tax</span>
+              <span className="text-white">$4.75</span>
+            </div>
+            <div className="flex justify-between font-bold text-sm text-orange-400 pt-1 border-t border-white/10">
+              <span>Total Paid</span>
+              <span>$52.25</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+  }
+
+  // 4. Admin & Kanban Portal
+  if (/admin|portal|fulfillment|kanban|management|kitchen/.test(text)) {
+    return `import React, { useState } from 'react';
+import { ChefHat, Check, Clock, AlertCircle, Plus, MoreHorizontal } from 'lucide-react';
+
+export default function ${componentName}Page() {
+  const [columns, setColumns] = useState({
+    pending: [
+      { id: '101', table: 'Order #101', items: '2x Truffle Pizza', time: '3m ago', priority: 'High' },
+      { id: '102', table: 'Order #102', items: '1x Dragon Roll', time: '5m ago', priority: 'Normal' }
+    ],
+    preparing: [
+      { id: '99', table: 'Order #99', items: '3x Tonkotsu Ramen', time: '12m ago', priority: 'High' }
+    ],
+    ready: [
+      { id: '97', table: 'Order #97', items: '1x Angus Burger', time: '18m ago', priority: 'Normal' }
+    ],
+    dispatched: [
+      { id: '94', table: 'Order #94', items: '2x Quinoa Bowl', time: '25m ago', priority: 'Completed' }
+    ]
+  });
+
+  const moveOrder = (from: keyof typeof columns, to: keyof typeof columns, id: string) => {
+    const item = columns[from].find(o => o.id === id);
+    if (!item) return;
+    setColumns(prev => ({
+      ...prev,
+      [from]: prev[from].filter(o => o.id !== id),
+      [to]: [...prev[to], item]
+    }));
+  };
+
+  return (
+    <div className="min-h-screen bg-[#090a0f] text-slate-100 p-6 space-y-6 font-sans">
+      <div className="flex items-center justify-between border-b border-white/5 pb-4">
+        <div className="flex items-center gap-3">
+          <span className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
+            <ChefHat size={20} />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">{${screenName}}</h1>
+            <p className="text-xs text-slate-400 font-mono">Live Kitchen Fulfillment & Order Pipeline</p>
+          </div>
+        </div>
+        <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition-all">
+          <Plus size={14} />
+          <span>New Menu Item</span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {(Object.entries(columns) as [keyof typeof columns, typeof columns['pending']][]).map(([colKey, items]) => (
+          <div key={colKey} className="rounded-2xl bg-white/[0.02] border border-white/5 p-4 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">{colKey}</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-slate-400">{items.length}</span>
+            </div>
+
+            <div className="space-y-3 min-h-[300px]">
+              {items.map(order => (
+                <div key={order.id} className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 hover:border-purple-500/40 space-y-2 text-xs font-mono transition-all">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">{order.table}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">{order.priority}</span>
+                  </div>
+                  <p className="text-slate-300 font-sans text-xs">{order.items}</p>
+                  <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[10px] text-slate-500">
+                    <span>{order.time}</span>
+                    {colKey === 'pending' && <button onClick={() => moveOrder('pending', 'preparing', order.id)} className="text-purple-400 hover:text-purple-300 font-bold">Start Cooking →</button>}
+                    {colKey === 'preparing' && <button onClick={() => moveOrder('preparing', 'ready', order.id)} className="text-emerald-400 hover:text-emerald-300 font-bold">Mark Ready →</button>}
+                    {colKey === 'ready' && <button onClick={() => moveOrder('ready', 'dispatched', order.id)} className="text-indigo-400 hover:text-indigo-300 font-bold">Dispatch →</button>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+`;
+  }
+
+  // 5. Super-Admin Analytics Dashboard
+  if (/analytics|dashboard|metrics|revenue|stats/.test(text)) {
+    return `import React from 'react';
+import { TrendingUp, DollarSign, Users, Clock, ArrowUpRight, BarChart3 } from 'lucide-react';
+
+export default function ${componentName}Page() {
+  const kpis = [
+    { label: 'Total Platform Revenue', value: '$128,450', change: '+14.2%', up: true, icon: DollarSign, color: 'text-emerald-400' },
+    { label: 'Active Orders Today', value: '1,420', change: '+8.7%', up: true, icon: TrendingUp, color: 'text-indigo-400' },
+    { label: 'Registered Customers', value: '14,890', change: '+12.4%', up: true, icon: Users, color: 'text-purple-400' },
+    { label: 'Avg Delivery Time', value: '22 mins', change: '-4.1%', up: true, icon: Clock, color: 'text-amber-400' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#090a0f] text-slate-100 p-6 space-y-6 font-sans">
+      <div className="flex items-center justify-between border-b border-white/5 pb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">{${screenName}}</h1>
+          <p className="text-xs text-slate-400 font-mono">Platform Telemetry, Financials & Partner Health</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/10 text-xs font-mono text-slate-400">
+            Last 30 Days
+          </span>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpis.map((kpi) => {
+          const Icon = kpi.icon;
+          return (
+            <div key={kpi.label} className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono text-slate-400">{kpi.label}</span>
+                <span className={\`p-2 rounded-xl bg-white/5 \${kpi.color}\`}>
+                  <Icon size={16} />
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-bold text-white font-mono">{kpi.value}</span>
+                <span className="text-xs font-mono font-bold text-emerald-400 flex items-center gap-0.5">
+                  <ArrowUpRight size={12} />
+                  {kpi.change}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Charts & User Table */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm text-white">Revenue Growth Velocity</h3>
+            <span className="text-xs font-mono text-emerald-400">+22.4% vs last month</span>
+          </div>
+          <div className="h-56 flex items-end gap-3 pt-6 px-2">
+            {[45, 60, 52, 78, 65, 90, 85, 110, 95, 120, 115, 140].map((h, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                <div
+                  style={{ height: \`\${h * 1.2}px\` }}
+                  className="w-full rounded-t-lg bg-gradient-to-t from-indigo-600 to-purple-500 opacity-70 group-hover:opacity-100 transition-all"
+                />
+                <span className="text-[9px] font-mono text-slate-500">{i + 1}w</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+          <h3 className="font-bold text-sm text-white">Top Performing Partners</h3>
+          <div className="space-y-3 text-xs font-mono">
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5">
+              <span>Bella Italia</span>
+              <span className="text-emerald-400 font-bold">$34,200</span>
+            </div>
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5">
+              <span>Sakura Sushi</span>
+              <span className="text-emerald-400 font-bold">$28,950</span>
+            </div>
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5">
+              <span>The Burger Lab</span>
+              <span className="text-emerald-400 font-bold">$21,400</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+  }
+
+  // 6. Generic / Fallback Screen (Rich interactive record table with modal and search)
+  return `import React, { useMemo, useState } from 'react';
+import { Search, Plus, Filter, CheckCircle2, MoreVertical, Layout } from 'lucide-react';
+
+export default function ${componentName}Page() {
+  const [query, setQuery] = useState('');
+  const [items, setItems] = useState([
+    { id: '1', name: 'Standard Transaction #481', status: 'Completed', date: 'Today, 2:40 PM', value: '$42.50' },
+    { id: '2', name: 'Priority Dispatch #482', status: 'In Progress', date: 'Today, 1:15 PM', value: '$89.00' },
+    { id: '3', name: 'Customer Verification #483', status: 'Verified', date: 'Yesterday', value: '$12.00' },
+    { id: '4', name: 'Partner Settlement #484', status: 'Pending', date: '2 days ago', value: '$340.00' },
+  ]);
+  const [draft, setDraft] = useState('');
+
+  const filtered = useMemo(() => items.filter(i => i.name.toLowerCase().includes(query.toLowerCase())), [items, query]);
+
+  return (
+    <div className="min-h-screen bg-[#090a0f] text-slate-100 p-6 space-y-6 font-sans">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+        <div className="flex items-center gap-3">
+          <span className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+            <Layout size={20} />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">{${screenName}}</h1>
+            <p className="text-xs text-slate-400 font-mono">Managed Workflows & Domain Records</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={13} className="absolute left-3.5 top-3 text-slate-500" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search records..."
+              className="pl-9 pr-4 py-2 bg-white/[0.04] border border-white/10 rounded-xl text-xs text-white outline-none focus:border-indigo-500/50"
+            />
+          </div>
+          <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-all">
+            <Plus size={14} />
+            <span>New Record</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-white/[0.02] border border-white/5 overflow-hidden">
+        <table className="w-full text-left text-xs font-mono">
+          <thead className="bg-white/[0.02] text-slate-400 border-b border-white/5">
+            <tr>
+              <th className="p-4">Record Name</th>
+              <th className="p-4">Status</th>
+              <th className="p-4">Timestamp</th>
+              <th className="p-4">Value</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {filtered.map(i => (
+              <tr key={i.id} className="hover:bg-white/[0.02] transition-colors">
+                <td className="p-4 font-semibold text-white">{i.name}</td>
+                <td className="p-4"><span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">{i.status}</span></td>
+                <td className="p-4 text-slate-400">{i.date}</td>
+                <td className="p-4 font-bold text-indigo-300">{i.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -363,7 +1244,7 @@ export default function ${componentName}Page() {
 `;
 }
 
-function generateFrontendApp(bp: Blueprint): string {
+export function generateFrontendApp(bp: Blueprint): string {
   const name = bp.appName || 'BuildX App';
   const desc = bp.description || '';
   const domainLower = (name + ' ' + desc + ' ' + JSON.stringify(bp.screens || []) + ' ' + JSON.stringify(bp.features || {})).toLowerCase();
@@ -1316,7 +2197,7 @@ export function streamScaffoldZip(bp: Blueprint, res: Response): void {
   }
   archive.append(generateBackendIndex(bp), { name: 'backend/src/index.ts' });
   archive.append(
-    bp.code.backend && bp.code.backend.trim() ? bp.code.backend : generateBackendApp(bp),
+    isPlausibleSourceCode(bp.code.backend, 'app.ts') ? bp.code.backend : generateBackendApp(bp),
     { name: 'backend/src/app.ts' }
   );
 
@@ -1327,24 +2208,46 @@ export function streamScaffoldZip(bp: Blueprint, res: Response): void {
     if (parts.length >= 2) resources.add(parts[1]);
   }
   for (const resource of resources) {
-    archive.append(generateRouteFile(resource, bp.endpoints), {
+    archive.append(generateRouteFile(
+      resource,
+      bp.endpoints,
+      bp.architecture.backend.toLowerCase().includes('fastify')
+    ), {
       name: `backend/src/routes/${resource}.ts`,
     });
   }
 
   // ─── Frontend ──────────────────────────────────────────
+  const isNext = bp.architecture.frontend.toLowerCase().includes('next');
   archive.append(generateFrontendPackageJson(bp), { name: 'frontend/package.json' });
-  archive.append(
-    bp.code.frontend && bp.code.frontend.trim() ? bp.code.frontend : generateFrontendApp(bp),
-    { name: 'frontend/src/App.tsx' }
-  );
-  archive.append(
-    `import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n`,
-    { name: 'frontend/src/main.tsx' }
-  );
-  archive.append('@tailwind base;\n@tailwind components;\n@tailwind utilities;\n', {
-    name: 'frontend/src/index.css',
+  archive.append(generateTailwindConfig(isNext), {
+    name: isNext ? 'frontend/tailwind.config.cjs' : 'frontend/tailwind.config.js',
   });
+  archive.append(generatePostcssConfig(isNext), {
+    name: isNext ? 'frontend/postcss.config.cjs' : 'frontend/postcss.config.js',
+  });
+  if (!isNext) {
+    archive.append(generateFrontendViteConfig(), { name: 'frontend/vite.config.ts' });
+  }
+  if (isNext) {
+    archive.append(generateNextPage(bp), { name: 'frontend/src/app/page.tsx' });
+    archive.append(generateNextLayout(bp), { name: 'frontend/src/app/layout.tsx' });
+    archive.append('@tailwind base;\n@tailwind components;\n@tailwind utilities;\n', {
+      name: 'frontend/src/app/globals.css',
+    });
+  } else {
+    archive.append(
+      isPlausibleSourceCode(bp.code.frontend, 'App.tsx') ? bp.code.frontend : generateFrontendApp(bp),
+      { name: 'frontend/src/App.tsx' }
+    );
+    archive.append(
+      `import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n`,
+      { name: 'frontend/src/main.tsx' }
+    );
+    archive.append('@tailwind base;\n@tailwind components;\n@tailwind utilities;\n', {
+      name: 'frontend/src/index.css',
+    });
+  }
   archive.append(generateApiClient(bp), { name: 'frontend/src/lib/api.ts' });
 
   // Page files — one per screen
@@ -1355,11 +2258,13 @@ export function streamScaffoldZip(bp: Blueprint, res: Response): void {
     });
   }
 
-  // Index HTML
-  archive.append(
-    `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${bp.appName}</title>\n</head>\n<body>\n  <div id="root"></div>\n  <script type="module" src="/src/main.tsx"></script>\n</body>\n</html>\n`,
-    { name: 'frontend/index.html' }
-  );
+  // Index HTML (Vite only; Next owns the document shell in layout.tsx)
+  if (!isNext) {
+    archive.append(
+      `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${bp.appName}</title>\n</head>\n<body>\n  <div id="root"></div>\n  <script type="module" src="/src/main.tsx"></script>\n</body>\n</html>\n`,
+      { name: 'frontend/index.html' }
+    );
+  }
 
   // DB Schema File
   if (isMongo) {
@@ -1403,7 +2308,7 @@ export function generateMonorepoFiles(bp: Blueprint): Record<string, string> {
     files['backend/prisma/schema.prisma'] = generatePrismaSchema(bp);
   }
   files['backend/src/index.ts'] = generateBackendIndex(bp);
-  files['backend/src/app.ts'] = bp.code.backend && bp.code.backend.trim() ? bp.code.backend : generateBackendApp(bp);
+  files['backend/src/app.ts'] = isPlausibleSourceCode(bp.code.backend, 'app.ts') ? bp.code.backend : generateBackendApp(bp);
 
   // Route files — one per resource
   const resources = new Set<string>();
@@ -1412,14 +2317,30 @@ export function generateMonorepoFiles(bp: Blueprint): Record<string, string> {
     if (parts.length >= 2) resources.add(parts[1]);
   }
   for (const resource of resources) {
-    files[`backend/src/routes/${resource}.ts`] = generateRouteFile(resource, bp.endpoints);
+    files[`backend/src/routes/${resource}.ts`] = generateRouteFile(
+      resource,
+      bp.endpoints,
+      bp.architecture.backend.toLowerCase().includes('fastify')
+    );
   }
 
   // ─── Frontend ──────────────────────────────────────────
+  const isNext = bp.architecture.frontend.toLowerCase().includes('next');
   files['frontend/package.json'] = generateFrontendPackageJson(bp);
-  files['frontend/src/App.tsx'] = bp.code.frontend && bp.code.frontend.trim() ? bp.code.frontend : generateFrontendApp(bp);
-  files['frontend/src/main.tsx'] = `import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n`;
-  files['frontend/src/index.css'] = '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n';
+  files[isNext ? 'frontend/tailwind.config.cjs' : 'frontend/tailwind.config.js'] = generateTailwindConfig(isNext);
+  files[isNext ? 'frontend/postcss.config.cjs' : 'frontend/postcss.config.js'] = generatePostcssConfig(isNext);
+  if (!isNext) {
+    files['frontend/vite.config.ts'] = generateFrontendViteConfig();
+  }
+  if (isNext) {
+    files['frontend/src/app/page.tsx'] = generateNextPage(bp);
+    files['frontend/src/app/layout.tsx'] = generateNextLayout(bp);
+    files['frontend/src/app/globals.css'] = '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n';
+  } else {
+    files['frontend/src/App.tsx'] = isPlausibleSourceCode(bp.code.frontend, 'App.tsx') ? bp.code.frontend : generateFrontendApp(bp);
+    files['frontend/src/main.tsx'] = `import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n`;
+    files['frontend/src/index.css'] = '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n';
+  }
   files['frontend/src/lib/api.ts'] = generateApiClient(bp);
 
   // Page files — one per screen
@@ -1428,8 +2349,10 @@ export function generateMonorepoFiles(bp: Blueprint): Record<string, string> {
     files[`frontend/src/pages/${name}Page.tsx`] = generateFrontendPage(screen);
   }
 
-  // Index HTML
-  files['frontend/index.html'] = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${bp.appName}</title>\n</head>\n<body>\n  <div id="root"></div>\n  <script type="module" src="/src/main.tsx"></script>\n</body>\n</html>\n`;
+  // Index HTML (Vite only; Next owns the document shell in layout.tsx)
+  if (!isNext) {
+    files['frontend/index.html'] = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${bp.appName}</title>\n</head>\n<body>\n  <div id="root"></div>\n  <script type="module" src="/src/main.tsx"></script>\n</body>\n</html>\n`;
+  }
 
   // DB Schema File
   if (isMongo) {
@@ -1443,4 +2366,3 @@ export function generateMonorepoFiles(bp: Blueprint): Record<string, string> {
 
   return files;
 }
-
