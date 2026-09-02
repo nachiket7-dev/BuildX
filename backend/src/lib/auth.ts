@@ -29,6 +29,23 @@ declare global {
 }
 
 /**
+ * Narrows a verified JWT payload to a real user session.
+ *
+ * Preview tokens are signed with the same secret, so a valid signature alone is
+ * not proof of a user session — without this check `{kind:'blueprint-preview'}`
+ * would pass as a bearer credential with `userId === undefined`.
+ */
+function toAuthPayload(payload: unknown): AuthPayload | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+  const candidate = payload as Record<string, unknown>;
+  // Any `kind` field means this is a special-purpose token, not a user session.
+  if ('kind' in candidate) return null;
+  if (typeof candidate.userId !== 'string' || candidate.userId.length === 0) return null;
+  if (typeof candidate.email !== 'string') return null;
+  return { userId: candidate.userId, email: candidate.email };
+}
+
+/**
  * Required auth middleware — rejects requests without a valid token.
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -39,7 +56,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as AuthPayload;
+    const payload = toAuthPayload(jwt.verify(token, JWT_SECRET));
+    if (!payload) {
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
     req.user = payload;
     next();
   } catch {
@@ -55,8 +76,9 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
   const token = extractToken(req);
   if (token) {
     try {
-      const payload = jwt.verify(token, JWT_SECRET) as AuthPayload;
-      req.user = payload;
+      const payload = toAuthPayload(jwt.verify(token, JWT_SECRET));
+      // Non-user tokens (e.g. preview links) continue as anonymous.
+      if (payload) req.user = payload;
     } catch {
       // Invalid token — continue as anonymous
     }

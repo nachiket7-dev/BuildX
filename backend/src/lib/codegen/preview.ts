@@ -1,4 +1,3 @@
-import { completeWithPipelineFallback, getAgentMaxTokensForModel } from '../llm/router';
 import type { Blueprint, UiScreen, SchemaTable } from '../types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -301,7 +300,15 @@ function renderGeneric(screen: UiScreen): string {
     </div>`;
 }
 
-export function buildDeterministicPreview(blueprint: Blueprint): string {
+/**
+ * Builds the self-contained preview page.
+ *
+ * `nonce` is emitted on the single inline <script> so the route can serve this
+ * under a strict Content-Security-Policy. Nav buttons intentionally carry no
+ * inline `onclick` — CSP's `script-src-attr` blocks inline handlers and a nonce
+ * cannot whitelist them, so clicks are handled by delegation on `data-target`.
+ */
+export function buildDeterministicPreview(blueprint: Blueprint, nonce: string): string {
   const accent = pickAccent(blueprint.appName || 'App');
   const screens = blueprint.screens || [];
   const isStorefront = blueprint.layoutParadigm === 'TOP_NAV_STOREFRONT';
@@ -342,7 +349,7 @@ export function buildDeterministicPreview(blueprint: Blueprint): string {
   }).join('');
 
   const sidebarItems = navItems.map(item => `
-    <button class="nav-btn" data-target="${item.id}" onclick="activate('${item.id}',this)" style="width:100%;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;font-size:13px;color:#9ca3af;background:none;border:none;cursor:pointer;text-align:left;transition:all .15s;">
+    <button class="nav-btn" data-target="${item.id}" style="width:100%;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;font-size:13px;color:#9ca3af;background:none;border:none;cursor:pointer;text-align:left;transition:all .15s;">
       <span>${item.icon}</span><span>${escHtml(item.label)}</span>
     </button>`).join('\n');
 
@@ -390,7 +397,7 @@ ${isStorefront ? `
       <span>🛒</span><span>Cart (3)</span>
     </button>
     ${authNavItem ? `
-    <button class="nav-btn" data-target="${authNavItem.id}" onclick="activate('${authNavItem.id}',this)" style="padding:6px 12px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#d1d5db;font-size:12px;font-weight:600;cursor:pointer;">
+    <button class="nav-btn" data-target="${authNavItem.id}" style="padding:6px 12px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#d1d5db;font-size:12px;font-weight:600;cursor:pointer;">
       <span>👤 Account</span>
     </button>` : ''}
   </div>
@@ -399,7 +406,7 @@ ${isStorefront ? `
 <!-- Horizontal Category Filter Pills -->
 <div style="background:#0e0e12;border-bottom:1px solid rgba(255,255,255,0.06);padding:8px 24px;display:flex;align-items:center;gap:8px;overflow-x:auto;">
   ${navItems.filter(n => n.kind !== 'auth').map(item => `
-    <button class="nav-btn" data-target="${item.id}" onclick="activate('${item.id}',this)" style="padding:6px 14px;border-radius:99px;font-size:12px;font-weight:600;color:#9ca3af;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);cursor:pointer;white-space:nowrap;transition:all 0.15s;">
+    <button class="nav-btn" data-target="${item.id}" style="padding:6px 14px;border-radius:99px;font-size:12px;font-weight:600;color:#9ca3af;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);cursor:pointer;white-space:nowrap;transition:all 0.15s;">
       <span>${item.icon}</span> <span style="margin-left:4px;">${escHtml(item.label)}</span>
     </button>
   `).join('')}
@@ -423,7 +430,7 @@ ${isStorefront ? `
     ${sidebarItems}
     <div style="margin-top:auto;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);">
       <div style="padding:4px 8px 6px;font-size:10px;font-weight:600;color:#4b5563;text-transform:uppercase;letter-spacing:.08em;">System</div>
-      <button class="nav-btn" data-target="screen-api" onclick="activate('screen-api',this)" style="width:100%;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;font-size:13px;color:#9ca3af;background:none;border:none;cursor:pointer;text-align:left;">
+      <button class="nav-btn" data-target="screen-api" style="width:100%;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;font-size:13px;color:#9ca3af;background:none;border:none;cursor:pointer;text-align:left;">
         <span>🔌</span><span>API Endpoints</span>
       </button>
     </div>
@@ -440,7 +447,7 @@ ${isStorefront ? `
   </main>
 </div>
 `}
-<script>
+<script nonce="${nonce}">
 function activate(id,btn){
   document.querySelectorAll('.screen').forEach(el=>el.style.display='none');
   document.querySelectorAll('.nav-btn').forEach(b=>{b.classList.remove('active');});
@@ -448,6 +455,10 @@ function activate(id,btn){
   if(el)el.style.display='block';
   if(btn){btn.classList.add('active');}
 }
+document.addEventListener('click',function(e){
+  var btn=e.target.closest?e.target.closest('.nav-btn[data-target]'):null;
+  if(btn)activate(btn.getAttribute('data-target'),btn);
+});
 (function(){
   var landingName = "${escHtml(blueprint.primaryLandingScreenId || '')}".toLowerCase();
   var targetBtn = null;
@@ -474,78 +485,4 @@ function activate(id,btn){
 </script>
 </body>
 </html>`;
-}
-
-// ─── AI-Enhanced Preview Prompt ────────────────────────────────────────────────
-
-const PREVIEW_SYSTEM_PROMPT = `You are BuildX Preview Generator — a world-class frontend developer specializing in self-contained HTML previews.
-
-CRITICAL RULES:
-1. Output ONLY raw HTML. Start with <!DOCTYPE html> — zero text before it.
-2. ZERO markdown fences — no triple backticks anywhere.
-3. Use ONLY vanilla JavaScript and inline CSS — NO React, NO JSX, NO Babel.
-4. Load Tailwind via: <script src="https://cdn.tailwindcss.com"></script>
-5. All navigation/tab-switching must use plain JS onclick handlers.
-6. Inject all mock data as inline JS constants — no fetch() calls.
-7. Dark theme required: bg body #0d0d0f, card backgrounds rgba(255,255,255,0.04), vibrant accent colour.
-8. Build a working sidebar that switches between every screen in the blueprint.
-9. Each screen must show rich mock data — real-looking names, dates, numbers, statuses.`;
-
-function buildAiPrompt(blueprint: Blueprint): string {
-  return `APPLICATION: ${blueprint.appName}
-DESCRIPTION: ${blueprint.description}
-
-SCREENS (build nav + full content for each):
-${(blueprint.screens || []).map(s => `  - ${s.name}: ${s.components}`).join('\n')}
-
-SCHEMA TABLES (use for realistic mock data):
-${(blueprint.schema || []).slice(0, 4).map(t => `  - ${t.table}: [${t.columns.slice(0, 5).map(c => c.name).join(', ')}]`).join('\n')}
-
-REQUIREMENTS:
-- Pick one vibrant accent colour, use consistently (buttons, active state, badges)
-- Dark sidebar #111113, main content #0a0a0c
-- Cards with subtle border + border-radius
-- Tables with 5+ mock rows, search bar, action buttons
-- Smooth CSS transitions on hover/active states
-
-Output the complete single-file <!DOCTYPE html> preview now:`;
-}
-
-// ─── Public API ────────────────────────────────────────────────────────────────
-
-function isValidHtml(s: string): boolean {
-  const t = s.trim().toLowerCase();
-  return (t.startsWith('<!doctype html') || t.startsWith('<html')) && s.length > 500;
-}
-
-export async function generatePreviewHtml(
-  blueprint: Blueprint,
-  model?: string
-): Promise<string> {
-  const deterministicHtml = buildDeterministicPreview(blueprint);
-  try {
-    const maxTokens = Math.max(getAgentMaxTokensForModel(model), 8000);
-    const response = await completeWithPipelineFallback('PREVIEW_GENERATION', [
-      { role: 'system', content: PREVIEW_SYSTEM_PROMPT },
-      { role: 'user',   content: buildAiPrompt(blueprint) },
-    ], { temperature: 0.15, maxTokens }, model);
-    const rawText = response.text;
-
-    let cleaned = rawText.trim();
-    if (cleaned.startsWith('```')) {
-      const nl = cleaned.indexOf('\n');
-      if (nl > -1) cleaned = cleaned.substring(nl + 1).trim();
-    }
-    if (cleaned.endsWith('```')) {
-      cleaned = cleaned.substring(0, cleaned.lastIndexOf('```')).trim();
-    }
-    if (!isValidHtml(cleaned)) {
-      console.warn('[Preview] AI output invalid — using deterministic fallback.');
-      return deterministicHtml;
-    }
-    return cleaned;
-  } catch (err: any) {
-    console.warn('[Preview] AI call failed — using deterministic fallback.', err?.message);
-    return deterministicHtml;
-  }
 }

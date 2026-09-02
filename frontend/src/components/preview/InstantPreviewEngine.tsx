@@ -234,6 +234,38 @@ export function InstantPreviewEngine({
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${appName}</title>
   
+  <!-- Storage shim: the sandbox has no allow-same-origin, so this document runs in
+       an opaque origin where touching window.localStorage throws a SecurityError.
+       AI-generated components commonly use it, so install an in-memory stand-in
+       before any other script runs. -->
+  <script>
+    (function () {
+      function memoryStorage() {
+        var data = {};
+        return {
+          getItem: function (k) { var s = String(k); return Object.prototype.hasOwnProperty.call(data, s) ? data[s] : null; },
+          setItem: function (k, v) { data[String(k)] = String(v); },
+          removeItem: function (k) { delete data[String(k)]; },
+          clear: function () { data = {}; },
+          key: function (i) { var ks = Object.keys(data); return i < ks.length ? ks[i] : null; },
+          get length() { return Object.keys(data).length; }
+        };
+      }
+      ['localStorage', 'sessionStorage'].forEach(function (name) {
+        var usable = false;
+        try {
+          var s = window[name];
+          if (s) { s.setItem('__buildx_probe__', '1'); s.removeItem('__buildx_probe__'); usable = true; }
+        } catch (e) { usable = false; }
+        if (!usable) {
+          try {
+            Object.defineProperty(window, name, { value: memoryStorage(), configurable: true });
+          } catch (e) { /* nothing further we can do */ }
+        }
+      });
+    })();
+  </script>
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -598,12 +630,16 @@ export function InstantPreviewEngine({
 
   return (
     <div className="relative w-full h-full min-h-0 bg-[#090a0f] flex flex-col overflow-hidden">
-      {/* Isolated In-Memory Render Iframe */}
+      {/* Isolated In-Memory Render Iframe.
+          No allow-same-origin: combined with allow-scripts it lets framed content
+          remove its own sandbox, and this frame runs AI-generated code while the
+          JWT sits in localStorage. The parent/frame channel is postMessage only,
+          so an opaque origin costs us nothing. */}
       <iframe
         ref={iframeRef}
         srcDoc={srcDoc}
         title={appName}
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+        sandbox="allow-scripts allow-forms allow-popups allow-modals"
         className="w-full h-full flex-1 border-0 bg-[#090a0f]"
         onLoad={() => setIsCompiling(false)}
       />

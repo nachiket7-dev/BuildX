@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Routes, Route, useParams, useNavigate, Navigate, Outlet, useOutletContext, useLocation, useSearchParams } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
@@ -221,7 +221,7 @@ function BlueprintPage() {
       // Clean the param from URL without pushing new history entry
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams]);
+  }, [searchParams, setSearchParams, cancel, reset, clearHistory]);
 
   const isLoadingFromUrl = Boolean(routeId && isStreaming && !activeBlueprint && !error);
   const showHero = !isStreaming && !activeBlueprint && !routeId && !isLoadingFromUrl;
@@ -418,66 +418,62 @@ function AppShell() {
 
 export default function App() {
   const auth = useAuthProvider();
-  const location = useLocation();
 
+  // NOTE: deliberately NOT wrapped in a pathname-keyed <AnimatePresence>.
+  // AppShell — and therefore VFSProvider and BlueprintSessionProvider — lives
+  // inside these Routes, so keying on location.pathname would unmount and
+  // recreate the whole provider graph on every navigation, discarding IDE state
+  // and defeating the stream handoff. Pages that want a mount animation wrap
+  // their own content in <PageTransition>, as BlueprintPage does.
   return (
     <AuthContext.Provider value={auth}>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={location.pathname}
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.98 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="flex-1 flex flex-col min-h-screen"
-        >
-          <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/home" element={<Navigate to="/" replace />} />
-            <Route path="/landing" element={<Navigate to="/" replace />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/auth" element={<Navigate to="/login" replace />} />
-            <Route path="/signin" element={<Navigate to="/login" replace />} />
-            <Route path="/signup" element={<Navigate to="/login" replace />} />
-            <Route path="/login/callback" element={<GithubCallbackPage />} />
-            <Route path="/auth/callback" element={<Navigate to="/login/callback" replace />} />
-            <Route element={<AppShell />}>
-              <Route path="/create" element={<BlueprintPage />} />
-              <Route path="/blueprints/new" element={<Navigate to="/create" replace />} />
-              <Route path="/new" element={<Navigate to="/create" replace />} />
-              <Route path="/builder" element={<Navigate to="/create" replace />} />
-              <Route path="/gallery" element={<GalleryPage />} />
-              <Route path="/blueprints" element={<Navigate to="/gallery" replace />} />
-              <Route path="/dashboard" element={<Navigate to="/gallery" replace />} />
-              <Route path="/projects" element={<Navigate to="/gallery" replace />} />
-              <Route path="/blueprint/:id" element={<BlueprintPage />} />
-              <Route path="/community" element={<Navigate to="/gallery" replace />} />
-              <Route path="/explore" element={<Navigate to="/gallery" replace />} />
-              <Route
-                path="/agent"
-                element={
-                  <ProtectedRoute>
-                    <AgentPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/agent/:id"
-                element={
-                  <ProtectedRoute>
-                    <AgentPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/ide" element={<Navigate to="/agent" replace />} />
-              <Route path="/ide/:id" element={<Navigate to="/agent" replace />} />
-              <Route path="/workspace" element={<Navigate to="/agent" replace />} />
-              <Route path="/workspace/:id" element={<Navigate to="/agent" replace />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </motion.div>
-      </AnimatePresence>
+      <div className="flex-1 flex flex-col min-h-screen">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/home" element={<Navigate to="/" replace />} />
+          <Route path="/landing" element={<Navigate to="/" replace />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/auth" element={<Navigate to="/login" replace />} />
+          <Route path="/signin" element={<Navigate to="/login" replace />} />
+          <Route path="/signup" element={<Navigate to="/login" replace />} />
+          <Route path="/login/callback" element={<GithubCallbackPage />} />
+          <Route path="/auth/callback" element={<Navigate to="/login/callback" replace />} />
+          <Route element={<AppShell />}>
+            <Route path="/create" element={<BlueprintPage />} />
+            <Route path="/blueprints/new" element={<Navigate to="/create" replace />} />
+            <Route path="/new" element={<Navigate to="/create" replace />} />
+            <Route path="/builder" element={<Navigate to="/create" replace />} />
+            <Route path="/gallery" element={<GalleryPage />} />
+            <Route path="/blueprints" element={<Navigate to="/gallery" replace />} />
+            <Route path="/dashboard" element={<Navigate to="/gallery" replace />} />
+            <Route path="/projects" element={<Navigate to="/gallery" replace />} />
+            <Route path="/blueprint/:id" element={<BlueprintPage />} />
+            <Route path="/community" element={<Navigate to="/gallery" replace />} />
+            <Route path="/explore" element={<Navigate to="/gallery" replace />} />
+            <Route
+              path="/agent"
+              element={
+                <ProtectedRoute>
+                  <AgentPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/agent/:id"
+              element={
+                <ProtectedRoute>
+                  <AgentPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/ide" element={<Navigate to="/agent" replace />} />
+            <Route path="/ide/:id" element={<Navigate to="/agent" replace />} />
+            <Route path="/workspace" element={<Navigate to="/agent" replace />} />
+            <Route path="/workspace/:id" element={<Navigate to="/agent" replace />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
     </AuthContext.Provider>
   );
 }

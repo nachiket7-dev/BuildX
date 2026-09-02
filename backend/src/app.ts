@@ -25,13 +25,21 @@ app.use(
       if (allowedOrigins.includes(origin)) return callback(null, true);
       callback(new Error('Not allowed by CORS'));
     },
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   })
 );
 
 // ─── Rate limiting ────────────────────────────────────────
+// Behind a reverse proxy (Render et al.) the socket IP is the proxy's, which
+// would collapse every user into a single shared bucket. Trusting exactly one
+// hop makes req.ip the real client. Deliberately NOT `true`: blanket trust lets
+// any client spoof X-Forwarded-For and bypass the limiter entirely.
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Global limiter — generous for dev; each page load makes ~5-8 API calls
 const limiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute

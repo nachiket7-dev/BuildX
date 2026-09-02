@@ -1,8 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { randomBytes } from 'crypto';
 import { BlueprintRequestSchema, BlueprintSchema, type Blueprint } from '../lib/types';
 import { generateBlueprintAgentic, runAgenticBlueprintPipeline } from '../lib/orchestrator';
 import { generateApplicationCode } from '../lib/codegen/agent';
-import { generatePreviewHtml, buildDeterministicPreview } from '../lib/codegen/preview';
+import { buildDeterministicPreview } from '../lib/codegen/preview';
 import {
   saveBlueprint,
   getBlueprintForUser,
@@ -15,7 +16,6 @@ import {
   updateBlueprintVisibility,
   updateBlueprintJson,
   getUserById,
-  saveBlueprintFile,
   getBlueprintAny,
   getBlueprintFiles,
   getBlueprintFile,
@@ -1081,8 +1081,24 @@ router.get('/:id/preview', optionalAuth, async (req: Request, res: Response): Pr
     }
 
     console.log(`[Preview Route] Serving rich interactive UI preview for ${id}...`);
-    const html = buildDeterministicPreview(blueprint.parsedBlueprint);
+    const nonce = randomBytes(16).toString('base64');
+    const html = buildDeterministicPreview(blueprint.parsedBlueprint, nonce);
 
+    // The preview is a fully self-contained page (no external scripts, images or
+    // fonts), so it gets a far tighter policy than helmet's global default. This
+    // per-response header replaces helmet's for this route only — required because
+    // helmet's `script-src 'self'` would otherwise block the inline <script>.
+    res.setHeader(
+      'Content-Security-Policy',
+      [
+        "default-src 'none'",
+        `script-src 'nonce-${nonce}'`,
+        "style-src 'unsafe-inline'",
+        "img-src data:",
+        "base-uri 'none'",
+        "form-action 'none'",
+      ].join('; ')
+    );
     res.setHeader('Content-Type', 'text/html');
     res.setHeader('X-Preview-Source', 'deterministic');
     res.send(html);
@@ -1110,34 +1126,6 @@ router.post('/:id/preview/link', requireAuth, async (req: Request, res: Response
     success: true,
     data: { path: `/api/blueprint/${id}/preview?token=${encodeURIComponent(generatePreviewToken(id))}` },
   });
-});
-
-/** Force-regenerate the preview HTML page */
-router.post('/:id/preview/regenerate', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const { id } = req.params;
-  const { model } = req.body;
-
-  if (!validateBlueprintId(id)) {
-    res.status(400).json({ error: 'Invalid blueprint ID' });
-    return;
-  }
-
-  try {
-    const blueprint = await getBlueprintOwnedByUser(id, req.user!.userId);
-    if (!blueprint) {
-      res.status(404).json({ error: 'Blueprint not found or not owned by you' });
-      return;
-    }
-
-    console.log(`[Preview Route] Regenerating preview.html for ${id}...`);
-    const html = await generatePreviewHtml(blueprint.parsedBlueprint, model);
-    await saveBlueprintFile(id, 'preview.html', html, 'html');
-
-    res.json({ success: true, message: 'Preview regenerated successfully' });
-  } catch (err: any) {
-    console.error('[Preview Route] Regenerate Error:', err.message);
-    res.status(500).json({ error: 'Failed to regenerate preview' });
-  }
 });
 
 // ─── POST /:id/refine ──────────────────────────────────────────────────────

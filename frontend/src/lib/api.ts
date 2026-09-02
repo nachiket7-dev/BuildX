@@ -447,12 +447,6 @@ export async function* generateCodeStream(
 
 // ─── Live Preview API ──────────────────────────────────────
 
-/** Returns the full URL that serves the self-contained preview.html for the sandbox iframe */
-export function getBlueprintPreviewUrl(blueprintId: string): string {
-  const base = import.meta.env.VITE_API_URL ?? '';
-  return `${base}/api/blueprint/${blueprintId}/preview`;
-}
-
 /** Creates a short-lived signed preview URL for a private blueprint. */
 export async function createBlueprintPreviewLink(blueprintId: string): Promise<string> {
   const response = await apiClient.post<ApiResponse<{ path: string }>>(
@@ -462,43 +456,4 @@ export async function createBlueprintPreviewLink(blueprintId: string): Promise<s
   );
   const base = import.meta.env.VITE_API_URL ?? '';
   return `${base}${response.data.data.path}`;
-}
-
-export interface PreviewResult {
-  html: string;
-  /** 'deterministic' = built from blueprint data, 'ai' = LLM-generated, 'framework' = live compiled from VFS files */
-  source: 'deterministic' | 'ai' | 'framework';
-}
-
-/** Fetches preview HTML with auth headers (required for private blueprints) */
-export async function fetchBlueprintPreviewHtml(blueprintId: string): Promise<PreviewResult> {
-  const url = getBlueprintPreviewUrl(blueprintId);
-  const response = await fetch(url, { headers: getAuthHeaders() });
-  if (!response.ok) {
-    let message = 'Preview not found or access denied';
-    try {
-      const data = await response.json() as { error?: string };
-      if (data.error) message = data.error;
-    } catch {
-      const text = await response.text();
-      if (text) message = text.slice(0, 200);
-    }
-    throw new Error(message);
-  }
-  const html = await response.text();
-  if (html.trimStart().startsWith('{')) {
-    throw new Error('Preview not available — sign in if this is a private blueprint.');
-  }
-  const raw = response.headers.get('X-Preview-Source');
-  const source = (raw === 'ai' ? 'ai' : raw === 'framework' ? 'framework' : 'deterministic') as 'ai' | 'framework' | 'deterministic';
-  return { html, source };
-}
-
-/** Forces regeneration of the preview HTML and waits for confirmation */
-export async function regenerateBlueprintPreview(blueprintId: string, model?: string): Promise<void> {
-  await apiClient.post(
-    `/api/blueprint/${blueprintId}/preview/regenerate`,
-    { model },
-    { headers: getAuthHeaders() }
-  );
 }
