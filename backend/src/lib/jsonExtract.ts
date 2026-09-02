@@ -618,6 +618,89 @@ export function parseAgentJSON<T>(raw: string): T {
 
       return JSON.parse(aggressive) as T;
     } catch (err2: any) {
+      // Pass 3: Field-level resilient recovery for broken / truncated JSON
+      try {
+        const recovered: Record<string, any> = {};
+
+        // Match string fields: "frontend", "backend", "sql", "appName", "description", etc.
+        const stringKeys = [
+          'frontend', 'backend', 'sql', 'erDiagram', 'archDiagram',
+          'appName', 'description', 'targetUsers', 'complexity',
+          'message', 'plan', 'diff', 'filePath', 'content', 'flow'
+        ];
+
+        // Boundary-aware string field extraction: handles unescaped JSX quotes and multiline blocks
+        for (let idx = 0; idx < stringKeys.length; idx++) {
+          const k = stringKeys[idx];
+          const kMarker = `"${k}"`;
+          const pos = raw.indexOf(kMarker);
+          if (pos === -1) continue;
+
+          const colonPos = raw.indexOf(':', pos + kMarker.length);
+          if (colonPos === -1) continue;
+
+          let afterColon = raw.slice(colonPos + 1).trim();
+          if (afterColon.startsWith('"')) {
+            afterColon = afterColon.slice(1);
+          }
+
+          // Search for next key boundary
+          let endBoundary = afterColon.length;
+          for (const otherKey of stringKeys) {
+            if (otherKey === k) continue;
+            const otherMarker = `"${otherKey}"`;
+            const otherPos = afterColon.indexOf(otherMarker);
+            if (otherPos !== -1 && otherPos < endBoundary) {
+              const beforeOther = afterColon.slice(0, otherPos);
+              const lastCommaOrQuote = Math.max(beforeOther.lastIndexOf(','), beforeOther.lastIndexOf('"'));
+              if (lastCommaOrQuote !== -1) {
+                endBoundary = lastCommaOrQuote;
+              }
+            }
+          }
+
+          let val = afterColon.slice(0, endBoundary).trim();
+          val = val.replace(/"\s*\}\s*$/g, '').replace(/"\s*$/g, '');
+
+          if (val.includes('\\n') && !val.includes('\n')) {
+            val = val.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+          } else {
+            val = val.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+          }
+
+          if (val.trim()) {
+            recovered[k] = val.trim();
+          }
+        }
+
+        // Check if schema, endpoints, screens, features, targetFiles arrays can be extracted
+        const arrayKeys = ['schema', 'endpoints', 'screens', 'features', 'targetFiles', 'files'];
+        for (const k of arrayKeys) {
+          const arrIdx = raw.indexOf(`"${k}"`);
+          if (arrIdx !== -1) {
+            const bracketIdx = raw.indexOf('[', arrIdx);
+            if (bracketIdx !== -1) {
+              const arrSlice = raw.slice(bracketIdx);
+              try {
+                const repairedArr = extractJSON(arrSlice);
+                recovered[k] = JSON.parse(repairedArr);
+              } catch {
+                // ignore
+              }
+            }
+          }
+        }
+
+        if (Object.keys(recovered).length > 0) {
+          console.warn(
+            `[JSON Extract] Recovered ${Object.keys(recovered).length} fields from broken JSON: ${Object.keys(recovered).join(', ')}`
+          );
+          return recovered as T;
+        }
+      } catch {
+        // Fall through
+      }
+
       console.error('[parseAgentJSON Failed] Raw preview:', raw.slice(0, 400));
       throw new Error(`AI returned malformed JSON: ${err1.message}`);
     }

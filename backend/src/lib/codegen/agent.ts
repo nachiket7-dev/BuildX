@@ -1,11 +1,11 @@
 import { Response } from 'express';
-import { getLLMProvider, getAgentMaxTokensForModel } from '../llm/router';
-import { saveBlueprintFile } from '../db';
+import { completeWithPipelineFallback, getAgentMaxTokensForModel } from '../llm/router';
+import { saveBlueprintFilesAtomically } from '../db';
 import { sendSSE } from '../stream';
 import type { Blueprint } from '../types';
 import { CODEGEN_SYSTEM_PROMPT, buildCodegenFilePrompt } from './prompts';
 
-function cleanModelOutput(output: string): string {
+export function cleanModelOutput(output: string): string {
   let cleaned = output.trim();
   // Strip <think>...</think> reasoning blocks emitted by Qwen/Groq models
   cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
@@ -45,92 +45,8 @@ export function sanitizeTerminalError(stderr: string): string {
   return result;
 }
 
-function isRetriableError(err: any): boolean {
-  const msg = (err?.message || '').toLowerCase();
-  const name = (err?.name || '');
-  const status = err?.status ?? err?.statusCode ?? 0;
-  // Non-retriable: Gemini returns 400 when safety filters produce empty output
-  if (msg.includes('model output must contain') || msg.includes('output text or tool calls')) return false;
-  return (
-    // Rate limit / capacity errors (413 = Groq TPM exceeded, 429 = RPM exceeded, 503 = capacity)
-    status === 413 || status === 429 || status === 503 ||
-    msg.includes('rate limit') ||
-    msg.includes('resourceexhausted') ||
-    msg.includes('request limit') ||
-    msg.includes('too many requests') ||
-    msg.includes('request too large') ||
-    (err?.code === 'rate_limit_exceeded') ||
-    // Timeout errors — SDK throws APIConnectionTimeoutError with no status
-    name === 'APIConnectionTimeoutError' ||
-    msg.includes('timed out') ||
-    msg.includes('timeout') ||
-    msg.includes('econnreset') ||
-    msg.includes('econnrefused')
-  );
-}
-
-/** Extract retry-after seconds from an API error's response headers OR message string */
-function getRetryAfterMs(err: any, defaultMs: number): number {
-  // 1. Try HTTP header
-  const headerVal = err?.headers?.['retry-after'];
-  if (headerVal) {
-    const parsed = parseFloat(headerVal);
-    if (!isNaN(parsed)) return Math.ceil(parsed + 2) * 1000; // +2s buffer
-  }
-  // 2. Try parsing "try again in 19.455s" from the error message
-  const msg = err?.message || '';
-  const match = msg.match(/try again in (\d+(?:\.\d+))s/i);
-  if (match) {
-    const parsed = parseFloat(match[1]);
-    if (!isNaN(parsed)) return Math.ceil(parsed + 2) * 1000; // +2s buffer
-  }
-  return defaultMs;
-}
-
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function completeWithRetry(
-  provider: any,
-  messages: any[],
-  options: any,
-  res: Response,
-  filePath: string,
-  maxRetries = 5
-): Promise<string> {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await provider.complete(messages, options);
-    } catch (err: any) {
-      if (isRetriableError(err) && attempt < maxRetries) {
-        const isTimeout = (err?.name === 'APIConnectionTimeoutError' || (err?.message || '').toLowerCase().includes('timed out'));
-        const isRateLimit = (err?.status === 413 || err?.status === 429 ||
-          (err?.message || '').toLowerCase().includes('rate limit') ||
-          (err?.message || '').toLowerCase().includes('request too large') ||
-          (err?.code === 'rate_limit_exceeded'));
-        // For any rate limit: use retry-after from header/message; otherwise exponential backoff
-        const defaultMs = isTimeout
-          ? Math.pow(2, attempt) * 5000   // 10s, 20s for timeouts
-          : Math.pow(2, attempt) * 3000;  // 6s, 12s, 24s, 48s for other errors
-        const waitMs = isRateLimit ? getRetryAfterMs(err, defaultMs) : defaultMs;
-        const waitSec = Math.round(waitMs / 1000);
-        const reason = isRateLimit ? 'Rate limit' : isTimeout ? 'Timeout' : 'Error';
-        console.warn(`[Codegen Agent] ${reason} on ${filePath} (attempt ${attempt}/${maxRetries}). Retrying in ${waitSec}s...`);
-        sendSSE(res, 'codegen_retry', {
-          path: filePath,
-          attempt,
-          maxRetries,
-          waitSeconds: waitSec,
-          message: `${reason} — retrying in ${waitSec}s (attempt ${attempt}/${maxRetries})...`
-        });
-        await sleep(waitMs);
-        continue;
-      }
-      throw err;
-    }
-  }
-  throw new Error('Max retries exceeded');
 }
 
 export async function generateApplicationCode(
@@ -139,15 +55,10 @@ export async function generateApplicationCode(
   res: Response,
   model?: string
 ): Promise<void> {
-  // ─── Model override: Always use Groq gpt-oss-120b for scaffold generation ────
-  // Groq gpt-oss-120b: fast (~2-3s/file), high TPM headroom on free tier.
-  // Gemini API key invalid. Nemotron too slow (3-5min/file) and rate-limited.
-  // Nemotron remains the chat agent model in routes/agent.ts.
-  const SCAFFOLD_MODEL = 'gpt-oss-120b';
-  // Keep output tokens low: 3500 tokens covers any realistic source file, AND
-  // keeps total request (input ~1000 + output 3500 = 4500) under Groq's 6k TPM limit.
-  const SCAFFOLD_MAX_TOKENS = 3500;
-  const provider = getLLMProvider(SCAFFOLD_MODEL);
+  // Honor the requested model. The frontend may send "pipeline" for legacy
+  // callers; treat that sentinel as the router's configured default model.
+  const requestedModel = model && model !== 'pipeline' ? model : undefined;
+  const scaffoldMaxTokens = Math.min(getAgentMaxTokensForModel(requestedModel), 6000);
   const isMongo = (blueprint.architecture?.database || '').toLowerCase().includes('mongo');
 
   // ─── Compile target files tree ───────────────────────────
@@ -192,6 +103,7 @@ export async function generateApplicationCode(
   sendSSE(res, 'codegen_start', { totalFiles: filesToGenerate.length, appName: blueprint.appName });
 
   const generatedFiles: Record<string, string> = {};
+  let lastModelUsed = requestedModel || 'pipeline';
 
   // ─── Generate each file sequentially ─────────────────────
   for (let i = 0; i < filesToGenerate.length; i++) {
@@ -205,16 +117,17 @@ export async function generateApplicationCode(
     
     let fileContent = '';
     try {
-      const rawText = await completeWithRetry(
-        provider,
+      const response = await completeWithPipelineFallback(
+        'CODE_GENERATION',
         [
           { role: 'system', content: CODEGEN_SYSTEM_PROMPT },
           { role: 'user', content: prompt }
         ],
-        { temperature: 0.2, maxTokens: SCAFFOLD_MAX_TOKENS },
-        res,
-        filePath
+        { temperature: 0.2, maxTokens: scaffoldMaxTokens },
+        requestedModel
       );
+      const rawText = response.text;
+      lastModelUsed = response.model;
 
       fileContent = cleanModelOutput(rawText);
 
@@ -228,22 +141,9 @@ export async function generateApplicationCode(
       // Cache file context for subsequent generations
       generatedFiles[filePath] = fileContent;
 
-      // Extract language type from extension
-      const extension = filePath.split('.').pop() || 'txt';
-      const languageMap: Record<string, string> = {
-        ts: 'typescript',
-        tsx: 'typescript',
-        sql: 'sql',
-        md: 'markdown',
-        json: 'json'
-      };
-      const language = languageMap[extension] || 'text';
-
-      // Save to database
-      await saveBlueprintFile(blueprintId, filePath, fileContent, language);
-
-      // Stream to frontend
-      sendSSE(res, 'codegen_file_done', { path: filePath, content: fileContent });
+      // Keep output in memory until every file is generated successfully.
+      // The client receives progress, but no file is committed yet.
+      sendSSE(res, 'codegen_file_ready', { path: filePath, index });
       console.log(`[Codegen Agent] [${index}/${filesToGenerate.length}] Completed: ${filePath} (${fileContent.length} chars)`);
 
       // Pace requests to stay within Groq's TPM limit window (6k tokens/min on free tier)
@@ -253,9 +153,51 @@ export async function generateApplicationCode(
       const rawErrMsg = err?.message || String(err);
       const safeErrMsg = sanitizeTerminalError(rawErrMsg);
       console.error(`[Codegen Agent] Failed generating file ${filePath}:`, safeErrMsg);
+      sendSSE(res, 'pipeline_error', {
+        stage: 'CODE_GENERATION',
+        model: lastModelUsed,
+        partial: false,
+        retryable: true,
+        failedPath: filePath,
+        message: `Generation stopped before commit for ${filePath}. No newly generated files were saved.`,
+      });
       sendSSE(res, 'error', { message: `Failed generating file ${filePath}: ${safeErrMsg}` });
       throw err;
     }
+  }
+
+  const filesToPersist = Object.entries(generatedFiles).map(([path, content]) => ({
+    path,
+    content,
+    language: path.endsWith('.tsx') || path.endsWith('.ts')
+      ? 'typescript'
+      : path.endsWith('.sql')
+        ? 'sql'
+        : path.endsWith('.md')
+          ? 'markdown'
+          : path.endsWith('.json')
+            ? 'json'
+            : 'text',
+  }));
+
+  try {
+    await saveBlueprintFilesAtomically(blueprintId, filesToPersist);
+  } catch (err: any) {
+    const safeErrMsg = sanitizeTerminalError(err?.message || String(err));
+    sendSSE(res, 'pipeline_error', {
+      stage: 'CODE_GENERATION',
+      model: lastModelUsed,
+      partial: false,
+      retryable: true,
+      message: 'Generation completed, but the workspace commit failed. No partial file set was saved.',
+    });
+    sendSSE(res, 'error', { message: `Code generation commit failed: ${safeErrMsg}` });
+    throw err;
+  }
+
+  // Commit point: only now expose file contents to the client.
+  for (const file of filesToPersist) {
+    sendSSE(res, 'codegen_file_done', { path: file.path, content: file.content });
   }
 
   sendSSE(res, 'codegen_done', { filesGenerated: filesToGenerate.length });

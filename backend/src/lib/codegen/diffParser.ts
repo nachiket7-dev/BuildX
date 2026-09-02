@@ -167,10 +167,21 @@ function parseUnifiedDiffHunks(text: string): DiffBlock[] {
 
 // ─── Normalisation helpers ───────────────────────────────────────────────────
 
-/** Normalize line endings and strip trailing whitespace per line */
-function normalizeLines(text: string): string {
+/**
+ * Replace all unicode non-breaking spaces and exotic space characters with standard ASCII spaces,
+ * and normalize CRLF/CR to Unix LF.
+ */
+export function sanitizeUnicodeWhitespace(text: string): string {
+  if (!text) return '';
   return text
+    .replace(/[\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]/g, ' ')
     .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+}
+
+/** Normalize line endings, replace non-breaking spaces, and strip trailing whitespace per line */
+export function normalizeLines(text: string): string {
+  return sanitizeUnicodeWhitespace(text)
     .split('\n')
     .map(l => l.trimEnd())
     .join('\n');
@@ -234,21 +245,25 @@ function applyIndentOffset(replaceText: string, offsetStr: string): string {
  *
  * Matching strategy (in order):
  * 1. Exact string match (fastest, most reliable).
- * 2. Normalized whitespace match (trim trailing spaces + normalize CRLF).
- * 3. Indent-offset match (SEARCH has consistent extra/fewer indent than file).
+ * 2. Sanitized unicode whitespace match (\u00a0 -> \u0020, CRLF -> LF).
+ * 3. Normalized line match (trim trailing whitespace).
+ * 4. Indent-offset match (SEARCH has consistent extra/fewer indent than file).
+ * 5. Fuzzy trimmed line matching (compare lines with .trim() applied to ignore indentation).
  *
  * Returns null if the block cannot be matched (caller decides how to handle).
  */
 function applySingleBlock(originalCode: string, block: DiffBlock): string | null {
-  const { search, replace } = block;
+  const search = sanitizeUnicodeWhitespace(block.search);
+  const replace = sanitizeUnicodeWhitespace(block.replace);
+  const sanitizedCode = sanitizeUnicodeWhitespace(originalCode);
 
   // ── Strategy 1: Exact match ──────────────────────────────────────────────
-  if (originalCode.includes(search)) {
-    return originalCode.replace(search, replace);
+  if (sanitizedCode.includes(search)) {
+    return sanitizedCode.replace(search, replace);
   }
 
   // ── Strategy 2: Normalized whitespace match ──────────────────────────────
-  const normCode   = normalizeLines(originalCode);
+  const normCode   = normalizeLines(sanitizedCode);
   const normSearch = normalizeLines(search);
   const normReplace = normalizeLines(replace);
 
@@ -266,8 +281,8 @@ function applySingleBlock(originalCode: string, block: DiffBlock): string | null
     }
   }
 
-  // ── Strategy 4: Fuzzy line-by-line matching (collapse all whitespace) ───
-  const fuzzyResult = fuzzyLineMatch(originalCode, search, replace);
+  // ── Strategy 4: Fuzzy trimmed line-by-line matching ──────────────────────
+  const fuzzyResult = fuzzyLineMatch(sanitizedCode, search, replace);
   if (fuzzyResult !== null) return fuzzyResult;
 
   // ── Idempotency check ────────────────────────────────────────────────────
@@ -275,31 +290,33 @@ function applySingleBlock(originalCode: string, block: DiffBlock): string | null
   const normReplaceCheck = normalizeLines(replace);
   if (normReplaceCheck.trim() && normCode.includes(normReplaceCheck)) {
     console.warn('[diffParser] Block already applied (idempotent skip):', search.slice(0, 60));
-    return originalCode; // already patched
+    return sanitizedCode; // already patched
   }
 
   return null; // could not match
 }
 
 /**
- * Strategy 4: Fuzzy line-by-line match.
- * Compresses all whitespace on each line for comparison. If the stripped lines
- * match a contiguous region in the file, substitute the original region with
- * the replacement (preserving the replacement's own indentation).
+ * Strategy 4: Fuzzy line-by-line match with .trim() applied.
+ * Compares lines after trimming leading/trailing indentation and compressing inner whitespace.
+ * If the stripped lines match a contiguous region in the file, substitutes the region with
+ * the replacement.
  */
 function fuzzyLineMatch(originalCode: string, search: string, replace: string): string | null {
-  const compress = (s: string) => s.replace(/\s+/g, ' ').trim();
-  const origLines = originalCode.split('\n');
-  const searchLines = search.split('\n').filter(l => l.trim().length > 0);
+  const sanitizeLine = (s: string) => sanitizeUnicodeWhitespace(s).replace(/\s+/g, ' ').trim();
+  const origLines = sanitizeUnicodeWhitespace(originalCode).split('\n');
+  const searchLines = sanitizeUnicodeWhitespace(search)
+    .split('\n')
+    .filter(l => l.trim().length > 0);
 
   if (searchLines.length === 0) return null;
 
-  const compressedSearch = searchLines.map(compress);
+  const sanitizedSearch = searchLines.map(sanitizeLine);
 
   for (let i = 0; i <= origLines.length - searchLines.length; i++) {
     let allMatch = true;
     for (let j = 0; j < searchLines.length; j++) {
-      if (compress(origLines[i + j]) !== compressedSearch[j]) {
+      if (sanitizeLine(origLines[i + j]) !== sanitizedSearch[j]) {
         allMatch = false;
         break;
       }
@@ -307,8 +324,8 @@ function fuzzyLineMatch(originalCode: string, search: string, replace: string): 
     if (allMatch) {
       const before = origLines.slice(0, i);
       const after = origLines.slice(i + searchLines.length);
-      const replaceLines = replace.split('\n');
-      console.info(`[diffParser] Fuzzy match succeeded at line ${i + 1} for ${searchLines.length} line(s)`);
+      const replaceLines = sanitizeUnicodeWhitespace(replace).split('\n');
+      console.info(`[diffParser] Fuzzy trimmed match succeeded at line ${i + 1} for ${searchLines.length} line(s)`);
       return [...before, ...replaceLines, ...after].join('\n');
     }
   }

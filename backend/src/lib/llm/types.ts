@@ -19,14 +19,26 @@ export interface LLMProvider {
 // ─── Multi-Model Pipeline types ─────────────────────────────────────────────
 
 /**
- * Named execution stages for the dual-pipeline architecture.
+ * Named execution stages for the unified agent pipeline.
  *
- * - PLANNING       → fast context synthesis (Gemini 3.5 Flash primary)
- * - INGESTION      → fast context parsing (Gemini 3.5 Flash primary)
- * - DIFF_GENERATION→ surgical patch output (GLM-5.2 primary)
- * - AUTO_FIX       → error-driven self-correction (Kimi K2.6 primary)
+ * - PLANNING        → blueprint planning and orchestration
+ * - INGESTION       → source/workspace context parsing
+ * - DIFF_GENERATION → surgical patch output
+ * - AUTO_FIX        → error-driven self-correction
+ * - CODE_GENERATION → scaffold file generation
+ * - REFINEMENT      → blueprint patch/refinement
+ * - PREVIEW_GENERATION → AI-enhanced HTML preview generation
+ * - SCHEMA_VERIFIER → schema and output integrity verification
  */
-export type PipelineStage = 'PLANNING' | 'INGESTION' | 'DIFF_GENERATION' | 'AUTO_FIX';
+export type PipelineStage =
+  | 'PLANNING'
+  | 'INGESTION'
+  | 'DIFF_GENERATION'
+  | 'AUTO_FIX'
+  | 'CODE_GENERATION'
+  | 'REFINEMENT'
+  | 'PREVIEW_GENERATION'
+  | 'SCHEMA_VERIFIER';
 
 /**
  * A primary+fallback model pair for a pipeline stage.

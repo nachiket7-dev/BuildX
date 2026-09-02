@@ -4,12 +4,13 @@ import { Response } from 'express';
 
 /** Initialise SSE headers on the response */
 export function initSSE(res: Response): void {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no', // disable nginx buffering
-  });
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering
+  if (typeof (res as any).flushHeaders === 'function') {
+    (res as any).flushHeaders();
+  }
   // Send a comment so proxies know the connection is alive
   res.write(':ok\n\n');
 }

@@ -16,12 +16,12 @@ export class NvidiaProvider implements LLMProvider {
         throw new Error('NVIDIA_API_KEY is not defined in env configuration!');
       }
 
-      // Cap NVIDIA request timeout at 30s so any unresponsive model triggers fallback immediately
+      // 60s timeout limit to allow frontier models (Nemotron 3 / Kimi K2.6) to generate code without premature client timeouts
       this.client = new OpenAI({
         apiKey,
         baseURL: 'https://integrate.api.nvidia.com/v1',
-        timeout: 30_000, // 30s timeout limit for fast failover
-        maxRetries: 1,
+        timeout: 60_000, // 60s timeout limit
+        maxRetries: 0,
       });
     }
     return this.client;

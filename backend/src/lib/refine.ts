@@ -1,4 +1,4 @@
-import { getLLMProvider, getRefineMaxTokensForModel, completeWithPipelineFallback, getPipelineMaxTokens } from './llm/router';
+import { completeWithPipelineFallback, getPipelineMaxTokens } from './llm/router';
 import { extractJSON } from './jsonExtract';
 import { tryParsePartial } from './stream';
 import type { Blueprint } from './types';
@@ -326,8 +326,7 @@ export async function refineBlueprint(
   refinementMessage: string,
   requestedModel?: string
 ): Promise<Blueprint> {
-  const provider = getLLMProvider(requestedModel);
-  const maxTokens = getRefineMaxTokensForModel(requestedModel);
+  const maxTokens = getPipelineMaxTokens('REFINEMENT');
   const context = buildRefineContext(originalBlueprint);
 
   console.log(`[Refine] model=${requestedModel || 'default'} | max_tokens=${maxTokens} | request="${refinementMessage.slice(0, 100)}"`);
@@ -341,13 +340,16 @@ Return the updated blueprint as JSON (same keys as input).`;
       ? `${buildSystemPrompt(context)}\n\nCRITICAL: Return compact valid JSON only. No code blocks. Maximize correctness over verbosity.`
       : buildSystemPrompt(context);
 
-    return provider.complete(
+    const response = await completeWithPipelineFallback(
+      'REFINEMENT',
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userContent },
       ],
-      { temperature, maxTokens, responseFormat: { type: 'json_object' } }
+      { temperature, maxTokens, responseFormat: { type: 'json_object' } },
+      requestedModel
     );
+    return response.text;
   }
 
   async function runWithRetries(): Promise<Blueprint> {
@@ -398,18 +400,20 @@ async function runWithoutJsonMode(
   requestedModel: string | undefined,
   maxTokens: number
 ): Promise<Blueprint> {
-  const provider = getLLMProvider(requestedModel);
   const systemPrompt = buildSystemPrompt(context);
   const userContent = `Modification request: ${refinementMessage}\n\nReturn the updated blueprint as JSON.`;
 
   for (const temperature of [0.2, 0]) {
-    const rawText = await provider.complete(
+    const response = await completeWithPipelineFallback(
+      'REFINEMENT',
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userContent },
       ],
-      { temperature, maxTokens }
+      { temperature, maxTokens },
+      requestedModel
     );
+    const rawText = response.text;
     if (!rawText) continue;
     try {
       return parseRefineResponse(rawText, originalBlueprint);
@@ -435,7 +439,7 @@ export interface AutoFixResult {
 /**
  * Phase 4: Automated Sandbox Self-Correction Loop
  * Automatically pipes sandbox stderr and failing stack traces to the Router in AUTO_FIX mode
- * (Nemotron 3 Ultra primary with GLM-5.2 fallback) to apply surgical patches.
+ * (Gemini 3.5 Flash primary with Kimi fallback) to apply surgical patches.
  */
 export async function autoFixCodeFile(
   filePath: string,
