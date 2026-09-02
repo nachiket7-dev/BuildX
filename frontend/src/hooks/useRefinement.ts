@@ -8,6 +8,12 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  modelUsed?: string;
+  wasFallback?: boolean;
+  telemetry?: {
+    planner?: { modelUsed: string; executionTimeMs?: number; wasFallback?: boolean };
+    patches?: Array<{ filePath: string; modelUsed: string; executionTimeMs?: number; wasFallback?: boolean }>;
+  };
 }
 
 function listNewItems(before: string[], after: string[]): string[] {
@@ -149,6 +155,7 @@ export function useRefinement(
   const { toast } = useToast();
   const blueprintRef = useRef(blueprint);
   blueprintRef.current = blueprint;
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (blueprintId) migrateDraftHistory(blueprintId);
@@ -171,6 +178,8 @@ export function useRefinement(
     mutationFn: ({ message, model }: { message: string; model: string }) => {
       const current = blueprintRef.current;
       if (!current) throw new Error('No blueprint loaded');
+      // Store in ref — not in useState, and not aborted on component unmount
+      abortControllerRef.current = new AbortController();
       return refineBlueprint(current, message, model, blueprintId);
     },
     onMutate: ({ message }) => {
@@ -218,6 +227,7 @@ export function useRefinement(
   );
 
   const clearHistory = useCallback(() => {
+    abortControllerRef.current = null;
     setMessages([]);
     setError(null);
     sessionStorage.removeItem(storageKey);

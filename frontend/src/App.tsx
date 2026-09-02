@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Routes, Route, useParams, useNavigate, Navigate, Outlet, useOutletContext, useLocation, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,7 +16,7 @@ import { PageTransition } from './components/PageTransition';
 import { BlueprintLoadingSkeleton } from './components/BlueprintLoadingSkeleton';
 import { useBlueprintSession, BlueprintSessionProvider } from './hooks/useBlueprintSession';
 import { useRefinement } from './hooks/useRefinement';
-import { useAuth, useAuthProvider, AuthContext } from './hooks/useAuth';
+import { useAuthProvider, AuthContext } from './hooks/useAuth';
 import { useModel } from './hooks/useModel';
 import { useToast } from './hooks/useToast';
 import { invalidateBlueprintQueries } from './hooks/useBlueprints';
@@ -25,9 +25,8 @@ import { LoginPage } from './components/LoginPage';
 import { GithubCallbackPage } from './components/GithubCallbackPage';
 import { HomePage } from './components/HomePage';
 import { AgentPage } from './components/AgentPage';
-import { BlueprintsPage } from './components/BlueprintsPage';
-import { NewBlueprintPage } from './components/NewBlueprintPage';
 import { DeployModal } from './components/DeployModal';
+import { CommandPalette, type PaletteAction } from './components/CommandPalette';
 import type { Blueprint } from './lib/types';
 
 import { VFSProvider } from './context/VFSContext';
@@ -53,7 +52,9 @@ function BlueprintPage() {
     blueprintId,
     progress,
     agentEvents,
+    retryable,
     generate,
+    retry,
     loadSaved,
     isStreamSavedRoute,
     updateBlueprint,
@@ -220,7 +221,7 @@ function BlueprintPage() {
       // Clean the param from URL without pushing new history entry
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const isLoadingFromUrl = Boolean(routeId && isStreaming && !activeBlueprint && !error);
   const showHero = !isStreaming && !activeBlueprint && !routeId && !isLoadingFromUrl;
@@ -246,7 +247,7 @@ function BlueprintPage() {
 
       {error && (
         <div className="max-w-3xl w-full mx-auto px-6 pt-4">
-          <ErrorBanner message={error} onDismiss={handleReset} />
+          <ErrorBanner message={error} onDismiss={handleReset} onRetry={retryable ? retry : undefined} />
         </div>
       )}
 
@@ -254,10 +255,10 @@ function BlueprintPage() {
         <PageTransition viewKey={viewKey}>
           {showHero && (
             <Hero
-              onGenerate={(idea) => {
+              onGenerate={(idea, stack) => {
                 celebratedRef.current = false;
                 setModelUsed(selectedModel);
-                generate(idea, selectedModel);
+                generate(idea, selectedModel, stack);
               }}
               isLoading={isStreaming}
             />
@@ -299,22 +300,57 @@ function BlueprintPage() {
   );
 }
 
+const FULL_BLEED_ROUTES = ['/agent', '/gallery'];
+
 function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
+  const [isGlobalPaletteOpen, setIsGlobalPaletteOpen] = useState(false);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
 
-  // Agent workspace pages need a fixed-height, no-scroll shell so the internal
-  // chat column can scroll independently. All other pages retain min-h-screen.
+  // Full-bleed routes (Cortex IDE & Community Gallery) hide the global sidebar
+  // to maximize workspace real estate and stretch to 100% viewport width.
+  const isFullBleed = FULL_BLEED_ROUTES.some(route => pathname.startsWith(route));
   const isAgentPage = pathname.startsWith('/agent');
   const routeIdMatch = pathname.match(/\/(?:agent|blueprint)\/([^/]+)/);
   const routeId = routeIdMatch ? routeIdMatch[1] : undefined;
 
   useEffect(() => {
-    if (window.innerWidth >= 768) {
+    if (window.innerWidth >= 768 && !isFullBleed) {
       setSidebarOpen(true);
     }
-  }, []);
+  }, [isFullBleed]);
+
+  // Global Cmd+K for non-agent pages (agent pages have their own handler)
+  useEffect(() => {
+    if (isAgentPage) return; // Agent page manages its own palette
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsGlobalPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAgentPage]);
+
+  const handleGlobalPaletteAction = useCallback((action: PaletteAction) => {
+    switch (action.type) {
+      case 'action':
+        if (action.id === 'deploy-github' || action.id === 'export-zip') {
+          setIsDeployModalOpen(true);
+        } else if (action.id === 'toggle-preview') {
+          navigate('/agent');
+        }
+        break;
+      case 'prompt':
+        navigate('/create');
+        break;
+      default:
+        break;
+    }
+  }, [navigate]);
 
   return (
     <VFSProvider>
@@ -326,25 +362,31 @@ function AppShell() {
           {/* ── GLOBAL HEADER: Fixed top anchor (h-16 shrink-0 z-30) ── */}
           <Header
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-            showSidebarToggle
-            sidebarOpen={sidebarOpen}
+            showSidebarToggle={!isFullBleed}
+            sidebarOpen={!isFullBleed && sidebarOpen}
             onDeploy={() => setIsDeployModalOpen(true)}
           />
 
           {/* ── BELOW-HEADER LAYOUT: Fixed Sidebar + Main Workspace Scroll ── */}
           <div className="flex-1 flex min-h-0 w-full overflow-hidden min-w-0 relative z-10">
-            <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+            {!isFullBleed && (
+              <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+            )}
 
             <motion.div
-              animate={{ marginLeft: sidebarOpen ? '280px' : 0 }}
+              animate={{ marginLeft: (!isFullBleed && sidebarOpen) ? '280px' : 0 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.8 }}
-              className="flex-1 h-full min-h-0 min-w-0 overflow-y-auto custom-scrollbar flex flex-col relative z-10"
+              className={`flex-1 h-full min-h-0 min-w-0 ${
+                isFullBleed ? 'w-full m-0 p-0' : ''
+              } ${
+                isAgentPage ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'
+              } flex flex-col relative z-10`}
               style={{ willChange: 'margin' }}
             >
-              <Outlet context={{ sidebarOpen, onDeploy: () => setIsDeployModalOpen(true) } satisfies AppShellOutletContext} />
+              <Outlet context={{ sidebarOpen: !isFullBleed && sidebarOpen, onDeploy: () => setIsDeployModalOpen(true) } satisfies AppShellOutletContext} />
 
-              {/* Footer is hidden on agent pages */}
-              {!isAgentPage && (
+              {/* Footer is hidden on full-bleed workspace/gallery pages */}
+              {!isFullBleed && (
                 <footer className="app-footer shrink-0">
                   <p>BuildX — Idea to deployable blueprint in one flow</p>
                   <p className="app-footer__sub">Powered by Groq · PostgreSQL · React</p>
@@ -358,14 +400,20 @@ function AppShell() {
             onClose={() => setIsDeployModalOpen(false)}
             blueprintId={routeId}
           />
+
+          {/* Global Command Palette (non-agent pages) */}
+          {!isAgentPage && (
+            <CommandPalette
+              isOpen={isGlobalPaletteOpen}
+              onClose={() => setIsGlobalPaletteOpen(false)}
+              onAction={handleGlobalPaletteAction}
+              appName="BuildX"
+            />
+          )}
         </div>
       </BlueprintSessionProvider>
     </VFSProvider>
   );
-}
-
-function BlueprintPageRoute() {
-  return <BlueprintPage />;
 }
 
 export default function App() {
@@ -385,13 +433,26 @@ export default function App() {
         >
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<HomePage />} />
+            <Route path="/home" element={<Navigate to="/" replace />} />
+            <Route path="/landing" element={<Navigate to="/" replace />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/auth" element={<Navigate to="/login" replace />} />
+            <Route path="/signin" element={<Navigate to="/login" replace />} />
+            <Route path="/signup" element={<Navigate to="/login" replace />} />
             <Route path="/login/callback" element={<GithubCallbackPage />} />
+            <Route path="/auth/callback" element={<Navigate to="/login/callback" replace />} />
             <Route element={<AppShell />}>
-              <Route path="/blueprints" element={<BlueprintsPage />} />
-              <Route path="/blueprints/new" element={<NewBlueprintPage />} />
-              <Route path="/blueprint/:id" element={<BlueprintPageRoute />} />
+              <Route path="/create" element={<BlueprintPage />} />
+              <Route path="/blueprints/new" element={<Navigate to="/create" replace />} />
+              <Route path="/new" element={<Navigate to="/create" replace />} />
+              <Route path="/builder" element={<Navigate to="/create" replace />} />
               <Route path="/gallery" element={<GalleryPage />} />
+              <Route path="/blueprints" element={<Navigate to="/gallery" replace />} />
+              <Route path="/dashboard" element={<Navigate to="/gallery" replace />} />
+              <Route path="/projects" element={<Navigate to="/gallery" replace />} />
+              <Route path="/blueprint/:id" element={<BlueprintPage />} />
+              <Route path="/community" element={<Navigate to="/gallery" replace />} />
+              <Route path="/explore" element={<Navigate to="/gallery" replace />} />
               <Route
                 path="/agent"
                 element={
@@ -408,14 +469,10 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/create"
-                element={
-                  <ProtectedRoute>
-                    <BlueprintPageRoute />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="/ide" element={<Navigate to="/agent" replace />} />
+              <Route path="/ide/:id" element={<Navigate to="/agent" replace />} />
+              <Route path="/workspace" element={<Navigate to="/agent" replace />} />
+              <Route path="/workspace/:id" element={<Navigate to="/agent" replace />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

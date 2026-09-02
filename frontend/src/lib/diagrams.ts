@@ -123,8 +123,6 @@ export function generateERDiagram(schema: SchemaTable[]): string {
 
     for (const col of (table.columns || [])) {
       const colName = col.name.replace(/[^a-zA-Z0-9_]/g, '_');
-      const isPK = (col.type + ' ' + (col.note || '')).toUpperCase().includes('PRIMARY KEY') ||
-                   (col.note || '').toUpperCase().includes('PK');
       const isFK = col.name.endsWith('_id') || 
                    col.name.endsWith('Id') || 
                    col.name.endsWith('ID') || 
@@ -162,7 +160,6 @@ export function generateERDiagram(schema: SchemaTable[]): string {
 
         if (matchedTable && matchedTable !== tName) {
           // Use a canonical key to avoid duplicate relationships
-          const relKey = [matchedTable, tName].sort().join('-') + '-' + colName;
           const simpleKey = `${matchedTable}-${tName}`;
           if (!relationships.has(simpleKey)) {
             relationships.add(simpleKey);
@@ -205,20 +202,20 @@ export function generateERDiagram(schema: SchemaTable[]): string {
  */
 export function generateArchDiagram(arch: Architecture): string {
   return `flowchart TD
-  subgraph Client["🌐 Client Layer"]
+  subgraph Client["Client Layer"]
     FE["${escapeMermaid(arch.frontend)}"]
   end
 
-  subgraph Server["⚙️ Server Layer"]
+  subgraph Server["Server Layer"]
     BE["${escapeMermaid(arch.backend)}"]
     AUTH["${escapeMermaid(arch.auth)}"]
   end
 
-  subgraph Data["💾 Data Layer"]
+  subgraph Data["Data Layer"]
     DB["${escapeMermaid(arch.database)}"]
   end
 
-  subgraph Infra["☁️ Infrastructure"]
+  subgraph Infra["Infrastructure"]
     HOST["${escapeMermaid(arch.hosting)}"]
   end
 

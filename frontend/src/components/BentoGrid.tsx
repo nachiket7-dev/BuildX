@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Code2, Play, Github, Download, Check, Sparkles, Layers, Zap, Bot, FileCode2, GitBranch, Shield } from 'lucide-react';
+import { Play, Github, Download, Check, Sparkles, Layers, Zap, Bot, FileCode2, GitBranch, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SpotlightCard } from './SpotlightCard';
 import { StaggerGridContainer, StaggerGridItem } from './animations/StaggerGrid';
@@ -9,10 +9,10 @@ import { TextReveal } from './animations/TextReveal';
 // ─── Live Pipeline Simulation Widget ────────────────────────────────────────
 
 const PIPELINE_STAGES = [
-  { id: 'plan',  label: 'Nemotron 550B',  role: 'Planning',    color: 'indigo',  icon: Bot },
-  { id: 'ingest',label: 'Gemini Flash',   role: 'Ingestion',   color: 'blue',    icon: Zap },
-  { id: 'diff',  label: 'GLM-5.2',        role: 'Diff Patch',  color: 'purple',  icon: GitBranch },
-  { id: 'fix',   label: 'Kimi K2.6',      role: 'Auto-Fix',    color: 'emerald', icon: Shield },
+  { id: 'plan',  label: 'Gemini Flash',   role: 'Planning',    color: 'indigo',  icon: Bot },
+  { id: 'ingest',label: 'GLM-5.2',        role: 'Ingestion',   color: 'blue',    icon: Zap },
+  { id: 'diff',  label: 'Gemini Flash',   role: 'Diff Patch',  color: 'purple',  icon: GitBranch },
+  { id: 'fix',   label: 'Gemini Flash',   role: 'Auto-Fix',    color: 'emerald', icon: Shield },
 ] as const;
 
 const STREAM_TOKENS = [

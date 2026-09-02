@@ -5,6 +5,7 @@ import type {
   BlueprintListItem,
   ApiResponse,
   ApiError,
+  StackSpec,
 } from './types';
 
 // In dev, Vite proxies /api → localhost:3001
@@ -56,21 +57,6 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
-
-// ─── Non-streaming generation (fallback) ──────────────────
-
-export async function generateBlueprint(idea: string, model?: string): Promise<{ blueprint: Blueprint; id: string }> {
-  try {
-    const response = await apiClient.post<ApiResponse<Blueprint> & { id: string }>(
-      '/api/blueprint/generate',
-      { idea, model },
-      { headers: getAuthHeaders() }
-    );
-    return { blueprint: response.data.data, id: response.data.id };
-  } catch (err) {
-    throw new Error(extractErrorMessage(err));
-  }
-}
 
 // ─── Streaming generation (SSE via fetch) ─────────────────
 
@@ -125,6 +111,7 @@ async function* readSSEStream(
 export async function* generateBlueprintStream(
   idea: string,
   model: string,
+  stack?: StackSpec,
   signal?: AbortSignal
 ): AsyncGenerator<SSEEvent> {
   const url = `${BASE_URL}/api/blueprint/generate-stream`;
@@ -132,7 +119,7 @@ export async function* generateBlueprintStream(
   const response = await fetch(url, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ idea, model }),
+    body: JSON.stringify({ idea, model, stack }),
     signal,
   });
 
@@ -228,6 +215,12 @@ export async function setBlueprintVisibility(
     { is_public: isPublic },
     { headers: getAuthHeaders() }
   );
+}
+
+export async function deleteBlueprint(blueprintId: string): Promise<void> {
+  await apiClient.delete(`/api/auth/blueprint/${blueprintId}`, {
+    headers: getAuthHeaders(),
+  });
 }
 
 export async function refineBlueprint(
@@ -341,17 +334,6 @@ export async function downloadBlueprintZip(blueprintId?: string, blueprint?: Blu
   window.URL.revokeObjectURL(downloadUrl);
 }
 
-// ─── Health check ─────────────────────────────────────────
-
-export async function checkHealth(): Promise<boolean> {
-  try {
-    await apiClient.get('/health', { timeout: 5000 });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export interface LlmProviderHealth {
   service: string;
   ready: boolean;
@@ -366,22 +348,10 @@ export async function fetchLlmProviderHealth(): Promise<LlmProviderHealth> {
 
 // ─── Code Generation & Files API ──────────────────────────
 
-export interface VirtualFileDetails {
+export interface VirtualFileFull {
   path: string;
   language: string;
-}
-
-export interface VirtualFileFull extends VirtualFileDetails {
   content: string;
-}
-
-/** Lists the metadata (path + language) of all generated files */
-export async function fetchBlueprintFiles(blueprintId: string): Promise<VirtualFileDetails[]> {
-  const response = await apiClient.get<ApiResponse<{ files: VirtualFileDetails[] }>>(
-    `/api/blueprint/${blueprintId}/files`,
-    { headers: getAuthHeaders() }
-  );
-  return response.data.data.files;
 }
 
 /** Fetches all generated files with contents in a single request */
@@ -393,15 +363,6 @@ export async function fetchBlueprintFilesWithContent(blueprintId: string): Promi
   return response.data.data.files;
 }
 
-/** Fetches full content for a single virtual file */
-export async function fetchBlueprintFileContent(blueprintId: string, path: string): Promise<VirtualFileFull> {
-  const response = await apiClient.get<ApiResponse<{ file: VirtualFileFull }>>(
-    `/api/blueprint/${blueprintId}/files/${encodeURIComponent(path)}`,
-    { headers: getAuthHeaders() }
-  );
-  return response.data.data.file;
-}
-
 /** Saves or updates content for a single virtual file */
 export async function saveBlueprintFile(
   blueprintId: string,
@@ -409,8 +370,8 @@ export async function saveBlueprintFile(
   content: string,
   language: string
 ): Promise<void> {
-  await apiClient.post(
-    `/api/blueprint/${blueprintId}/files`,
+  await apiClient.put(
+    `/api/blueprints/${blueprintId}/vfs/file`,
     { path, content, language },
     { headers: getAuthHeaders() }
   );
@@ -419,7 +380,7 @@ export async function saveBlueprintFile(
 /** Streams code generation SSE events */
 export async function* generateCodeStream(
   blueprintId: string,
-  model: string,
+  model?: string,
   signal?: AbortSignal
 ): AsyncGenerator<SSEEvent> {
   const url = `${BASE_URL}/api/blueprint/${blueprintId}/codegen`;
@@ -427,7 +388,7 @@ export async function* generateCodeStream(
   const response = await fetch(url, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ model }),
+    body: JSON.stringify(model ? { model } : {}),
     signal,
   });
 
@@ -490,6 +451,17 @@ export async function* generateCodeStream(
 export function getBlueprintPreviewUrl(blueprintId: string): string {
   const base = import.meta.env.VITE_API_URL ?? '';
   return `${base}/api/blueprint/${blueprintId}/preview`;
+}
+
+/** Creates a short-lived signed preview URL for a private blueprint. */
+export async function createBlueprintPreviewLink(blueprintId: string): Promise<string> {
+  const response = await apiClient.post<ApiResponse<{ path: string }>>(
+    `/api/blueprint/${blueprintId}/preview/link`,
+    {},
+    { headers: getAuthHeaders() }
+  );
+  const base = import.meta.env.VITE_API_URL ?? '';
+  return `${base}${response.data.data.path}`;
 }
 
 export interface PreviewResult {

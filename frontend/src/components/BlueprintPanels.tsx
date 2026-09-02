@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Blueprint } from '../lib/types';
-import { methodClass, complexityColor, resolveFlowSteps, flowStepRole, escapeHtml } from '../lib/utils';
+import { methodClass, complexityColor, resolveFlowSteps, flowStepRole } from '../lib/utils';
 import { CodeStudio } from './CodeStudio';
 import { SpotlightCard } from './SpotlightCard';
 import { 
@@ -31,12 +31,7 @@ import {
   FileText,
   Wrench,
   Layout,
-  Monitor,
-  Play,
   Send,
-  Globe,
-  Clock,
-  HardDrive
 } from 'lucide-react';
 
 // ─── Shared ─────────────────────────────────────────────────
@@ -393,7 +388,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
                       No fields defined
                     </div>
                   ) : (
-                    cols.map((col, i) => (
+                    cols.map((col) => (
                       <div
                         key={col.name}
                         className="flex items-center justify-between px-3 sm:px-5 py-2 text-[10px] sm:text-xs font-mono border-b border-white/5 last:border-b-0 hover:bg-emerald-500/5 transition-colors group tracking-tight"
@@ -1032,7 +1027,7 @@ export function EffortPanel({ blueprint }: { blueprint: Blueprint }) {
 
 function toPascalCase(str: string): string {
   return str
-    .replace(/[\s_\-]+(.)/g, (_, c) => c.toUpperCase())
+    .replace(/[\s_-]+(.)/g, (_, c) => c.toUpperCase())
     .replace(/^(.)/, (_, c) => c.toUpperCase());
 }
 

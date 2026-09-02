@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff, Zap, FolderArchive, MessageSquare, ArrowRight } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { generateOAuthState } from '../lib/utils';
+import { startGithubOAuth } from '../lib/utils';
 import { AmbientBackground } from './AmbientBackground';
 import { Logo } from './Logo';
 import { PageHead } from './PageHead';
@@ -79,13 +79,7 @@ export function LoginPage() {
   }
 
   function handleGithubOAuth() {
-    sessionStorage.setItem('buildx_auth_redirect', from);
-    sessionStorage.removeItem('buildx_github_link');
-    const state = generateOAuthState();
-    sessionStorage.setItem('buildx_github_oauth_state', state);
-    const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || '';
-    const redirectUri = encodeURIComponent(window.location.origin + '/login/callback');
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=user:email,repo&redirect_uri=${redirectUri}&state=${state}`;
+    startGithubOAuth('login', from);
   }
 
   return (

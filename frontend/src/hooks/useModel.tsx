@@ -1,21 +1,21 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, type ReactNode, useEffect } from 'react';
 import { fetchLlmProviderHealth } from '../lib/api';
 
 /** Supported models — must stay in sync with backend MODEL_MAP primary keys */
 export const AVAILABLE_MODELS = [
-  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', badge: '✨ Ultra Fast',        provider: 'gemini' as const },
-  { id: 'gemini-3.1-pro',   label: 'Gemini 3.1 Pro',   badge: '✨ Coding Expert',     provider: 'gemini' as const },
-  { id: 'qwen-3-32b',       label: 'Qwen 3 32B',       badge: '⚡ Coding Pro',        provider: 'groq'   as const },
-  { id: 'gpt-oss-120b',     label: 'GPT-OSS 120B',     badge: '⚡ Premium (5/day)',   provider: 'groq'   as const },
-  { id: 'nemotron-3-550b',  label: 'Nemotron-3 Ultra', badge: '🔬 550B · Reasoning', provider: 'nvidia' as const },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', badge: 'Ultra Fast',        provider: 'gemini' as const },
+  { id: 'gemini-3.1-pro',   label: 'Gemini 3.1 Pro',   badge: 'Coding Expert',     provider: 'gemini' as const },
+  { id: 'qwen-3-32b',       label: 'Qwen 3 32B',       badge: 'Coding Pro',        provider: 'groq'   as const },
+  { id: 'gpt-oss-120b',     label: 'GPT-OSS 120B',     badge: 'Premium (5/day)',   provider: 'groq'   as const },
+  { id: 'nemotron-3-550b',  label: 'Nemotron-3 Ultra', badge: '550B · Reasoning', provider: 'nvidia' as const },
 ] as const;
 
 export type ModelId = typeof AVAILABLE_MODELS[number]['id'];
 
 export const MODEL_PROVIDER_LABELS: Record<string, string> = {
-  groq:   '⚡ Groq — Fast & Free',
-  gemini: '✨ Google AI Studio — Free',
-  nvidia: '🔬 NVIDIA NIM',
+  groq:   'Groq — Fast & Free',
+  gemini: 'Google AI Studio — Free',
+  nvidia: 'NVIDIA NIM',
 };
 
 /** Maps old localStorage / saved blueprint keys to current model IDs */

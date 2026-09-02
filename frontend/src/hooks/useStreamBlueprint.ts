@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { generateBlueprintStream, fetchBlueprint, SSEEvent } from '../lib/api';
-import type { Blueprint, PartialBlueprint, SavedBlueprint, AgentEvent, PipelineStage, PipelineStageEvent } from '../lib/types';
+import type { Blueprint, PartialBlueprint, SavedBlueprint, AgentEvent, PipelineStage, PipelineStageEvent, StackSpec } from '../lib/types';
 
 export type { AgentEvent };
 
@@ -20,7 +20,9 @@ interface UseStreamBlueprintResult {
   agentEvents: AgentEvent[];
   activeStage: PipelineStage | null;
   pipelineEvents: PipelineStageEvent[];
-  generate: (idea: string, model: string) => void;
+  retryable: boolean;
+  generate: (idea: string, model: string, stack?: StackSpec) => void;
+  retry: () => void;
   loadSaved: (id: string) => void;
   isStreamSavedRoute: (id: string) => boolean;
   updateBlueprint: (next: Blueprint) => void;
@@ -50,11 +52,13 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
   const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
   const [activeStage, setActiveStage] = useState<PipelineStage | null>(null);
   const [pipelineEvents, setPipelineEvents] = useState<PipelineStageEvent[]>([]);
+  const [retryable, setRetryable] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const streamSavedForRouteRef = useRef<string | null>(null);
   const streamBlueprintRef = useRef<Blueprint | null>(null);
   const loadGenerationRef = useRef(0);
   const blueprintRef = useRef<Blueprint | null>(null);
+  const lastRequestRef = useRef<{ idea: string; model: string; stack?: StackSpec } | null>(null);
   blueprintRef.current = blueprint;
 
   const cancel = useCallback(() => {
@@ -62,8 +66,9 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     abortRef.current = null;
   }, []);
 
-  const generate = useCallback(async (idea: string, model: string) => {
+  const generate = useCallback(async (idea: string, model: string, stack?: StackSpec) => {
     cancel();
+    lastRequestRef.current = { idea, model, stack };
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -78,6 +83,7 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     setAgentEvents([]);
     setActiveStage('PLANNING');
     setPipelineEvents([]);
+    setRetryable(false);
     streamBlueprintRef.current = null;
     streamSavedForRouteRef.current = null;
 
@@ -85,7 +91,7 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     let gotSaved = false;
 
     try {
-      const stream = generateBlueprintStream(idea, model, controller.signal);
+      const stream = generateBlueprintStream(idea, model, stack, controller.signal);
       let sectionsReceived = 0;
 
       for await (const event of stream) {
@@ -172,6 +178,11 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
             throw new Error(data.message);
           }
 
+          case 'pipeline_error': {
+            setRetryable(true);
+            break;
+          }
+
           case 'status':
           case 'done':
             break;
@@ -185,12 +196,18 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
+      setRetryable(true);
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
     }
   }, [cancel]);
+
+  const retry = useCallback(() => {
+    const request = lastRequestRef.current;
+    if (request) void generate(request.idea, request.model, request.stack);
+  }, [generate]);
 
   const isStreamSavedRoute = useCallback(
     (id: string) => streamSavedForRouteRef.current === id,
@@ -258,6 +275,7 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     setAgentEvents([]);
     setActiveStage(null);
     setPipelineEvents([]);
+    setRetryable(false);
     streamBlueprintRef.current = null;
     streamSavedForRouteRef.current = null;
 
@@ -312,6 +330,7 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     setAgentEvents([]);
     setActiveStage(null);
     setPipelineEvents([]);
+    setRetryable(false);
   }, [cancel]);
 
   return {
@@ -326,7 +345,9 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     agentEvents,
     activeStage,
     pipelineEvents,
+    retryable,
     generate,
+    retry,
     loadSaved,
     isStreamSavedRoute,
     updateBlueprint,

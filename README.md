@@ -141,6 +141,8 @@ cp backend/.env.example backend/.env
 #   GEMINI_API_KEY=AIzaSy...
 #   DATABASE_URL=postgresql://user:password@localhost:5432/buildx
 #   JWT_SECRET=<random 64-char hex>
+# Optional for horizontally scaled backends:
+#   LLM_SHARED_COOLDOWNS=true
 
 cp frontend/.env.example frontend/.env
 # Local dev: leave VITE_API_URL empty (Vite proxies /api → :3001)

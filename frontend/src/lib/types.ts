@@ -60,6 +60,12 @@ export interface BlueprintDiagrams {
   apiFlow?: string;
 }
 
+export interface StackSpec {
+  framework: 'next' | 'express' | 'fastify';
+  db: 'postgres' | 'supabase' | 'mongo';
+  auth: 'jwt' | 'clerk' | 'nextauth';
+}
+
 export type ProductArchetype =
   | 'B2C_STOREFRONT'
   | 'B2C_MOBILE_FEED'
@@ -99,7 +105,15 @@ export interface Blueprint {
 }
 
 // ─── Multi-Model Execution Pipeline Types ─────────────────────
-export type PipelineStage = 'PLANNING' | 'INGESTION' | 'DIFF_GENERATION' | 'AUTO_FIX';
+export type PipelineStage =
+  | 'PLANNING'
+  | 'INGESTION'
+  | 'DIFF_GENERATION'
+  | 'AUTO_FIX'
+  | 'CODE_GENERATION'
+  | 'REFINEMENT'
+  | 'PREVIEW_GENERATION'
+  | 'SCHEMA_VERIFIER';
 
 export interface ModelExecutionMetadata {
   stage: PipelineStage;
@@ -112,6 +126,15 @@ export interface PipelineStageEvent {
   stage: PipelineStage;
   state: 'start' | 'completed' | 'fallback';
   detail?: string;
+}
+
+export interface PipelineErrorEvent {
+  stage: PipelineStage;
+  model?: string;
+  message: string;
+  partial: boolean;
+  retryable: boolean;
+  failedPath?: string;
 }
 
 export interface PatchApplyEvent {
@@ -147,6 +170,11 @@ export interface BlueprintListItem {
   complexity: string;
   createdAt: string;
   views: number;
+  endpointsCount?: number;
+  schemaCount?: number;
+  screensCount?: number;
+  productArchetype?: string;
+  isPublic?: boolean;
 }
 
 export interface ApiResponse<T> {

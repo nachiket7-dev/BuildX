@@ -15,7 +15,7 @@ const FAQS: FAQItem[] = [
   {
     id: 'multi-model',
     question: 'How fast and reliable is the Multi-Model Orchestration pipeline?',
-    answer: 'BuildX routes your request across specialized LLMs in 4 concurrent stages: Nemotron 550B handles high-level architectural planning, Gemini 3.5 Flash drafts endpoints, Z-AI GLM-5.2 computes AST-safe code diffs, and Moonshot Kimi K2.6 runs automated VFS error correction. Each stage streams via Server-Sent Events (SSE) in under 30 seconds with automatic fallback failover.',
+    answer: 'BuildX runs a unified agent pipeline for planning, ingestion, code generation, refinement, diff generation, and auto-fix. Each stage has a configured primary, fallback, and emergency model, with rate-limit cooldowns and automatic failover. Streaming stages use Server-Sent Events (SSE) and report the model that actually completed the work.',
     icon: Zap,
     tag: 'Pipeline Speed',
   },

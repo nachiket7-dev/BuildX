@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
@@ -158,7 +158,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
           <button
             onClick={() => {
-              navigate('/create?new=1');
+              navigate('/create');
               if (window.innerWidth < 768) onToggle();
             }}
             className="sidebar-new-btn btn-shiny w-full font-sans"

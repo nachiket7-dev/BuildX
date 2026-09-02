@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { EXAMPLE_IDEAS } from '../lib/utils';
 import { SpotlightCard } from './SpotlightCard';
-import { Sparkles, ArrowRight, Code2, Database, ShieldCheck, Terminal, Server, Check, Zap, Bot, GitBranch, Shield, Activity } from 'lucide-react';
-import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { Sparkles, ArrowRight, Database, ShieldCheck, Terminal, Server, Check, Zap, Bot, GitBranch, Shield, Activity } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { TextReveal } from './animations/TextReveal';
 import { slideFromRight } from '../lib/motion';
+import type { StackSpec } from '../lib/types';
 
 interface HeroProps {
-  onGenerate: (idea: string) => void;
+  onGenerate: (idea: string, stack?: StackSpec) => void;
   isLoading: boolean;
 }
 
@@ -33,19 +34,13 @@ const itemVariants = {
 
 const rightColVariants = slideFromRight;
 
-const tabContentVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.2 } },
-  exit: { opacity: 0, y: -8, transition: { duration: 0.12 } },
-};
-
 // ─── Simulated Multi-Model Pipeline Widget ───────────────────────────────────
 
 const HERO_PIPELINE_STAGES = [
-  { id: 'plan',   label: 'Nemotron 550B', role: 'PLANNING',        icon: Bot,       color: 'indigo' },
-  { id: 'ingest', label: 'Gemini Flash',  role: 'INGESTION',       icon: Zap,       color: 'blue'   },
-  { id: 'diff',   label: 'GLM-5.2',       role: 'DIFF_GENERATION', icon: GitBranch, color: 'purple' },
-  { id: 'fix',    label: 'Kimi K2.6',     role: 'AUTO_FIX',        icon: Shield,    color: 'emerald'},
+  { id: 'plan',   label: 'Gemini Flash',  role: 'PLANNING',        icon: Bot,       color: 'indigo' },
+  { id: 'ingest', label: 'GLM-5.2',       role: 'INGESTION',       icon: Zap,       color: 'blue'   },
+  { id: 'diff',   label: 'Gemini Flash',  role: 'DIFF_GENERATION', icon: GitBranch, color: 'purple' },
+  { id: 'fix',    label: 'Gemini Flash',  role: 'AUTO_FIX',        icon: Shield,    color: 'emerald'},
 ] as const;
 
 const STREAM_LINES = [
@@ -65,7 +60,6 @@ function HeroPipelineWidget() {
   const [stageIndex, setStageIndex] = useState(0);
   const [doneStages, setDoneStages] = useState<number[]>([]);
   const [visibleLines, setVisibleLines] = useState<typeof STREAM_LINES>([]);
-  const [lineIndex, setLineIndex] = useState(0);
 
   // Advance pipeline stage every 3s
   useEffect(() => {
@@ -75,7 +69,6 @@ function HeroPipelineWidget() {
         if (next === 0) {
           setDoneStages([]);
           setVisibleLines([]);
-          setLineIndex(0);
         } else {
           setDoneStages(d => [...d, prev]);
         }
@@ -229,13 +222,11 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
   const [auth, setAuth] = useState<'jwt' | 'clerk' | 'nextauth'>('clerk');
 
   // Preview Widget Tab State inside Hero Right Column
-  const [previewTab, setPreviewTab] = useState<'schema' | 'api' | 'ui'>('schema');
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = idea.trim();
     if (trimmed.length < 10 || isLoading) return;
-    onGenerate(trimmed);
+    onGenerate(trimmed, { framework, db, auth });
   }
 
   function fillExample(text: string) {
@@ -438,7 +429,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                 initial="hidden"
                 animate="show"
               >
-                {EXAMPLE_IDEAS.map(({ label, idea: exampleIdea }, i) => (
+                {EXAMPLE_IDEAS.map(({ label, idea: exampleIdea }) => (
                   <motion.button
                     key={label}
                     type="button"

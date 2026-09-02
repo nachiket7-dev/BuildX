@@ -4,6 +4,7 @@ import {
   fetchMyBlueprints,
   fetchPublicBlueprints,
   setBlueprintVisibility,
+  deleteBlueprint,
 } from '../lib/api';
 import { queryKeys } from '../lib/queryKeys';
 import type { SavedBlueprint } from '../lib/types';
@@ -40,6 +41,17 @@ export function useVisibilityMutation(blueprintId: string | null) {
         queryKeys.blueprints.detail(blueprintId),
         (old) => (old ? { ...old, isPublic } : old)
       );
+      queryClient.invalidateQueries({ queryKey: queryKeys.blueprints.all });
+    },
+  });
+}
+
+export function useDeleteBlueprintMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (blueprintId: string) => deleteBlueprint(blueprintId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.blueprints.all });
     },
   });

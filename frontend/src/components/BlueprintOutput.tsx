@@ -1,17 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Check,
-  Cpu,
   Download,
-  Gauge,
   Globe,
   Github,
-  Layers,
   Link2,
   Lock,
   Plus,
   RefreshCw,
-  Users,
 } from 'lucide-react';
 import type { Blueprint, TabId, PartialBlueprint } from '../lib/types';
 import { TabBar } from './TabBar';
@@ -24,7 +20,6 @@ import {
   EffortPanel,
 } from './BlueprintPanels';
 import { DiagramsPanel } from './DiagramsPanel';
-import { complexityMetaClass } from '../lib/utils';
 import { getAuthHeaders, regenerateBlueprintStream } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { useVisibilityMutation } from '../hooks/useBlueprints';
@@ -56,18 +51,13 @@ interface BlueprintOutputProps {
   };
 }
 
-const META_ICON = 13;
-
 export function BlueprintOutput({
   blueprint,
   blueprintId,
-  blueprintContentKey,
   isPublic = false,
   isOwner = false,
   onReset,
   modelUsed,
-  onRefineMessage,
-  isRefining,
   onBlueprintUpdate,
   refinement,
 }: BlueprintOutputProps) {

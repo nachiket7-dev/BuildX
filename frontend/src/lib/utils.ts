@@ -129,7 +129,7 @@ export const TABS = [
 export function formatSQL(sql: string): string {
   if (!sql) return '';
   
-  let cleanSql = sql.trim();
+  const cleanSql = sql.trim();
   const statements: string[] = [];
   let currentStatement = '';
   let inDoubleQuote = false;
@@ -175,7 +175,7 @@ export function formatSQL(sql: string): string {
   }
   
   const formatted: string[] = [];
-  for (let stmt of statements) {
+  for (const stmt of statements) {
     if (stmt.startsWith('--')) {
       formatted.push(stmt);
       continue;
@@ -231,4 +231,20 @@ export function generateOAuthState(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Start the GitHub OAuth flow for either a new session or an account link. */
+export function startGithubOAuth(mode: 'login' | 'link', redirectPath: string): void {
+  sessionStorage.setItem('buildx_auth_redirect', redirectPath);
+  if (mode === 'link') {
+    sessionStorage.setItem('buildx_github_link', 'true');
+  } else {
+    sessionStorage.removeItem('buildx_github_link');
+  }
+
+  const state = generateOAuthState();
+  sessionStorage.setItem('buildx_github_oauth_state', state);
+  const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID || '';
+  const redirectUri = encodeURIComponent(window.location.origin + '/login/callback');
+  window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=user:email,repo&redirect_uri=${redirectUri}&state=${state}`;
 }

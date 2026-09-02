@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { generateCodeStream, fetchBlueprintFilesWithContent, saveBlueprintFile } from '../lib/api';
-import type { PipelineStage, PipelineStageEvent, PatchApplyEvent } from '../lib/types';
+import type { PipelineErrorEvent, PipelineStage, PipelineStageEvent, PatchApplyEvent } from '../lib/types';
 
 export interface CodegenProgress {
   totalFiles: number;
@@ -9,6 +9,9 @@ export interface CodegenProgress {
   status: 'idle' | 'generating' | 'loading' | 'completed' | 'error';
   error: string | null;
   activeStage?: PipelineStage | null;
+  retryable?: boolean;
+  partialOutput?: boolean;
+  failureStage?: PipelineStage;
 }
 
 export function useCodeGeneration() {
@@ -20,12 +23,15 @@ export function useCodeGeneration() {
     status: 'idle',
     error: null,
     activeStage: null,
+    retryable: false,
+    partialOutput: false,
   });
   const [files, setFiles] = useState<Record<string, string>>({});
   const [pipelineEvents, setPipelineEvents] = useState<PipelineStageEvent[]>([]);
   const [patchEvents, setPatchEvents] = useState<PatchApplyEvent[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const operationGenRef = useRef(0);
+  const lastRequestRef = useRef<{ blueprintId: string; model?: string } | null>(null);
 
   const cancel = useCallback(() => {
     operationGenRef.current += 1;
@@ -39,10 +45,9 @@ export function useCodeGeneration() {
     setFiles({});
   }, []);
 
-  const generateCode = useCallback(async (blueprintId: string) => {
-    // Model selection is handled internally by the multi-model pipeline router.
-    const model = 'pipeline'; // sentinel value — backend ignores this and uses stage routing
+  const generateCode = useCallback(async (blueprintId: string, model?: string) => {
     cancel();
+    lastRequestRef.current = { blueprintId, model };
     const generation = ++operationGenRef.current;
     const controller = new AbortController();
     abortRef.current = controller;
@@ -55,15 +60,18 @@ export function useCodeGeneration() {
       status: 'generating',
       error: null,
       activeStage: 'INGESTION',
+      retryable: false,
+      partialOutput: false,
     });
     setFiles({});
     setPipelineEvents([]);
     setPatchEvents([]);
 
     let sawDone = false;
+    let pipelineFailure: PipelineErrorEvent | null = null;
 
     try {
-      const stream = generateCodeStream(blueprintId, model, controller.signal); // model arg forwarded; backend uses pipeline routing
+      const stream = generateCodeStream(blueprintId, model, controller.signal);
 
       for await (const event of stream) {
         if (controller.signal.aborted || generation !== operationGenRef.current) break;
@@ -98,6 +106,15 @@ export function useCodeGeneration() {
             }));
             break;
           }
+          case 'codegen_file_ready': {
+            const data = event.data as { path: string; index: number };
+            setProgress(prev => ({
+              ...prev,
+              currentFilePath: `Validated ${data.path} — waiting for final commit`,
+              currentFileIndex: data.index,
+            }));
+            break;
+          }
           case 'codegen_file_done': {
             const data = event.data as { path: string; content: string };
             setFiles(prev => ({
@@ -117,6 +134,17 @@ export function useCodeGeneration() {
             setIsGenerating(false);
             break;
           }
+          case 'pipeline_error': {
+            pipelineFailure = event.data as PipelineErrorEvent;
+            setProgress(prev => ({
+              ...prev,
+              currentFilePath: pipelineFailure?.message || 'Pipeline failed before commit.',
+              retryable: pipelineFailure?.retryable,
+              partialOutput: pipelineFailure?.partial,
+              failureStage: pipelineFailure?.stage,
+            }));
+            break;
+          }
           case 'codegen_retry': {
             const data = event.data as { message: string; waitSeconds: number };
             setProgress(prev => ({
@@ -133,7 +161,7 @@ export function useCodeGeneration() {
       }
 
       if (!sawDone && !controller.signal.aborted && generation === operationGenRef.current) {
-        throw new Error('Code generation stream closed before completing.');
+        throw new Error(pipelineFailure?.message || 'Code generation stream closed before completing.');
       }
     } catch (err: any) {
       if (err.name === 'AbortError') return;
@@ -141,11 +169,19 @@ export function useCodeGeneration() {
       setProgress(prev => ({
         ...prev,
         status: 'error',
-        error: err.message || 'Failed to generate application code.'
+        error: err.message || 'Failed to generate application code.',
+        retryable: pipelineFailure?.retryable ?? true,
+        partialOutput: pipelineFailure?.partial ?? false,
+        failureStage: pipelineFailure?.stage,
       }));
       setIsGenerating(false);
     }
   }, [cancel]);
+
+  const retry = useCallback(() => {
+    const request = lastRequestRef.current;
+    if (request) void generateCode(request.blueprintId, request.model);
+  }, [generateCode]);
 
   const loadExistingFiles = useCallback(async (blueprintId: string) => {
     cancel();
@@ -207,6 +243,7 @@ export function useCodeGeneration() {
     pipelineEvents,
     patchEvents,
     generateCode,
+    retry,
     loadExistingFiles,
     updateSingleFile,
     clearFiles,

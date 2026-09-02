@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { complexityColor } from '../lib/utils';
 import { useBlueprintList } from '../hooks/useBlueprints';
@@ -7,7 +7,7 @@ import { BlueprintCardSkeleton } from './BlueprintCardSkeleton';
 import { PageHead } from './PageHead';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, Eye, Code2, Database, Shield, ArrowRight, Layers, ChevronRight } from 'lucide-react';
+import { Search, X, Eye, Code2, Database, Shield, ArrowRight, Layers, Sparkles, Globe, Lock, Clock, Layout } from 'lucide-react';
 
 import { ScrollReveal } from './animations/ScrollReveal';
 import { StaggerGridContainer, StaggerGridItem } from './animations/StaggerGrid';
@@ -27,7 +27,23 @@ function timeAgo(dateStr: string): string {
 const FILTER_TABS = ['All', 'Full-Stack', 'AI Agents', 'Dashboards'] as const;
 type FilterTab = (typeof FILTER_TABS)[number];
 
-export function GalleryPage() {
+export function classifyBlueprintCategory(item: { appName?: string; description?: string; idea?: string }): 'Full-Stack' | 'AI Agents' | 'Dashboards' {
+  const text = `${item?.appName || ''} ${item?.description || ''} ${item?.idea || ''}`.toLowerCase();
+
+  if (/\b(ai|agent|agents|llm|gpt|assistant|bot|rag|cortex|neural|prompt|copilot|automation|ml|model)\b/i.test(text)) {
+    return 'AI Agents';
+  }
+  if (/\b(dashboard|dashboards|admin|analytics|metrics|monitoring|tracker|crm|portal|visualizer|booking|calendar|management)\b/i.test(text)) {
+    return 'Dashboards';
+  }
+  return 'Full-Stack';
+}
+
+interface GalleryPageProps {
+  defaultScope?: 'mine' | 'public';
+}
+
+export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
@@ -37,24 +53,65 @@ export function GalleryPage() {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('All');
   const [previewItem, setPreviewItem] = useState<any | null>(null);
 
-  const scope = (user && searchParams.get('scope') === 'mine') ? 'mine' : 'public';
-  const isPersonal = scope === 'mine';
+  // Compute active scope from searchParam (?scope=mine) or defaultScope prop
+  const queryScope = searchParams.get('scope') as 'mine' | 'public' | null;
+  const requestedScope = queryScope === 'mine' ? 'mine' : (defaultScope ?? 'public');
+  const isPersonal = Boolean(user && requestedScope === 'mine');
+  const scope: 'mine' | 'public' = (requestedScope === 'mine' && user) ? 'mine' : 'public';
+  const isViewingMineUnauthenticated = requestedScope === 'mine' && !user;
 
   const { data: items = [], isLoading, isError, refetch } = useBlueprintList(
     scope,
     scope === 'mine' ? Boolean(user) : true
   );
 
+  const tabCounts = useMemo(() => {
+    const counts: Record<FilterTab, number> = {
+      All: items.length,
+      'Full-Stack': 0,
+      'AI Agents': 0,
+      Dashboards: 0,
+    };
+    items.forEach((item: any) => {
+      const cat = classifyBlueprintCategory(item);
+      if (counts[cat] !== undefined) {
+        counts[cat] += 1;
+      }
+    });
+    return counts;
+  }, [items]);
+
   const filteredItems = useMemo(() => {
     return items.filter((item: any) => {
+      // 1. Search Query Match
+      const q = searchQuery.trim().toLowerCase();
       const matchesSearch =
-        (item?.appName ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item?.description ?? item?.idea ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        (item?.appName ?? '').toLowerCase().includes(q) ||
+        (item?.description ?? item?.idea ?? '').toLowerCase().includes(q) ||
+        (item?.id ?? '').toLowerCase().includes(q);
+
+      // 2. Complexity Filter Match (case-insensitive)
+      const itemComplexity = (item?.complexity ?? 'Medium').toLowerCase();
       const matchesComplexity =
-        complexityFilter === 'All' || item?.complexity === complexityFilter;
-      return matchesSearch && matchesComplexity;
+        complexityFilter === 'All' || itemComplexity === complexityFilter.toLowerCase();
+
+      // 3. Archetype / Category Tab Filter Match
+      const category = classifyBlueprintCategory(item);
+      const matchesCategory =
+        activeFilter === 'All' || category === activeFilter;
+
+      return matchesSearch && matchesComplexity && matchesCategory;
     });
-  }, [items, searchQuery, complexityFilter]);
+  }, [items, searchQuery, complexityFilter, activeFilter]);
+
+  const handleScopeChange = (newScope: 'mine' | 'public') => {
+    if (newScope === 'mine') {
+      setSearchParams({ scope: 'mine' });
+    } else {
+      setSearchParams({});
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#08080a] text-white">
@@ -62,44 +119,97 @@ export function GalleryPage() {
         title={isPersonal ? 'My Blueprints — BuildX' : 'Architecture Library — BuildX'}
         description={
           isPersonal
-            ? 'Your generated full-stack app blueprints'
+            ? 'Your generated full-stack app blueprints and database schemas.'
             : 'Browse production-grade community blueprints built with BuildX multi-model AI.'
         }
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-24">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-24">
 
         {/* ── Page Header ──────────────────────────────────────── */}
         <ScrollReveal direction="down" delay={0.05}>
-          <div className="mb-12">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-[10px] font-mono tracking-widest text-neutral-500 uppercase">
-                02 / ARCHITECTURE LIBRARY
-              </span>
-              {isPersonal && (
-                <>
-                  <ChevronRight size={11} className="text-neutral-700" />
-                  <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
-                    MY WORKSPACE
+          <div className="mb-10">
+            {/* Top Breadcrumb & Switcher Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-2 font-mono text-xs text-zinc-400">
+                <span className="text-indigo-400 font-semibold">02 / ARCHITECTURE REPOSITORY</span>
+                <span>•</span>
+                <span className="text-zinc-500">{isPersonal ? 'PERSONAL WORKSPACE' : 'COMMUNITY SHOWCASE'}</span>
+              </div>
+
+              {/* Obsidian-grade Scope Switcher */}
+              <div className="flex items-center p-1 rounded-xl bg-zinc-900/90 border border-white/10 text-xs font-mono self-start sm:self-auto shadow-lg shadow-black/40">
+                <button
+                  type="button"
+                  onClick={() => handleScopeChange('mine')}
+                  className={`relative px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 ${
+                    requestedScope === 'mine'
+                      ? 'text-white font-semibold'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {requestedScope === 'mine' && (
+                    <motion.div
+                      layoutId="galleryScopeIndicator"
+                      className="absolute inset-0 rounded-lg bg-indigo-600/30 border border-indigo-500/40"
+                      transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <Sparkles size={12} className={requestedScope === 'mine' ? 'text-indigo-400' : 'text-zinc-500'} />
+                    <span>My Blueprints</span>
+                    {user && items.length > 0 && requestedScope === 'mine' && (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/30 text-indigo-300 font-mono">
+                        {items.length}
+                      </span>
+                    )}
                   </span>
-                </>
-              )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleScopeChange('public')}
+                  className={`relative px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 ${
+                    requestedScope === 'public'
+                      ? 'text-white font-semibold'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {requestedScope === 'public' && (
+                    <motion.div
+                      layoutId="galleryScopeIndicator"
+                      className="absolute inset-0 rounded-lg bg-indigo-600/30 border border-indigo-500/40"
+                      transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <Globe size={12} className={requestedScope === 'public' ? 'text-indigo-400' : 'text-zinc-500'} />
+                    <span>Community Gallery</span>
+                  </span>
+                </button>
+              </div>
             </div>
+
+            {/* Title & Primary CTA */}
             <div className="flex items-end justify-between gap-6 flex-wrap">
               <div>
-                <h1 className="font-display font-extrabold text-4xl sm:text-5xl text-white tracking-tight leading-none mb-3">
-                  {isPersonal ? 'My Blueprints' : 'Community Gallery'}
+                <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-white tracking-tight leading-none mb-3">
+                  {isPersonal ? 'MY SYSTEM ARCHITECTURES' : 'COMMUNITY ARCHITECTURE GALLERY'}
                 </h1>
-                <p className="text-sm text-neutral-400 max-w-xl leading-relaxed">
+                <p className="text-xs sm:text-sm text-neutral-400 max-w-xl leading-relaxed">
                   {isPersonal
-                    ? 'Your saved application blueprints. Click any card to inspect DDL schemas, endpoints, or open in Studio IDE.'
-                    : 'Explore production-grade full-stack architectures built by the community.'}
+                    ? 'Inspect your production-grade database DDL schemas, Express/Next.js API routes, UI wireframes, and launch directly into Code Studio IDE.'
+                    : 'Explore battle-tested full-stack architectures and monorepos synthesized across frontier AI models.'}
                 </p>
               </div>
+
               <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                <Link to="/create" className="landing-btn landing-btn--primary">
-                  <span>New Blueprint</span>
-                  <ArrowRight size={14} className="landing-btn__icon" />
+                <Link
+                  to="/create"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/25 border border-indigo-400/30"
+                >
+                  <span>+ Create Blueprint</span>
+                  <ArrowRight size={14} />
                 </Link>
               </motion.div>
             </div>
@@ -128,146 +238,293 @@ export function GalleryPage() {
               </div>
 
               {/* Gliding Filter Tabs */}
-              <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.07] text-xs font-mono relative">
-                {FILTER_TABS.map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveFilter(tab)}
-                    className={`relative px-3 py-1 rounded-lg transition-colors z-10 ${
-                      activeFilter === tab ? 'text-white' : 'text-neutral-500 hover:text-white'
-                    }`}
-                  >
-                    {activeFilter === tab && (
-                      <motion.div
-                        layoutId="galleryActiveTab"
-                        className="absolute inset-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30"
-                        transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                      />
-                    )}
-                    <span className="relative z-10">{tab}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Scope Switch (if logged in) */}
-              {user && (
-                <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.07] text-xs font-mono shrink-0">
-                  {(['public', 'mine'] as const).map((s) => (
+              <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.07] text-xs font-mono relative overflow-x-auto max-w-full">
+                {FILTER_TABS.map((tab) => {
+                  const count = tabCounts[tab] ?? 0;
+                  const isSelected = activeFilter === tab;
+                  return (
                     <button
-                      key={s}
-                      onClick={() => setSearchParams({ scope: s })}
-                      className={`px-3 py-1 rounded-lg transition-colors ${
-                        scope === s
-                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                          : 'text-neutral-400 hover:text-white'
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveFilter(tab)}
+                      className={`relative px-3 py-1.5 rounded-lg transition-all z-10 flex items-center gap-1.5 whitespace-nowrap ${
+                        isSelected ? 'text-white font-semibold' : 'text-neutral-500 hover:text-white'
                       }`}
                     >
-                      {s === 'public' ? 'Community' : `Mine (${items.length})`}
+                      {isSelected && (
+                        <motion.div
+                          layoutId="galleryActiveTab"
+                          className="absolute inset-0 rounded-lg bg-indigo-500/20 border border-indigo-500/40 shadow-sm"
+                          transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                        />
+                      )}
+                      <span className="relative z-10">{tab}</span>
+                      <span
+                        className={`relative z-10 text-[9px] px-1.5 py-0.5 rounded-full border transition-colors ${
+                          isSelected
+                            ? 'bg-indigo-500/30 text-indigo-200 border-indigo-500/40'
+                            : 'bg-white/[0.04] text-neutral-500 border-white/[0.06]'
+                        }`}
+                      >
+                        {count}
+                      </span>
                     </button>
-                  ))}
+                  );
+                })}
+              </div>
+
+              {/* Complexity Dropdown / Quick Filter */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] font-mono text-zinc-500 hidden lg:inline uppercase tracking-wider">
+                  COMPLEXITY:
+                </span>
+                <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.07] text-xs font-mono relative">
+                  {(['All', 'Low', 'Medium', 'High'] as const).map((lvl) => {
+                    const isSelected = complexityFilter === lvl;
+                    return (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => setComplexityFilter(lvl)}
+                        className={`relative px-2.5 py-1 rounded-lg transition-colors z-10 ${
+                          isSelected
+                            ? 'text-indigo-200 font-semibold'
+                            : 'text-neutral-500 hover:text-white'
+                        }`}
+                      >
+                        {isSelected && (
+                          <motion.div
+                            layoutId="galleryComplexityActiveTab"
+                            className="absolute inset-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30"
+                            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                          />
+                        )}
+                        <span className="relative z-10">{lvl}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </ScrollReveal>
 
-        {/* ── Loading Skeleton ──────────────────────────────────── */}
-        {isLoading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" aria-busy>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <BlueprintCardSkeleton key={i} />
-            ))}
-          </div>
-        )}
-
-        {/* ── Error State ───────────────────────────────────────── */}
-        {isError && (
-          <div className="rounded-2xl p-8 text-center bg-red-950/20 border border-red-500/20">
-            <p className="text-sm font-mono text-red-400 mb-4">Failed to load blueprints.</p>
-            <button
-              type="button"
-              onClick={() => refetch()}
-              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-mono text-white border border-white/10 transition-colors"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {/* ── Empty State ───────────────────────────────────────── */}
-        {!isLoading && !isError && filteredItems.length === 0 && (
-          <div className="rounded-3xl p-12 text-center border border-white/[0.07] bg-[#111116]/60 backdrop-blur-xl">
+        {/* ── Unauthenticated "My Blueprints" State ─────────────── */}
+        {isViewingMineUnauthenticated ? (
+          <div className="rounded-3xl p-12 text-center border border-white/[0.07] bg-[#111116]/60 backdrop-blur-xl max-w-lg mx-auto my-8">
             <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-4 text-indigo-400">
-              <Layers size={22} />
+              <Lock size={22} />
             </div>
             <h2 className="font-display font-bold text-lg text-white mb-2">
-              {searchQuery ? 'No matching blueprints' : isPersonal ? 'No blueprints yet' : 'No public blueprints'}
+              Sign in to view your blueprints
             </h2>
             <p className="text-xs text-neutral-400 max-w-sm mx-auto mb-6 leading-relaxed">
-              {searchQuery
-                ? `Try adjusting your search query or reset filters.`
-                : 'Generate your first full-stack application blueprint.'}
+              Your generated architectures, database schemas, and Code Studio monorepos are securely synced to your account.
             </p>
-            <Link to="/create" className="landing-btn landing-btn--primary">
-              <span>Create Blueprint</span>
-              <ArrowRight size={14} className="landing-btn__icon" />
-            </Link>
+            <div className="flex items-center justify-center gap-3">
+              <Link
+                to="/login"
+                state={{ from: '/gallery?scope=mine' }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs transition-all shadow-lg shadow-indigo-500/25 border border-indigo-400/30"
+              >
+                Sign In
+              </Link>
+              <button
+                type="button"
+                onClick={() => handleScopeChange('public')}
+                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-mono text-neutral-400 hover:text-white border border-white/10 transition-colors"
+              >
+                Browse Community
+              </button>
+            </div>
           </div>
-        )}
+        ) : (
+          <>
+            {/* ── Loading Skeleton ──────────────────────────────────── */}
+            {isLoading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" aria-busy>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <BlueprintCardSkeleton key={i} />
+                ))}
+              </div>
+            )}
+
+            {/* ── Error State ───────────────────────────────────────── */}
+            {isError && (
+              <div className="rounded-2xl p-8 text-center bg-red-950/20 border border-red-500/20">
+                <p className="text-sm font-mono text-red-400 mb-4">Failed to load blueprints.</p>
+                <button
+                  type="button"
+                  onClick={() => refetch()}
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-mono text-white border border-white/10 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* ── Empty State ───────────────────────────────────────── */}
+            {!isLoading && !isError && filteredItems.length === 0 && (
+              <div className="rounded-3xl p-12 text-center border border-white/[0.07] bg-[#111116]/60 backdrop-blur-xl">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-4 text-indigo-400">
+                  <Layers size={22} />
+                </div>
+                <h2 className="font-display font-bold text-lg text-white mb-2">
+                  {searchQuery || activeFilter !== 'All' || complexityFilter !== 'All'
+                    ? 'No matching blueprints'
+                    : isPersonal
+                    ? 'No blueprints yet'
+                    : 'No public blueprints'}
+                </h2>
+                <p className="text-xs text-neutral-400 max-w-sm mx-auto mb-4 leading-relaxed">
+                  {searchQuery || activeFilter !== 'All' || complexityFilter !== 'All'
+                    ? `No architectures matched the current search or filter criteria.`
+                    : isPersonal
+                    ? 'Generate your first full-stack application blueprint with our unified agent pipeline.'
+                    : 'No public community blueprints are currently available.'}
+                </p>
+                <div className="flex items-center justify-center gap-3 flex-wrap">
+                  {(searchQuery || activeFilter !== 'All' || complexityFilter !== 'All') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setActiveFilter('All');
+                        setComplexityFilter('All');
+                      }}
+                      className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-mono text-indigo-300 hover:text-white border border-indigo-500/30 transition-colors flex items-center gap-1.5"
+                    >
+                      <X size={13} />
+                      <span>Reset Filters</span>
+                    </button>
+                  )}
+                  <Link
+                    to="/create"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs transition-all shadow-lg shadow-indigo-500/25 border border-indigo-400/30"
+                  >
+                    <span>+ Create Blueprint</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
+              </div>
+            )}
 
         {/* ── Blueprint Grid ────────────────────────────────────── */}
         {!isLoading && filteredItems.length > 0 && (
-          <StaggerGridContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <StaggerGridContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredItems.map((item: any, idx: number) => {
               const num = String(idx + 1).padStart(2, '0');
-              const name = (item?.appName ?? 'Untitled').toUpperCase();
+              const name = item?.appName ?? 'Untitled App';
+              const category = classifyBlueprintCategory(item);
+              const endpointsCount = item?.endpointsCount ?? 0;
+              const schemaCount = item?.schemaCount ?? 0;
+              const screensCount = item?.screensCount ?? 0;
+              const complexity = item?.complexity ?? 'Medium';
+
+              const categoryBadgeStyle =
+                category === 'AI Agents'
+                  ? 'bg-purple-500/10 text-purple-300 border-purple-500/25'
+                  : category === 'Dashboards'
+                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
+                  : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/25';
+
               return (
-                <StaggerGridItem key={item?.id ?? idx}>
+                <StaggerGridItem key={item?.id ?? idx} className="h-full">
                   <SpotlightCard
-                    className="h-full p-5 flex flex-col justify-between group cursor-pointer relative"
-                    spotlightColor="rgba(99, 102, 241, 0.14)"
+                    fillHeight
+                    spotlightColor="rgba(99, 102, 241, 0.16)"
+                    className="h-full p-5 rounded-2xl bg-[#0e0e14]/90 border border-white/[0.08] hover:border-indigo-500/40 transition-all duration-300 flex flex-col justify-between group cursor-pointer shadow-xl shadow-black/40 hover:shadow-indigo-950/30 hover:-translate-y-1"
                     onClick={() => navigate(`/blueprint/${item?.id}`)}
                   >
-                    {/* Numbered Header */}
-                    <div className="mb-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-[10px] font-mono text-neutral-600">{num} /</span>
-                        <h3 className="font-mono text-xs font-semibold text-neutral-300 group-hover:text-white transition-colors truncate flex-1 tracking-wide">
+                    {/* Top Section */}
+                    <div>
+                      {/* Top Header Row: Index Number + App Title + Category Badge + Complexity Badge */}
+                      <div className="flex items-center gap-2 mb-2.5">
+                        <span className="text-[10px] font-mono text-zinc-500 shrink-0">{num} /</span>
+                        <h3 className="font-display text-sm font-bold text-white group-hover:text-indigo-200 transition-colors truncate flex-1 tracking-tight">
                           {name}
                         </h3>
-                        <span className={`font-mono text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${complexityColor(item?.complexity)}`}>
-                          {item?.complexity ?? 'Medium'}
+                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border shrink-0 font-medium ${categoryBadgeStyle}`}>
+                          {category}
+                        </span>
+                        <span className={`font-mono text-[9px] px-2 py-0.5 rounded-full border shrink-0 font-medium ${complexityColor(complexity)}`}>
+                          {complexity}
                         </span>
                       </div>
-                      <p className="text-xs text-neutral-500 leading-relaxed line-clamp-2">
-                        {item?.description ?? item?.idea ?? ''}
+
+                      {/* Description Snippet */}
+                      <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2 mb-4 font-sans">
+                        {item?.description ?? item?.idea ?? 'Full-stack application blueprint with complete database schema, REST API endpoints, and live preview.'}
                       </p>
-                    </div>
 
-                    {/* Model Pipeline Tags */}
-                    <div className="flex flex-wrap gap-1.5 mb-4">
-                      {['Nemotron', 'Gemini', 'Kimi K2'].map((model) => (
-                        <span key={model} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.07] text-neutral-500">
-                          {model}
+                      {/* Architecture Specs 3-Chip Row */}
+                      <div className="grid grid-cols-3 gap-2 mb-4 py-2 px-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                        <div className="flex items-center gap-1.5 min-w-0" title={`${endpointsCount} REST Endpoints`}>
+                          <Code2 size={12} className="text-indigo-400 shrink-0" />
+                          <span className="text-[10px] font-mono text-zinc-300 truncate">
+                            <strong className="text-white font-semibold">{endpointsCount}</strong> API{endpointsCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 min-w-0" title={`${schemaCount} Database Tables`}>
+                          <Database size={12} className="text-emerald-400 shrink-0" />
+                          <span className="text-[10px] font-mono text-zinc-300 truncate">
+                            <strong className="text-white font-semibold">{schemaCount}</strong> DB{schemaCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 min-w-0" title={`${screensCount} UI Screens`}>
+                          <Layout size={12} className="text-purple-400 shrink-0" />
+                          <span className="text-[10px] font-mono text-zinc-300 truncate">
+                            <strong className="text-white font-semibold">{screensCount}</strong> View{screensCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Multi-Model Pipeline Tags */}
+                      <div className="flex items-center gap-1.5 flex-wrap mb-4">
+                        <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider mr-0.5">PIPELINE:</span>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">
+                          Gemini 3.5 Flash
                         </span>
-                      ))}
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-sky-300">
+                          Gemini Flash
+                        </span>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-violet-300">
+                          Kimi K2.6 fallback
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Footer */}
+                    {/* Card Footer */}
                     <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between font-mono text-[10px]">
-                      <span className="text-neutral-600">{timeAgo(item?.createdAt ?? '')}</span>
+                      <div className="flex items-center gap-1.5 text-zinc-500">
+                        <Clock size={11} className="text-zinc-600" />
+                        <span>{timeAgo(item?.createdAt ?? '')}</span>
+                      </div>
+
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={(e) => { e.stopPropagation(); setPreviewItem(item); }}
-                          className="px-2 py-1 rounded bg-white/[0.04] hover:bg-white/[0.10] text-neutral-500 hover:text-white transition-colors flex items-center gap-1"
-                          title="Quick Preview"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewItem(item);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.10] text-zinc-400 hover:text-white transition-colors flex items-center gap-1 border border-white/[0.06] hover:border-white/20"
+                          title="Quick Spec Preview"
                         >
-                          <Eye size={10} />
+                          <Eye size={11} />
                           <span>Preview</span>
                         </button>
-                        <span className="text-indigo-500 group-hover:text-indigo-300 group-hover:translate-x-0.5 transition-all">
-                          Inspect →
-                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/blueprint/${item?.id}`);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 hover:text-white transition-all flex items-center gap-1 border border-indigo-500/30 font-semibold group-hover:border-indigo-400/50"
+                        >
+                          <span>Inspect</span>
+                          <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
+                        </button>
                       </div>
                     </div>
                   </SpotlightCard>
@@ -276,6 +533,8 @@ export function GalleryPage() {
             })}
           </StaggerGridContainer>
         )}
+        </>
+      )}
       </div>
 
       {/* ── Slide-over Preview Drawer ─────────────────────────── */}
@@ -353,15 +612,15 @@ export function GalleryPage() {
                   <div className="text-[10px] text-neutral-500 space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      Planning: Nemotron 3 Ultra 550B
+                      Planning: Gemini 3.5 Flash → Nemotron fallback
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-                      Code Diffing: Z-AI GLM-5.2
+                      Code Diffing: Gemini 3.5 Flash → Kimi fallback
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                      Auto-Fix: Gemini Flash
+                      Auto-Fix: Gemini 3.5 Flash → Kimi fallback
                     </div>
                   </div>
                 </div>

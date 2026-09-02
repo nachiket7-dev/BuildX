@@ -149,13 +149,23 @@ export function Aurora({
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.canvas.classList.add('aurora-canvas');
 
-    let program: Program | undefined;
-
     const toColorStops = (stops: [string, string, string]) =>
       stops.map((hex) => {
         const c = new Color(hex);
         return [c.r, c.g, c.b];
       });
+
+    const program = new Program(gl, {
+      vertex: VERT,
+      fragment: FRAG,
+      uniforms: {
+        uTime: { value: 0 },
+        uAmplitude: { value: amplitude },
+        uColorStops: { value: toColorStops(colorStops) },
+        uResolution: { value: [container.offsetWidth, container.offsetHeight] },
+        uBlend: { value: blend },
+      },
+    });
 
     function resize() {
       if (!container) return;
@@ -173,18 +183,6 @@ export function Aurora({
     if (geometry.attributes.uv) {
       delete geometry.attributes.uv;
     }
-
-    program = new Program(gl, {
-      vertex: VERT,
-      fragment: FRAG,
-      uniforms: {
-        uTime: { value: 0 },
-        uAmplitude: { value: amplitude },
-        uColorStops: { value: toColorStops(colorStops) },
-        uResolution: { value: [container.offsetWidth, container.offsetHeight] },
-        uBlend: { value: blend },
-      },
-    });
 
     const mesh = new Mesh(gl, { geometry, program });
     container.appendChild(gl.canvas);

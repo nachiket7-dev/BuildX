@@ -18,8 +18,8 @@ interface HeaderProps {
 export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDeploy }: HeaderProps) {
   const location = useLocation();
   const path = location.pathname;
-  const isHome    = path === '/create' || path.startsWith('/blueprint/');
   const isGallery = path === '/gallery';
+  const isHome    = path === '/create' || path.startsWith('/blueprint/');
   const isAgent   = path.startsWith('/agent');
 
   const { user, logout } = useAuth();
@@ -61,10 +61,16 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
 
         {/* Breadcrumb Path */}
         <div className="hidden sm:flex items-center gap-2 font-mono text-xs text-zinc-400 min-w-0">
-          <span className="text-zinc-400 font-medium shrink-0">01 / BUILDX STUDIO</span>
+          <span className="text-zinc-400 font-medium shrink-0">
+            {isAgent ? '03 / CORTEX IDE' : isGallery ? '02 / ARCHITECTURES' : '01 / BUILDX STUDIO'}
+          </span>
           <ChevronRight size={12} className="text-zinc-600 shrink-0" />
           <span className="text-zinc-200 bg-zinc-900 border border-white/10 px-2.5 py-1 rounded-lg text-xs truncate max-w-[130px]">
-            buildx&nbsp;/&nbsp;{routeId ? routeId.slice(0, 7) : 'my-app'}
+            {isAgent
+              ? routeId ? `agent / ${routeId.slice(0, 7)}` : 'workspace'
+              : isGallery
+                ? (new URLSearchParams(location.search).get('scope') === 'mine' ? 'my-blueprints' : 'gallery')
+                : `buildx / ${routeId ? routeId.slice(0, 7) : 'studio'}`}
           </span>
         </div>
       </div>
@@ -75,8 +81,8 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
         aria-label="Main Navigation"
       >
         {[
-          { to: '/create',  label: 'Studio',  Icon: Sparkles, active: isHome    },
-          { to: '/gallery', label: 'Gallery', Icon: Compass,  active: isGallery },
+          { to: '/create', label: 'Studio', Icon: Sparkles, active: isHome },
+          { to: '/gallery', label: 'Gallery', Icon: Compass, active: isGallery },
           ...(user ? [{ to: '/agent', label: 'IDE', Icon: Cpu, active: isAgent }] : []),
         ].map(({ to, label, Icon, active }) => (
           <Link

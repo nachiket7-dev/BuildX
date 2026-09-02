@@ -11,14 +11,13 @@ interface StaggerGridContainerProps {
 export function StaggerGridContainer({
   children,
   className = '',
-  staggerDelay = 0.08,
+  staggerDelay = 0.06,
   delay = 0,
 }: StaggerGridContainerProps) {
   return (
     <motion.div
       initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: '-50px' }}
+      animate="show"
       variants={{
         hidden: {},
         show: {
