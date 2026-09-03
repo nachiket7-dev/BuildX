@@ -43,6 +43,7 @@ import {
   Check,
   Search,
   Database,
+  FlaskConical,
 } from 'lucide-react';
 
 const cursorInlineDiffTheme = EditorView.theme({
@@ -504,6 +505,7 @@ export function AgentPage() {
             const origContent = files.find(f => f.path === filePath)?.content || '';
             if (origContent.length > 200 && content.length < 100) {
               console.warn(`[AgentPage] Refusing to stage corrupt patch (<100 chars) for ${filePath}`);
+              toast(`Skipped suspicious patch for ${filePath} (content too short to safely diff)`, 'info');
             } else {
               const diffObj = { filePath, originalCode: origContent, incomingCode: content, original: origContent, modified: content };
               setPendingDiff(diffObj);
@@ -522,6 +524,7 @@ export function AgentPage() {
             const origContent = original || files.find(f => f.path === path)?.content || '';
             if (origContent.length > 200 && modified.length < 100) {
               console.warn(`[AgentPage] Refusing to stage corrupt diff (<100 chars) for ${path}`);
+              toast(`Skipped suspicious diff for ${path} (content too short to safely diff)`, 'info');
             } else {
               const diffObj = { filePath: path, originalCode: origContent, incomingCode: modified, original: origContent, modified };
               setPendingDiff(diffObj);
@@ -707,6 +710,23 @@ export function AgentPage() {
     };
   }, [files, selectedFile, toast, isThinking]);
 
+  // ─── Dev Test Diff Trigger: instantly verifies inline diff visuals ─────────
+  const handleTestDiff = useCallback(() => {
+    if (!selectedFile) {
+      toast('Select a file first to test the inline diff', 'info');
+      return;
+    }
+    const testAddition = '\n// Test Green Addition Line — delete after verifying inline diff visuals';
+    setPendingDiff({
+      filePath: selectedFile.path,
+      original: selectedFile.content,
+      modified: selectedFile.content + testAddition,
+    });
+    setDiffKey((k) => k + 1);
+    setActiveTab('editor');
+    toast('Test diff staged — verify green/red highlights below', 'info');
+  }, [selectedFile, toast]);
+
   // ─── Diff Accept/Reject Handlers & Shortcuts (⌘Enter / Esc) ────────────────
   const handleAcceptDiff = useCallback(async () => {
     if (!pendingDiff || !selectedFile || !id) return;
@@ -731,9 +751,10 @@ export function AgentPage() {
   }, [pendingDiff, selectedFile, id, toast, vfs]);
 
   const handleRejectDiff = useCallback(() => {
+    if (pendingDiff?.filePath) vfs.rejectDiff(pendingDiff.filePath);
     setPendingDiff(null);
     toast('Proposed AI changes discarded', 'info');
-  }, [toast]);
+  }, [pendingDiff, vfs, toast]);
 
   useEffect(() => {
     if (!pendingDiff) return;
@@ -961,6 +982,16 @@ export function AgentPage() {
               >
                 <Search size={10} />
                 <span className="hidden lg:inline">⌘K</span>
+              </button>
+              {/* Dev Test Diff Button */}
+              <button
+                type="button"
+                onClick={handleTestDiff}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 text-[10px] font-mono transition-all shrink-0"
+                title="Test diff visuals with a sample addition"
+              >
+                <FlaskConical size={10} />
+                <span className="hidden lg:inline">Test Diff</span>
               </button>
             </div>
           )}
@@ -1201,7 +1232,7 @@ export function AgentPage() {
                 <span className="truncate">
                   PATCH:{' '}
                   <span className={`font-semibold ${activeTelemetry.patch?.wasFallback ? 'text-amber-400' : 'text-emerald-300'}`}>
-                    {formatAgentModelName(activeTelemetry.patch?.modelUsed || 'kimi-k2.6')}
+                    {formatAgentModelName(activeTelemetry.patch?.modelUsed || 'kimi-k3')}
                   </span>
                   {activeTelemetry.patch?.wasFallback && (
                     <span className="ml-1 px-1 rounded bg-amber-500/30 text-amber-300 text-[8px] font-bold">FALLBACK</span>
@@ -1326,7 +1357,7 @@ export function AgentPage() {
                               : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
                           }`}
                         >
-                          PATCH: {formatAgentModelName(msg.telemetry?.patches?.[0]?.modelUsed || 'kimi-k2.6')}
+                          PATCH: {formatAgentModelName(msg.telemetry?.patches?.[0]?.modelUsed || 'kimi-k3')}
                         </span>
                         <span className="px-1.5 py-0.5 rounded border bg-amber-500/15 border-amber-500/30 text-amber-300">
                           GUARD: Gemini 3.5 Flash

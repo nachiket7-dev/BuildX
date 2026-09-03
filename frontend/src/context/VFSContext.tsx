@@ -488,6 +488,10 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        // SSE event name persists across chunks: an `event:` line and its `data:`
+        // line may arrive in different network chunks, so this must NOT be reset
+        // per read — only after the blank line that terminates an SSE message.
+        let pendingEvent = '';
 
         for (;;) {
           if (controller.signal.aborted) {
@@ -504,7 +508,6 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const lines = buffer.split('\n');
           buffer = lines.pop() ?? '';
 
-          let pendingEvent = '';
           for (const line of lines) {
             if (line.startsWith('event: ')) {
               pendingEvent = line.slice(7).trim();

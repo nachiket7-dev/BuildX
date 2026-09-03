@@ -451,37 +451,43 @@ export function CodeStudio({
     };
   }, [activeFilePath, toast, openFiles, vfs.activeFilePath, vfs.activeFileLine]);
 
-  // ─── Keyboard Shortcuts for Diff Review (⌘Enter / Esc) ─────────────────────
-  const currentStagedDiff = activeFile
-    ? (vfs.pendingDiff && vfs.pendingDiff.filePath === activeFile.path
-        ? {
-            original: vfs.pendingDiff.originalCode || vfs.pendingDiff.original || '',
-            incoming: vfs.pendingDiff.incomingCode || (vfs.pendingDiff as any).modified || '',
-            filePath: activeFile.path,
-          }
-        : null) ||
-      (vfs.stagedDiffs && vfs.stagedDiffs[activeFile.path]
-        ? {
-            original: vfs.stagedDiffs[activeFile.path].originalCode || vfs.stagedDiffs[activeFile.path].original || '',
-            incoming: vfs.stagedDiffs[activeFile.path].incomingCode || vfs.stagedDiffs[activeFile.path].incoming || (vfs.stagedDiffs[activeFile.path] as any).modified || '',
-            filePath: activeFile.path,
-          }
-        : null) ||
-      (vfs.pendingDiffs && vfs.pendingDiffs[activeFile.path]
-        ? {
-            original: vfs.pendingDiffs[activeFile.path].originalCode || vfs.pendingDiffs[activeFile.path].original || '',
-            incoming: vfs.pendingDiffs[activeFile.path].incomingCode || vfs.pendingDiffs[activeFile.path].modified || '',
-            filePath: activeFile.path,
-          }
-        : null) ||
-      (pendingDiff && pendingDiff.filePath === activeFile.path
-        ? {
-            original: pendingDiff.original || '',
-            incoming: pendingDiff.modified || '',
-            filePath: activeFile.path,
-          }
-        : null)
-    : null;
+  // ─── Staged Diff Resolution ────────────────────────────────────────────────
+  // Diffs may be staged under partial paths (e.g. "App.tsx") while the studio
+  // file list uses full paths ("frontend/src/App.tsx"). Resolve fuzzily and
+  // memoize the result so the merge-view mount effect stays stable across renders.
+  const resolveStudioPath = useCallback(
+    (rawPath?: string): string => {
+      if (!rawPath) return '';
+      const exact = files.find((f) => f.path === rawPath);
+      if (exact) return exact.path;
+      const suffixMatches = files.filter((f) => f.path.endsWith(`/${rawPath}`));
+      if (suffixMatches.length === 1) return suffixMatches[0].path;
+      const baseMatches = files.filter((f) => f.path.split('/').pop() === rawPath);
+      if (baseMatches.length === 1) return baseMatches[0].path;
+      return rawPath;
+    },
+    [files]
+  );
+
+  const currentStagedDiff = useMemo(() => {
+    if (!activeFile) return null;
+    const candidates: any[] = [
+      vfs.pendingDiff,
+      ...Object.values(vfs.stagedDiffs || {}),
+      ...Object.values(vfs.pendingDiffs || {}),
+      pendingDiff,
+    ];
+    for (const d of candidates) {
+      if (!d) continue;
+      const filePath = resolveStudioPath(d.filePath || '');
+      if (filePath !== activeFile.path) continue;
+      const incoming = d.incomingCode || d.incoming || d.modified || '';
+      let original = d.originalCode || d.original || '';
+      if (!original) original = activeFile.content;
+      return { original, incoming, filePath };
+    }
+    return null;
+  }, [activeFile, vfs.pendingDiff, vfs.stagedDiffs, vfs.pendingDiffs, pendingDiff, resolveStudioPath]);
 
   const isShowingDiff = Boolean((isDiffMode || currentStagedDiff !== null) && activeFile && currentStagedDiff);
 
@@ -494,6 +500,23 @@ export function CodeStudio({
       if (diffId) setDiffKey(k => k + 1);
     }
   }, [currentStagedDiff]);
+
+  // ─── Auto-switch to the file a freshly staged diff targets ─────────────────
+  // RefinementChat / refine flows only write to VFS state; mirror that here so
+  // the inline diff becomes visible even when it targets a non-active file.
+  // Watches only vfs.pendingDiff (not vfs.activeFilePath) to avoid feedback
+  // loops and to stay unaffected by VFS init/load file-selection updates.
+  const lastAutoSwitchedDiffRef = useRef<unknown>(null);
+  useEffect(() => {
+    const d = vfs.pendingDiff;
+    if (!d || lastAutoSwitchedDiffRef.current === d) return;
+    lastAutoSwitchedDiffRef.current = d;
+    const target = resolveStudioPath(d.filePath || '');
+    if (!target || target === activeFilePath) return;
+    if (!files.some((f) => f.path === target)) return;
+    setOpenFiles((prev) => (prev.includes(target) ? prev : [...prev, target]));
+    setActiveFilePath(target);
+  }, [vfs.pendingDiff, activeFilePath, files, resolveStudioPath]);
 
 
   // ─── Raw DOM instantiation for CodeMirror 6 Merge View ───────────────────────

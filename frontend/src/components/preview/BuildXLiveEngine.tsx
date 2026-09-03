@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { RuntimeErrorPayload } from '../../context/VFSContext';
+import { BUILTIN_ICON_PATHS } from './lucideIconPaths';
 
 interface BuildXLiveEngineProps {
   files: Record<string, string>;
@@ -110,6 +111,8 @@ export function BuildXLiveEngine({
   <!-- React 18 & Babel Standalone -->
   <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script>window.react = window.React;</script>
+  <script src="https://unpkg.com/lucide-react@0.294.0/dist/umd/lucide-react.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/lucide-react@0.294.0/dist/umd/lucide-react.min.js';"></script>
   <script src="https://unpkg.com/@babel/standalone@7.24.4/babel.min.js"></script>
 
   <style>
@@ -302,18 +305,57 @@ export function BuildXLiveEngine({
       }, true);
 
       // ── 3. Universal Mock Ecosystem & Icon Synthesizer ─────────────────────
+      var BUILTIN_ICON_PATHS = ${JSON.stringify(BUILTIN_ICON_PATHS)};
+
       var LucideIconProxy = new Proxy({}, {
         get: function(target, prop) {
           if (typeof prop !== 'string' || prop === '__esModule' || prop === 'default') {
             return target[prop];
           }
+
+          // 1. Direct match on official window.LucideReact (1,325 icons)
+          if (window.LucideReact && window.LucideReact[prop]) {
+            return window.LucideReact[prop];
+          }
+
+          // 2. Case-insensitive / normalized lookup on window.LucideReact
+          var cleanKey = prop.replace(/[-_\s]+/g, '').toLowerCase();
+          if (window.LucideReact) {
+            for (var k in window.LucideReact) {
+              if (k.toLowerCase() === cleanKey) {
+                return window.LucideReact[k];
+              }
+            }
+          }
+
+          // 3. Match against pre-compiled SVG innerHTML dictionary
+          var svgInnerHtml = BUILTIN_ICON_PATHS[cleanKey];
+
           return function LucideIcon(props) {
             props = props || {};
             var size = props.size || 18;
             var color = props.color || 'currentColor';
             var className = props.className || '';
             var strokeWidth = props.strokeWidth || 2;
-            
+
+            if (svgInnerHtml) {
+              return React.createElement('svg', {
+                xmlns: 'http://www.w3.org/2000/svg',
+                width: size,
+                height: size,
+                viewBox: '0 0 24 24',
+                fill: 'none',
+                stroke: color,
+                strokeWidth: strokeWidth,
+                strokeLinecap: 'round',
+                strokeLinejoin: 'round',
+                className: 'lucide lucide-' + cleanKey + ' ' + className,
+                style: props.style,
+                dangerouslySetInnerHTML: { __html: svgInnerHtml }
+              });
+            }
+
+            // Fallback for custom or unknown icon names: clean geometric diamond
             return React.createElement('svg', {
               xmlns: 'http://www.w3.org/2000/svg',
               width: size,
@@ -324,9 +366,9 @@ export function BuildXLiveEngine({
               strokeWidth: strokeWidth,
               strokeLinecap: 'round',
               strokeLinejoin: 'round',
-              className: 'lucide lucide-' + String(prop).toLowerCase() + ' ' + className,
+              className: 'lucide lucide-fallback ' + className,
               style: props.style
-            }, React.createElement('circle', { cx: '12', cy: '12', r: '8', strokeDasharray: '3 3' }));
+            }, React.createElement('polygon', { points: '12 2 15 9 22 12 15 15 12 22 9 15 2 12 9 9' }));
           };
         }
       });

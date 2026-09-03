@@ -501,7 +501,7 @@ export function RefinementChat({
                           >
                             <GitCompare size={9} />
                             <span>
-                              PATCH: {formatModelName(turn.assistant.telemetry?.patches?.[0]?.modelUsed || 'kimi-k2.6')}
+                              PATCH: {formatModelName(turn.assistant.telemetry?.patches?.[0]?.modelUsed || 'kimi-k3')}
                             </span>
                             {turn.assistant.telemetry?.patches?.[0]?.wasFallback && (
                               <span className="px-0.5 rounded bg-amber-500/30 text-[8px] font-bold">FALLBACK</span>
