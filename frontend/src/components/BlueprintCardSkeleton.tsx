@@ -1,6 +1,6 @@
 export function BlueprintCardSkeleton() {
   return (
-    <div className="p-5 rounded-2xl bg-[#0d0d12]/90 border border-white/[0.08] flex flex-col justify-between h-[240px] animate-pulse" aria-hidden>
+    <div className="p-5 rounded-2xl bg-[#111113]/90 border border-white/[0.08] flex flex-col justify-between h-[240px] animate-pulse" aria-hidden>
       <div>
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="h-3.5 w-1/3 bg-white/10 rounded" />

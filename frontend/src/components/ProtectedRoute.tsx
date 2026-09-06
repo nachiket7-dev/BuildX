@@ -14,7 +14,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin-slow"
           style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
         />
-        <p className="font-mono text-xs tracking-tight" style={{ color: 'var(--text3)' }}>
+        <p className="font-sans text-xs tracking-tight" style={{ color: 'var(--text3)' }}>
           Verifying session...
         </p>
       </div>

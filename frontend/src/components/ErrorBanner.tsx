@@ -19,11 +19,11 @@ export function ErrorBanner({ message, onDismiss, onRetry }: ErrorBannerProps) {
         <line x1="12" y1="8" x2="12" y2="12" />
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
-      <div className="flex-1 text-sm font-mono leading-relaxed">{message}</div>
+      <div className="flex-1 text-sm font-sans leading-relaxed">{message}</div>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="flex-shrink-0 px-2.5 py-1 rounded-md border border-red-400/30 bg-red-400/10 hover:bg-red-400/20 text-xs font-mono"
+          className="flex-shrink-0 px-2.5 py-1 rounded-md border border-red-400/30 bg-red-400/10 hover:bg-red-400/20 text-xs font-sans"
         >
           Retry
         </button>

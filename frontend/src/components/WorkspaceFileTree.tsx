@@ -258,7 +258,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
           style={{ paddingLeft: `${indent + 6}px` }}
           className={`w-full flex items-center gap-2 py-1.5 pr-2.5 rounded-lg text-left transition-all text-xs font-mono group relative ${
             isSelected
-              ? 'bg-gradient-to-r from-indigo-500/20 via-purple-500/10 to-transparent text-white font-semibold border-l-2 border-indigo-400 shadow-sm shadow-indigo-500/5'
+              ? 'bg-[#7C7CF4]/[0.12] text-white font-semibold border-l-2 border-[#7C7CF4]'
               : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.03]'
           }`}
           title={node.path}
@@ -268,7 +268,7 @@ export const WorkspaceFileTree: React.FC<WorkspaceFileTreeProps> = ({
             {node.name}
           </span>
           {isSelected && (
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_8px_rgba(99,102,241,0.8)] animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_8px_rgba(124, 124, 244,0.8)] animate-pulse" />
           )}
         </button>
       );

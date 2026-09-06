@@ -104,7 +104,7 @@ export function LandingPreloader({ onComplete }: LandingPreloaderProps) {
           initial={{ y: 0 }}
           exit={{ y: '-100%' }}
           transition={{ duration: 0.85, ease: [0.87, 0, 0.13, 1] as [number, number, number, number] }}
-          className="fixed inset-0 z-[9999] bg-[#08080c] text-white flex flex-col justify-between p-8 md:p-16 overflow-hidden pointer-events-none"
+          className="fixed inset-0 z-[9999] bg-[#0A0A0B] text-white flex flex-col justify-between p-8 md:p-16 overflow-hidden pointer-events-none"
         >
           {/* ── Corner Crosshairs (+) ── */}
           <div className="absolute top-4 left-4 text-zinc-600 font-mono text-xs z-20 select-none">+</div>
@@ -139,7 +139,7 @@ export function LandingPreloader({ onComplete }: LandingPreloaderProps) {
 
           {/* ── Center Typography Glass Card Container ── */}
           <div className="absolute inset-0 flex items-center justify-center p-4 z-10 pointer-events-none">
-            <div className="bg-[#121216]/40 backdrop-blur-md border border-white/5 rounded-3xl p-8 md:p-12 shadow-2xl flex flex-col items-center justify-center text-center relative max-w-3xl w-full">
+            <div className="bg-[#111113]/40 backdrop-blur-md border border-white/5 rounded-3xl p-8 md:p-12 shadow-2xl flex flex-col items-center justify-center text-center relative max-w-3xl w-full">
               {/* Letter mask container */}
               <motion.div
                 variants={containerVariants}
@@ -162,7 +162,7 @@ export function LandingPreloader({ onComplete }: LandingPreloaderProps) {
                         lineHeight: 1,
                         background:
                           i === LETTERS.length - 1
-                            ? 'linear-gradient(135deg, #a78bfa 0%, #818cf8 100%)'
+                            ? 'linear-gradient(135deg, #8F8FF7 0%, #8F8FF7 100%)'
                             : 'white',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: i === LETTERS.length - 1 ? 'transparent' : 'white',

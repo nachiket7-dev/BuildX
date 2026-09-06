@@ -5,7 +5,6 @@ import { AmbientBackground } from './AmbientBackground';
 import { MarketingHeader } from './MarketingHeader';
 import { PageHead } from './PageHead';
 import { BentoGrid } from './BentoGrid';
-import { GridBeams } from './GridBeams';
 import { Hero } from './Hero';
 import { FAQSection } from './FAQSection';
 import { Footer } from './Footer';
@@ -24,12 +23,11 @@ export function HomePage() {
         )}
       </AnimatePresence>
 
-      <div className="min-h-screen flex flex-col relative bg-[#08080a] text-white overflow-x-hidden">
+      <div className="min-h-screen flex flex-col relative bg-[#0A0A0B] text-white overflow-x-hidden">
         <PageHead
           title="BuildX — AI Full-Stack App Architect"
           description="Turn plain-English app ideas into production-ready monorepos with multi-model AI orchestration."
         />
-        <GridBeams />
         <AmbientBackground />
 
         <div className="relative z-10 flex flex-col min-h-screen">

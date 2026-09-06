@@ -13,14 +13,14 @@ mermaid.initialize({
     primaryTextColor: '#f0fdfa',
     primaryBorderColor: '#14b8a6',
     lineColor: '#475569',
-    secondaryColor: '#121820',
-    tertiaryColor: '#0c1016',
+    secondaryColor: '#111113',
+    tertiaryColor: '#111113',
     background: '#080b0f',
-    mainBkg: '#121820',
+    mainBkg: '#111113',
     nodeBorder: '#14b8a6',
-    clusterBkg: '#0c1016',
+    clusterBkg: '#111113',
     titleColor: '#f0fdfa',
-    edgeLabelBackground: '#121820',
+    edgeLabelBackground: '#111113',
   },
   fontFamily: '"DM Mono", monospace',
   fontSize: 13,
@@ -77,7 +77,7 @@ function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
         </p>
         <details className="mt-3 text-left">
           <summary
-            className="font-mono text-xs cursor-pointer tracking-tight"
+            className="font-sans text-xs cursor-pointer tracking-tight"
             style={{ color: 'var(--text3)' }}
           >
             View source
@@ -132,7 +132,7 @@ export function DiagramsPanel({ blueprint }: { blueprint: Blueprint }) {
   return (
     <div>
       <div
-        className="font-mono text-xs uppercase tracking-widest mb-4"
+        className="font-sans text-xs uppercase tracking-widest mb-4"
         style={{ color: 'var(--text3)' }}
       >
         // visual diagrams
@@ -144,7 +144,7 @@ export function DiagramsPanel({ blueprint }: { blueprint: Blueprint }) {
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className="font-mono text-xs px-4 py-2 rounded-lg border transition-all duration-150 flex items-center gap-1.5"
+            className="font-sans text-xs px-4 py-2 rounded-lg border transition-all duration-150 flex items-center gap-1.5"
             style={{
               background: activeTab === id ? 'var(--accent-glow)' : 'var(--surface2)',
               borderColor: activeTab === id ? 'rgba(20,184,166,0.3)' : 'var(--border)',

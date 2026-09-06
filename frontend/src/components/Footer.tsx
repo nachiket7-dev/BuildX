@@ -19,7 +19,7 @@ export function Footer() {
           <div className="text-center max-w-4xl mx-auto mb-16 space-y-6">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/[0.04] border border-white/10">
               <Terminal size={13} className="text-emerald-400" />
-              <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">00 / PRODUCTION SCAFFOLD GENERATOR</span>
+              <span className="font-sans text-xs text-zinc-400 uppercase tracking-wider">00 / PRODUCTION SCAFFOLD GENERATOR</span>
             </div>
 
             <h2 className="text-4xl md:text-6xl font-bold tracking-tight text-white text-center max-w-4xl mx-auto">
@@ -48,26 +48,26 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 py-12 border-t border-white/10">
           <div className="space-y-3 md:col-span-1">
             <Logo size="lg" />
-            <p className="text-xs text-neutral-400 leading-relaxed font-mono">
+            <p className="text-xs text-neutral-400 leading-relaxed font-sans">
               Autonomous multi-model AI architect for full-stack web applications.
             </p>
           </div>
 
-          <div className="space-y-2 font-mono text-xs">
+          <div className="space-y-2 font-sans text-xs">
             <div className="text-white font-semibold uppercase tracking-wider mb-2">Platform</div>
             <div><a href="#features" className="text-neutral-400 hover:text-white transition-colors">Features</a></div>
             <div><a href="/gallery" className="text-neutral-400 hover:text-white transition-colors">Gallery</a></div>
             <div><a href="/create" className="text-neutral-400 hover:text-white transition-colors">Studio IDE</a></div>
           </div>
 
-          <div className="space-y-2 font-mono text-xs">
+          <div className="space-y-2 font-sans text-xs">
             <div className="text-white font-semibold uppercase tracking-wider mb-2">Providers</div>
             <div><a href="https://build.nvidia.com" target="_blank" rel="noreferrer" className="text-neutral-400 hover:text-white transition-colors">NVIDIA NIM (Nemotron 550B)</a></div>
             <div><a href="https://aistudio.google.com" target="_blank" rel="noreferrer" className="text-neutral-400 hover:text-white transition-colors">Google AI (Gemini Flash)</a></div>
             <div><a href="https://console.groq.com" target="_blank" rel="noreferrer" className="text-neutral-400 hover:text-white transition-colors">Groq (Qwen 32B)</a></div>
           </div>
 
-          <div className="space-y-2 font-mono text-xs">
+          <div className="space-y-2 font-sans text-xs">
             <div className="text-white font-semibold uppercase tracking-wider mb-2">Open Source</div>
             <div><a href="https://github.com/nachiket7-dev/BuildX" target="_blank" rel="noreferrer" className="text-neutral-400 hover:text-white transition-colors">GitHub Repository</a></div>
             <div><a href="https://github.com/nachiket7-dev/BuildX#readme" target="_blank" rel="noreferrer" className="text-neutral-400 hover:text-white transition-colors">Documentation</a></div>
@@ -76,7 +76,7 @@ export function Footer() {
         </div>
 
         {/* Bottom Status Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-white/10 font-mono text-xs text-neutral-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-white/10 font-sans text-xs text-neutral-500">
           <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full text-emerald-400 text-[11px]">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span>All Systems Operational</span>

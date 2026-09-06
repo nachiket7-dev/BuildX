@@ -226,10 +226,10 @@ export function generateArchDiagram(arch: Architecture): string {
   BE -.->|"Deployed on"| HOST
   DB -.->|"Hosted on"| HOST
 
-  style Client fill:#16161c,stroke:#14b8a6,color:#f4f4f5
-  style Server fill:#16161c,stroke:#2dd4bf,color:#f4f4f5
-  style Data fill:#1a1a2e,stroke:#f59e0b,color:#f0f0f8
-  style Infra fill:#1a1a2e,stroke:#60a5fa,color:#f0f0f8
+  style Client fill:#18181B,stroke:#14b8a6,color:#f4f4f5
+  style Server fill:#18181B,stroke:#2dd4bf,color:#f4f4f5
+  style Data fill:#18181B,stroke:#f59e0b,color:#f0f0f8
+  style Infra fill:#18181B,stroke:#60a5fa,color:#f0f0f8
 `;
 }
 

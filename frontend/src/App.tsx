@@ -9,7 +9,7 @@ import { BlueprintOutput } from './components/BlueprintOutput';
 import { ErrorBanner } from './components/ErrorBanner';
 import { GalleryPage } from './components/GalleryPage';
 import { Sidebar } from './components/Sidebar';
-import { AmbientBackground } from './components/AmbientBackground';
+import { CommandPalette, type PaletteAction } from './components/CommandPalette';
 import { SkipLink } from './components/SkipLink';
 import { PageHead } from './components/PageHead';
 import { PageTransition } from './components/PageTransition';
@@ -26,7 +26,6 @@ import { GithubCallbackPage } from './components/GithubCallbackPage';
 import { HomePage } from './components/HomePage';
 import { AgentPage } from './components/AgentPage';
 import { DeployModal } from './components/DeployModal';
-import { CommandPalette, type PaletteAction } from './components/CommandPalette';
 import type { Blueprint } from './lib/types';
 
 import { VFSProvider } from './context/VFSContext';
@@ -355,9 +354,8 @@ function AppShell() {
   return (
     <VFSProvider>
       <BlueprintSessionProvider>
-        <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#08080c] text-white relative">
+        <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#0A0A0B] text-white relative">
           <SkipLink />
-          <AmbientBackground />
 
           {/* ── GLOBAL HEADER: Fixed top anchor (h-16 shrink-0 z-30) ── */}
           <Header

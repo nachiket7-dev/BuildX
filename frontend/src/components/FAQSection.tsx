@@ -56,7 +56,7 @@ export function FAQSection() {
         {/* Left Column: Sticky Section Heading */}
         <div className="lg:col-span-4 lg:sticky lg:top-28 space-y-4">
           <ScrollReveal direction="down" delay={0.05}>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-mono text-indigo-300">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-sans text-indigo-300">
               <HelpCircle size={13} className="text-indigo-400" />
               <span>04 / FREQUENTLY ASKED QUESTIONS</span>
             </div>
@@ -95,7 +95,7 @@ export function FAQSection() {
                         <Icon size={16} />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-[10px] font-mono text-indigo-400 uppercase tracking-wider block mb-0.5">
+                        <span className="text-[10px] font-sans text-indigo-400 uppercase tracking-wider block mb-0.5">
                           {faq.tag ?? 'FAQ'}
                         </span>
                         <h3 className="text-base font-semibold text-white font-display leading-snug">
@@ -126,7 +126,7 @@ export function FAQSection() {
                         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                         className="overflow-hidden"
                       >
-                        <div className="px-6 pb-6 pt-1 text-xs sm:text-sm text-neutral-300 font-mono leading-relaxed border-t border-white/5 bg-white/[0.01]">
+                        <div className="px-6 pb-6 pt-1 text-xs sm:text-sm text-neutral-300 font-sans leading-relaxed border-t border-white/5 bg-white/[0.01]">
                           {faq.answer}
                         </div>
                       </motion.div>

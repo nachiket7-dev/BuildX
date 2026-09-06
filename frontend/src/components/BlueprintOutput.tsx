@@ -358,7 +358,7 @@ export function BlueprintOutput({
       aria-labelledby="blueprint-title"
     >
       <div className="flex flex-col gap-4 sm:gap-6 py-5 sm:py-8">
-        <div className="flex-1 min-w-0 border border-white/10 rounded-xl bg-black/45 p-5 font-mono text-xs relative overflow-hidden">
+        <div className="flex-1 min-w-0 border border-white/10 rounded-xl bg-black/45 p-5 font-sans text-xs relative overflow-hidden">
           <div className="absolute right-4 top-4 text-[10px] text-white/20 select-none font-bold">
             COMMIT: {blueprintId ? blueprintId.substring(0, 7) : 'draft'}
           </div>
@@ -397,7 +397,7 @@ export function BlueprintOutput({
             <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-amber-400 font-mono font-bold">
               # {blueprint.complexity} complexity
             </span>
-            <span className="flex items-center gap-1 bg-zinc-900/90 px-2.5 py-1 rounded border border-white/15 ml-auto text-zinc-200 font-mono text-[10px] font-medium shadow-sm">
+            <span className="flex items-center gap-1 bg-zinc-900/90 px-2.5 py-1 rounded border border-white/15 ml-auto text-zinc-200 font-sans text-[10px] font-medium shadow-sm">
               Audience: <span className="text-white font-semibold">{blueprint.targetUsers}</span>
             </span>
           </div>
@@ -523,13 +523,13 @@ export function BlueprintOutput({
       </div>
 
       {downloadError && (
-        <p className="text-xs mb-4 font-mono" style={{ color: 'var(--coral)' }} role="alert">
+        <p className="text-xs mb-4 font-sans" style={{ color: 'var(--coral)' }} role="alert">
           {downloadError}
         </p>
       )}
 
       {visibility.isError && (
-        <p className="text-xs mb-4 font-mono" style={{ color: 'var(--coral)' }} role="alert">
+        <p className="text-xs mb-4 font-sans" style={{ color: 'var(--coral)' }} role="alert">
           Could not update visibility. Try again.
         </p>
       )}

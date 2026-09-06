@@ -97,9 +97,9 @@ function HeroPipelineWidget() {
   }, [stageIndex]);
 
   const colorMap: Record<string, { dot: string; text: string; glow: string }> = {
-    indigo: { dot: 'border-indigo-500/70 bg-indigo-500/15', text: 'text-indigo-300', glow: 'rgba(99,102,241,0.35)' },
+    indigo: { dot: 'border-indigo-500/70 bg-indigo-500/15', text: 'text-indigo-300', glow: 'rgba(124, 124, 244,0.35)' },
     blue:   { dot: 'border-blue-500/70 bg-blue-500/15',     text: 'text-blue-300',   glow: 'rgba(59,130,246,0.35)' },
-    purple: { dot: 'border-purple-500/70 bg-purple-500/15', text: 'text-purple-300', glow: 'rgba(168,85,247,0.35)' },
+    purple: { dot: 'border-purple-500/70 bg-purple-500/15', text: 'text-purple-300', glow: 'rgba(124, 124, 244,0.35)' },
     emerald:{ dot: 'border-emerald-500/70 bg-emerald-500/15',text:'text-emerald-300',glow: 'rgba(16,185,129,0.35)' },
   };
 
@@ -158,7 +158,7 @@ function HeroPipelineWidget() {
       </div>
 
       {/* Live log stream */}
-      <div className="bg-[#050507] rounded-2xl border border-white/[0.07] p-3.5 min-h-[160px] font-mono text-[10.5px] overflow-hidden relative">
+      <div className="bg-[#0A0A0B] rounded-2xl border border-white/[0.07] p-3.5 min-h-[160px] font-mono text-[10.5px] overflow-hidden relative">
         <div className="flex items-center gap-2 mb-2.5 border-b border-white/[0.06] pb-2">
           <Activity size={11} className="text-emerald-400" />
           <span className="text-[9px] text-neutral-500 font-mono uppercase tracking-wider">SSE Stream</span>
@@ -190,7 +190,7 @@ function HeroPipelineWidget() {
           )}
         </div>
         {/* Fading bottom gradient */}
-        <div className="absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-[#050507] to-transparent pointer-events-none rounded-b-2xl" />
+        <div className="absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-[#0A0A0B] to-transparent pointer-events-none rounded-b-2xl" />
       </div>
 
       {/* Footer stats */}
@@ -241,7 +241,14 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
   return (
     /* ─── Hero Section: Asymmetrical 2-Column Split Stage ─── */
     <section className="relative w-full px-4 sm:px-6 pt-8 sm:pt-14 pb-16 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        {/* Contained ambient stage — one aura, one faded grid, one slow beam */}
+        <div className="hero-stage" aria-hidden>
+          <div className="hero-stage__grid" />
+          <div className="hero-stage__aura" />
+          <div className="hero-stage__aura hero-stage__aura--right" />
+          <div className="hero-stage__beam" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
           
           {/* Left Column (7 cols): Builder Control Console — staggered reveal */}
           <motion.div
@@ -253,7 +260,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             {/* Eyebrow Badge */}
             <motion.div
               variants={itemVariants}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-xs font-mono text-neutral-300"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-xs font-sans text-neutral-300"
             >
               <Sparkles size={13} className="text-indigo-400" />
               <span>Next-Gen Full-Stack AI Architect</span>
@@ -264,7 +271,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               variants={itemVariants}
               className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white font-display leading-[1.1]"
             >
-              <TextReveal text="Architect your next big idea with AI." />
+              <TextReveal text="Architect your next big idea with AI." accentWords={['big', 'idea']} />
             </motion.h1>
 
             <motion.p
@@ -279,7 +286,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               variants={itemVariants}
               className="p-3 rounded-2xl bg-neutral-950/60 border border-white/10 space-y-3 max-w-xl"
             >
-              <div className="flex items-center justify-between text-xs text-neutral-400 font-mono">
+              <div className="flex items-center justify-between text-xs text-neutral-400 font-sans">
                 <span>Select Target Stack Specs</span>
                 <span className="text-emerald-400">Customized Monorepo</span>
               </div>
@@ -294,7 +301,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       onClick={() => setFramework(fw)}
                       whileTap={{ scale: 0.93 }}
                       whileHover={{ scale: 1.03 }}
-                      className={`px-2.5 py-1 rounded-lg font-mono transition-colors ${
+                      className={`px-2.5 py-1 rounded-lg font-sans transition-colors ${
                         framework === fw ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-neutral-400 hover:text-white'
                       }`}
                     >
@@ -313,7 +320,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       onClick={() => setDb(d)}
                       whileTap={{ scale: 0.93 }}
                       whileHover={{ scale: 1.03 }}
-                      className={`px-2.5 py-1 rounded-lg font-mono transition-colors ${
+                      className={`px-2.5 py-1 rounded-lg font-sans transition-colors ${
                         db === d ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-neutral-400 hover:text-white'
                       }`}
                     >
@@ -332,7 +339,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                       onClick={() => setAuth(a)}
                       whileTap={{ scale: 0.93 }}
                       whileHover={{ scale: 1.03 }}
-                      className={`px-2.5 py-1 rounded-lg font-mono transition-colors ${
+                      className={`px-2.5 py-1 rounded-lg font-sans transition-colors ${
                         auth === a ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-neutral-400 hover:text-white'
                       }`}
                     >
@@ -350,17 +357,17 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
               className="max-w-xl space-y-0"
             >
               <SpotlightCard
-                spotlightColor={isFocused ? 'rgba(99, 102, 241, 0.18)' : 'rgba(255, 255, 255, 0.05)'}
-                className={`p-4 rounded-t-2xl border transition-all duration-300 ${
-                  isFocused ? 'border-indigo-500/50 shadow-2xl shadow-indigo-500/10' : 'border-white/10 bg-neutral-950/80'
+                spotlightColor={isFocused ? 'rgba(124, 124, 244, 0.18)' : 'rgba(255, 255, 255, 0.05)'}
+                className={`p-4 rounded-t-2xl border transition-all duration-300 console-emphasis ${
+                  isFocused ? 'border-[#7C7CF4]/50 shadow-lg shadow-[#7C7CF4]/10' : 'border-white/10 bg-neutral-950/80'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono">
+                  <div className="flex items-center gap-2 text-xs text-neutral-400 font-sans">
                     <Terminal size={14} className="text-indigo-400" />
                     <span>Prompt Command Console</span>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  <span className="text-[10px] font-sans px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
                     VFS MONOREPO
                   </span>
                 </div>
@@ -383,26 +390,24 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
 
               {/* Bottom action bar */}
               <div className="relative flex items-center justify-between px-4 py-2.5 bg-neutral-950/80 border border-white/10 border-t border-t-white/5 rounded-b-2xl backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono">
+                <div className="flex items-center gap-2 text-xs text-neutral-400 font-sans">
                   <span className={charCount >= MIN_CHARS ? 'text-emerald-400' : 'text-neutral-500'}>
                     {charCount}/{MIN_CHARS}
                   </span>
-                  <span className="opacity-60 hidden sm:inline">· <kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px]">⌘</kbd><kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px] ml-0.5">↵</kbd></span>
+                  <span className="opacity-60 hidden sm:inline">· <kbd className="px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-[10px] font-mono text-zinc-500">⌘</kbd><kbd className="px-1.5 py-0.5 rounded border border-white/10 bg-white/[0.04] text-[10px] font-mono text-zinc-500 ml-0.5">↵</kbd></span>
                 </div>
 
                 <div className="flex items-center gap-3">
                   {/* Pipeline Status Indicator */}
-                  <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-indigo-300">
+                  <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-sans text-indigo-300">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     <span>Autonomous Multi-Model Pipeline</span>
                   </div>
 
-                  <motion.button
+                  <button
                     type="submit"
                     disabled={!canSubmit}
-                    whileHover={canSubmit ? { scale: 1.04 } : {}}
-                    whileTap={canSubmit ? { scale: 0.96 } : {}}
-                    className="px-5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold font-sans text-xs flex items-center gap-2 transition-all disabled:opacity-40"
+                    className="px-5 py-1.5 rounded-lg bg-[#7C7CF4] hover:bg-[#8F8FF7] text-[#0A0A0B] font-semibold font-sans text-xs flex items-center gap-2 transition-colors disabled:opacity-40 shadow-sm"
                   >
                     {isLoading ? (
                       <>
@@ -415,14 +420,14 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                         <ArrowRight size={14} />
                       </>
                     )}
-                  </motion.button>
+                  </button>
                 </div>
               </div>
             </motion.form>
 
             {/* Example Chips — staggered */}
             <motion.div variants={itemVariants} className="space-y-2 max-w-xl">
-              <div className="text-xs text-neutral-500 font-mono">Preset App Blueprint Templates:</div>
+              <div className="text-xs text-neutral-500 font-sans">Preset App Blueprint Templates:</div>
               <motion.div
                 className="flex flex-wrap gap-2"
                 variants={containerVariants}
@@ -438,7 +443,7 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
                     variants={itemVariants}
                     whileHover={{ scale: 1.05, y: -1 }}
                     whileTap={{ scale: 0.96 }}
-                    className="px-3 py-1 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-xs text-neutral-300 font-mono transition-colors"
+                    className="px-3 py-1 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-xs text-neutral-300 font-sans transition-colors"
                   >
                     {label}
                   </motion.button>
@@ -454,16 +459,16 @@ export function Hero({ onGenerate, isLoading }: HeroProps) {
             initial="hidden"
             animate="show"
           >
-            <SpotlightCard spotlightColor="rgba(99, 102, 241, 0.18)" className="p-5 rounded-3xl border border-white/10 bg-neutral-950/90 shadow-2xl backdrop-blur-xl">
+            <SpotlightCard spotlightColor="rgba(124, 124, 244, 0.18)" className="p-5 rounded-3xl border border-white/10 bg-neutral-950/90 console-emphasis backdrop-blur-xl">
               {/* Header */}
               <div className="flex items-center justify-between mb-5 border-b border-white/[0.08] pb-3.5">
-                <div className="flex items-center gap-2 font-mono text-xs text-neutral-300">
+                <div className="flex items-center gap-2 font-sans text-xs text-neutral-300">
                   <Activity size={14} className="text-emerald-400" />
                   <span className="font-semibold text-white">Multi-Model Pipeline</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[10px] font-mono text-emerald-400">SSE Streaming</span>
+                  <span className="text-[10px] font-sans text-emerald-400">SSE Streaming</span>
                 </div>
               </div>
 

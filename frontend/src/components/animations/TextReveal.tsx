@@ -5,6 +5,8 @@ interface TextRevealProps {
   className?: string;
   delay?: number;
   wordDelay?: number;
+  /** Words (exact match, case-insensitive, punctuation allowed) rendered with the accent editorial style */
+  accentWords?: string[];
 }
 
 export function TextReveal({
@@ -12,6 +14,7 @@ export function TextReveal({
   className = '',
   delay = 0,
   wordDelay = 0.04,
+  accentWords = [],
 }: TextRevealProps) {
   const words = text.split(' ');
 
@@ -51,11 +54,20 @@ export function TextReveal({
       viewport={{ once: true, margin: '-50px' }}
       className={`inline-flex flex-wrap gap-x-[0.25em] ${className}`}
     >
-      {words.map((word, idx) => (
-        <motion.span key={idx} variants={wordVariants} className="inline-block">
-          {word}
-        </motion.span>
-      ))}
+      {words.map((word, idx) => {
+        const isAccent = accentWords.some(
+          (w) => word.toLowerCase().replace(/[^a-z]/gi, '') === w.toLowerCase(),
+        );
+        return (
+          <motion.span
+            key={idx}
+            variants={wordVariants}
+            className={`inline-block${isAccent ? ' hero-accent-word' : ''}`}
+          >
+            {word}
+          </motion.span>
+        );
+      })}
     </motion.span>
   );
 }

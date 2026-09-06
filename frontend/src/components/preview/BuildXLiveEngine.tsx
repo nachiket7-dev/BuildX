@@ -101,7 +101,7 @@ export function BuildXLiveEngine({
       theme: {
         extend: {
           colors: {
-            brand: { 500: '#6366f1', 600: '#4f46e5' }
+            brand: { 500: '#7C7CF4', 600: '#6464E8' }
           }
         }
       }
@@ -117,7 +117,7 @@ export function BuildXLiveEngine({
 
   <style>
     body {
-      background-color: #090a0f;
+      background-color: #0A0A0B;
       color: #f8fafc;
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       margin: 0;
@@ -192,7 +192,7 @@ export function BuildXLiveEngine({
     };
   </script>
 </head>
-<body class="bg-[#090a0f] text-slate-100 min-h-screen">
+<body class="bg-[#0A0A0B] text-slate-100 min-h-screen">
   <div id="root"></div>
 
   <!-- Runtime & In-Memory Transpiler Script -->
@@ -319,7 +319,7 @@ export function BuildXLiveEngine({
           }
 
           // 2. Case-insensitive / normalized lookup on window.LucideReact
-          var cleanKey = prop.replace(/[-_\s]+/g, '').toLowerCase();
+          var cleanKey = prop.replace(/[-_\\s]+/g, '').toLowerCase();
           if (window.LucideReact) {
             for (var k in window.LucideReact) {
               if (k.toLowerCase() === cleanKey) {
@@ -559,7 +559,7 @@ export function BuildXLiveEngine({
   }, [onErrorStateChange]);
 
   return (
-    <div className="relative w-full h-full min-h-0 bg-[#090a0f] flex flex-col overflow-hidden">
+    <div className="relative w-full h-full min-h-0 bg-[#0A0A0B] flex flex-col overflow-hidden">
       {/* Isolated In-Memory Render Iframe.
           No allow-same-origin: combined with allow-scripts it lets framed content
           remove its own sandbox, and this frame runs AI-generated code while the
@@ -570,13 +570,13 @@ export function BuildXLiveEngine({
         srcDoc={srcDoc}
         title={appName}
         sandbox="allow-scripts allow-forms allow-popups allow-modals"
-        className="w-full h-full flex-1 border-0 bg-[#090a0f]"
+        className="w-full h-full flex-1 border-0 bg-[#0A0A0B]"
         onLoad={() => setIsCompiling(false)}
       />
 
       {/* Loading Overlay */}
       {isCompiling && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2.5 bg-[#090a0f]/80 backdrop-blur-sm text-xs font-mono text-indigo-300">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2.5 bg-[#0A0A0B]/80 backdrop-blur-sm text-xs font-mono text-indigo-300">
           <Loader2 size={20} className="animate-spin text-indigo-400" />
           <span className="animate-pulse">Launching BuildX Live Engine...</span>
         </div>

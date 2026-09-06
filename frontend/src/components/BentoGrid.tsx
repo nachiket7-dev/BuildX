@@ -115,14 +115,14 @@ function PipelineWidget() {
       {/* Active Stage Badge */}
       <div className="flex items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-        <span className="text-[10px] font-mono text-neutral-400">
+        <span className="text-[10px] font-sans text-neutral-400">
           <span className="text-indigo-300 font-semibold">{PIPELINE_STAGES[activeStage].role}</span>
           {' '}— {PIPELINE_STAGES[activeStage].label} responding…
         </span>
       </div>
 
       {/* Token Stream */}
-      <div className="bg-[#060608] rounded-xl p-3.5 border border-white/[0.07] font-mono text-[11px] text-emerald-300 min-h-[80px] leading-relaxed overflow-hidden">
+      <div className="bg-[#0A0A0B] rounded-xl p-3.5 border border-white/[0.07] font-mono text-[11px] text-emerald-300 min-h-[80px] leading-relaxed overflow-hidden">
         <span className="text-indigo-400 select-none">// Streaming output{'\n'}</span>
         <AnimatePresence mode="wait">
           <motion.span
@@ -171,7 +171,7 @@ function AgenticWorkflowWidget() {
           <motion.div
             key={step.label}
             animate={isActive ? { x: 0, opacity: 1 } : { opacity: isDone ? 0.7 : 0.45 }}
-            className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs font-mono transition-colors
+            className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs font-sans transition-colors
               ${isActive  ? 'bg-indigo-500/10 border-indigo-500/25 text-indigo-300'
               : isDone   ? 'bg-emerald-500/[0.07] border-emerald-500/15 text-emerald-400'
               :             'bg-white/[0.02] border-white/[0.06] text-neutral-500'}`}
@@ -251,7 +251,7 @@ CREATE TABLE users (
         <StaggerGridItem className="md:col-span-2">
           <SpotlightCard
             className="h-full p-6 flex flex-col gap-5"
-            spotlightColor="rgba(99, 102, 241, 0.2)"
+            spotlightColor="rgba(124, 124, 244, 0.2)"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -260,7 +260,7 @@ CREATE TABLE users (
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-white font-display">Live Multi-Model Pipeline</div>
-                  <div className="text-[10px] text-neutral-500 font-mono mt-0.5">4-stage autonomous routing</div>
+                  <div className="text-[10px] text-neutral-500 font-sans mt-0.5">4-stage autonomous routing</div>
                 </div>
               </div>
               <span className="bento-badge bento-badge--indigo">
@@ -284,7 +284,7 @@ CREATE TABLE users (
               </div>
               <div>
                 <div className="text-sm font-semibold text-white font-display">Agentic Workflow</div>
-                <div className="text-[10px] text-neutral-500 font-mono mt-0.5">Real-time step tracing</div>
+                <div className="text-[10px] text-neutral-500 font-sans mt-0.5">Real-time step tracing</div>
               </div>
             </div>
             <p className="text-xs text-neutral-400 leading-relaxed">
@@ -307,7 +307,7 @@ CREATE TABLE users (
               </div>
               <button
                 onClick={copyCode}
-                className="px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.10] border border-white/10 text-xs text-neutral-300 flex items-center gap-1 transition-colors font-mono tracking-tight"
+                className="px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.10] border border-white/10 text-xs text-neutral-300 flex items-center gap-1 transition-colors font-sans tracking-tight"
               >
                 {copied ? <Check size={10} className="text-emerald-400" /> : null}
                 {copied ? 'Copied' : 'Copy'}
@@ -337,7 +337,7 @@ CREATE TABLE users (
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.18 }}
-                className="bg-[#060608] rounded-xl p-3.5 font-mono text-[10.5px] text-neutral-300 overflow-x-auto border border-white/[0.07] shadow-inner flex-1"
+                className="bg-[#0A0A0B] rounded-xl p-3.5 font-mono text-[10.5px] text-neutral-300 overflow-x-auto border border-white/[0.07] shadow-inner flex-1"
               >
                 <pre className="leading-relaxed font-mono">{fileContents[activeFileTab]}</pre>
               </motion.div>
@@ -349,7 +349,7 @@ CREATE TABLE users (
         <StaggerGridItem>
           <SpotlightCard
             className="h-full p-6 flex flex-col gap-4"
-            spotlightColor="rgba(168, 85, 247, 0.15)"
+            spotlightColor="rgba(124, 124, 244, 0.15)"
           >
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-purple-500/12 border border-purple-500/20 flex items-center justify-center">
@@ -357,14 +357,14 @@ CREATE TABLE users (
               </div>
               <div>
                 <div className="text-sm font-semibold text-white font-display">Instant Sandbox</div>
-                <div className="text-[10px] text-neutral-500 font-mono mt-0.5">Browser-native runtime</div>
+                <div className="text-[10px] text-neutral-500 font-sans mt-0.5">Browser-native runtime</div>
               </div>
             </div>
             <p className="text-xs text-neutral-400 leading-relaxed font-sans">
               Generated screens rendered live in-browser via Babel transpilation — no local setup required.
             </p>
             <div className="mt-auto">
-              <div className="rounded-xl border border-white/[0.08] bg-[#060608] p-3 space-y-2">
+              <div className="rounded-xl border border-white/[0.08] bg-[#0A0A0B] p-3 space-y-2">
                 {['React 18', 'TypeScript', 'Tailwind CSS'].map((lib) => (
                   <div key={lib} className="flex items-center justify-between text-[10px] font-mono">
                     <span className="text-neutral-400">{lib}</span>
@@ -395,9 +395,9 @@ CREATE TABLE users (
                 <code className="text-indigo-300 bg-indigo-500/10 px-1 rounded text-[10px] font-mono">npm install</code>.
               </p>
               <div className="flex items-center gap-2 pt-1">
-                <span className="bento-badge bento-badge--emerald font-mono text-xs"><Check size={10} /> OAuth 2.0</span>
-                <span className="bento-badge bento-badge--indigo font-mono text-xs">20+ files</span>
-                <span className="bento-badge bento-badge--amber font-mono text-xs">JWT secured</span>
+                <span className="bento-badge bento-badge--emerald font-sans text-xs"><Check size={10} /> OAuth 2.0</span>
+                <span className="bento-badge bento-badge--indigo font-sans text-xs">20+ files</span>
+                <span className="bento-badge bento-badge--amber font-sans text-xs">JWT secured</span>
               </div>
             </div>
             <div className="flex items-center gap-3 w-full md:w-auto flex-shrink-0">

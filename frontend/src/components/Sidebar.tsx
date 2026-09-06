@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { useBlueprintList, invalidateBlueprintQueries } from '../hooks/useBlueprints';
+import { Button } from './ui/primitives';
 import {
   Lightbulb,
   MoreHorizontal,
@@ -151,21 +152,22 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         {/* Header */}
         <div className="sidebar-panel__header">
           <div className="flex items-center justify-between mb-3">
-            <span className="font-mono text-xs uppercase tracking-widest text-neutral-500">
+            <span className="font-sans text-xs uppercase tracking-widest text-neutral-500">
               Your work
             </span>
           </div>
 
-          <button
+          <Button
+            variant="primary"
+            className="w-full"
             onClick={() => {
               navigate('/create');
               if (window.innerWidth < 768) onToggle();
             }}
-            className="sidebar-new-btn btn-shiny w-full font-sans"
+            icon={<Plus size={15} strokeWidth={2.5} />}
           >
-            <Plus size={15} strokeWidth={2.5} />
-            <span className="font-sans text-xs font-semibold">New Blueprint</span>
-          </button>
+            New Blueprint
+          </Button>
         </div>
 
         {/* Blueprint list */}
@@ -177,7 +179,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
               <div className="sidebar-empty__icon">
                 <Lightbulb size={20} />
               </div>
-              <p className="font-mono text-[11px] leading-relaxed tracking-tight" style={{ color: 'var(--text3)' }}>
+              <p className="font-sans text-[11px] leading-relaxed tracking-tight" style={{ color: 'var(--text3)' }}>
                 Your blueprints will appear here
               </p>
             </div>
@@ -277,12 +279,12 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         <div className="sidebar-panel__footer">
           {user ? (
             <>
-              <div className="sidebar-user-avatar font-mono">{user.name.charAt(0).toUpperCase()}</div>
+              <div className="sidebar-user-avatar font-sans">{user.name.charAt(0).toUpperCase()}</div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium truncate font-sans" style={{ color: 'var(--text)' }}>
                   {user.name}
                 </p>
-                <p className="font-mono text-[10px] truncate tracking-tight" style={{ color: 'var(--text3)' }}>
+                <p className="font-sans text-[10px] truncate tracking-tight" style={{ color: 'var(--text3)' }}>
                   {items.length} blueprint{items.length !== 1 ? 's' : ''}
                 </p>
               </div>

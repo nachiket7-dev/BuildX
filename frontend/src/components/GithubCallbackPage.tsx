@@ -103,7 +103,7 @@ export function GithubCallbackPage() {
   }, [searchParams, loginWithGithub, linkGithub, navigate, user]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden px-4 bg-[#08080a]">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden px-4 bg-[#0A0A0B]">
       <PageHead title="Authenticating with GitHub — BuildX" description="Processing your GitHub OAuth session" />
       <AmbientBackground />
 
@@ -123,7 +123,7 @@ export function GithubCallbackPage() {
             <div className="flex justify-center mb-5">
               <Logo size="lg" />
             </div>
-            <p className="text-center text-[10px] font-mono tracking-widest text-neutral-600 uppercase">
+            <p className="text-center text-[10px] font-sans tracking-widest text-neutral-600 uppercase">
               00 / AUTHENTICATION
             </p>
           </div>
@@ -146,7 +146,7 @@ export function GithubCallbackPage() {
                     <h2 className="font-display font-extrabold text-xl text-red-400 mb-1">
                       Authentication Failed
                     </h2>
-                    <p className="font-mono text-xs text-neutral-500 leading-relaxed">{errorMsg}</p>
+                    <p className="font-sans text-xs text-neutral-500 leading-relaxed">{errorMsg}</p>
                   </div>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
@@ -168,7 +168,7 @@ export function GithubCallbackPage() {
                       <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 inline-flex items-center justify-center">
                         <Logo size="sm" />
                       </div>
-                      <span className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest">BUILDX</span>
+                      <span className="text-[9px] font-sans text-neutral-600 uppercase tracking-widest">BUILDX</span>
                     </div>
 
                     {/* Animated connection line */}
@@ -190,20 +190,20 @@ export function GithubCallbackPage() {
                           <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
                         </svg>
                       </div>
-                      <span className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest">GITHUB</span>
+                      <span className="text-[9px] font-sans text-neutral-600 uppercase tracking-widest">GITHUB</span>
                     </div>
                   </div>
 
                   {/* Title */}
                   <div className="text-center">
                     <h2 className="font-display font-extrabold text-lg text-white">Connecting GitHub Session</h2>
-                    <p className="font-mono text-xs text-neutral-500 mt-1">
+                    <p className="font-sans text-xs text-neutral-500 mt-1">
                       Authenticating OAuth token &amp; provisioning workspace…
                     </p>
                   </div>
 
                   {/* Live Monospace Sync Terminal */}
-                  <div className="p-4 rounded-xl bg-black/30 border border-white/[0.06] font-mono text-[11px] space-y-2.5">
+                  <div className="p-4 rounded-xl bg-black/30 border border-white/[0.06] font-sans text-[11px] space-y-2.5">
                     {steps.map((step) => (
                       <motion.div
                         key={step.id}

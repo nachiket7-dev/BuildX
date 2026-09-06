@@ -142,18 +142,18 @@ export function StreamingView({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border font-mono text-xs mb-4 tracking-tight"
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border font-sans text-xs mb-4 tracking-tight"
           style={{
-            borderColor: 'rgba(99, 102, 241, 0.3)',
-            background: 'rgba(99, 102, 241, 0.1)',
-            color: '#a5b4fc',
+            borderColor: 'rgba(124, 124, 244, 0.3)',
+            background: 'rgba(124, 124, 244, 0.1)',
+            color: '#B8B8FA',
           }}
         >
           <span className="w-2 h-2 rounded-full animate-pulse bg-indigo-400" />
           Strict Dedicated Multi-Model Pipeline
         </div>
 
-        <h2 className="font-display font-extrabold text-2xl sm:text-3xl bg-gradient-to-r from-purple-400 via-indigo-200 to-emerald-400 bg-clip-text text-transparent mb-3">
+        <h2 className="font-display font-bold text-2xl sm:text-3xl text-white mb-3">
           {partialBlueprint.appName
             ? `Architecting ${partialBlueprint.appName}`
             : 'Compiling Workspace Specifications…'}
@@ -179,7 +179,7 @@ export function StreamingView({
                     : { scale: 1, opacity: 0.45 }
                 }
                 transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-mono ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-sans ${
                   isActive
                     ? `${badge.bg} ${badge.border} ${badge.color} ring-1 ring-white/10 shadow-lg ${badge.glow}`
                     : isDone
@@ -216,7 +216,7 @@ export function StreamingView({
             animate={{ opacity: 1, y: 0, height: 'auto' }}
             exit={{ opacity: 0, y: -10, height: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-            className="w-full max-w-4xl mb-6 p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 flex items-center justify-between text-amber-300 text-xs font-mono shadow-lg shadow-amber-500/5 overflow-hidden"
+            className="w-full max-w-4xl mb-6 p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 flex items-center justify-between text-amber-300 text-xs font-sans shadow-lg shadow-amber-500/5 overflow-hidden"
           >
             <div className="flex items-center gap-2.5">
               <Wrench className="w-4 h-4 text-amber-400 animate-spin" />
@@ -255,7 +255,7 @@ export function StreamingView({
         >
           <motion.div
             className="h-full rounded-full progress-bar-glow"
-            style={{ background: 'linear-gradient(90deg, #6366f1, #10b981)' }}
+            style={{ background: '#7C7CF4' }}
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ type: 'spring', stiffness: 60, damping: 18 }}
@@ -293,7 +293,7 @@ export function StreamingView({
                   isCompleted
                     ? 'rgba(34, 197, 94, 0.08)'
                     : isActive
-                      ? 'rgba(99, 102, 241, 0.12)'
+                      ? 'rgba(124, 124, 244, 0.12)'
                       : 'rgba(255, 255, 255, 0.03)'
                 }
                 className="p-4 rounded-xl text-center relative overflow-hidden transition-all duration-300"
@@ -301,12 +301,12 @@ export function StreamingView({
                   borderColor: isCompleted
                     ? 'rgba(34, 197, 94, 0.25)'
                     : isActive
-                      ? 'rgba(99, 102, 241, 0.4)'
+                      ? 'rgba(124, 124, 244, 0.4)'
                       : 'var(--border)',
                   background: isCompleted
                     ? 'var(--green-dim)'
                     : isActive
-                      ? 'rgba(99, 102, 241, 0.08)'
+                      ? 'rgba(124, 124, 244, 0.08)'
                       : 'var(--surface)',
                 }}
               >
@@ -362,7 +362,7 @@ export function StreamingView({
         >
           <div className="flex items-center gap-2">
             <Cpu className="w-4 h-4 text-indigo-400" />
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-indigo-300">
+            <span className="font-sans text-[11px] font-semibold uppercase tracking-wider text-indigo-300">
               Reasoning Process & Multi-Model Execution Stream
             </span>
           </div>
@@ -430,7 +430,7 @@ export function StreamingView({
 
                 <div className="flex items-center gap-2">
                   <span style={{ color: 'var(--text3)' }}>{new Date().toLocaleTimeString()}</span>
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-mono font-semibold text-emerald-400">PIPELINE</span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-sans font-semibold text-emerald-400">PIPELINE</span>
                   <span style={{ color: 'var(--text)' }}>Executing {activeStage || 'stages'}…</span>
                   <span className="terminal-cursor" aria-hidden />
                 </div>

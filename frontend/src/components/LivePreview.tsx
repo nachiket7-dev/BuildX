@@ -144,7 +144,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="flex items-center gap-2">
           {/* VFS Status Badge & Archetype indicator */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-medium">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-sans font-medium">
             {vfs.isEnhancingUi ? (
               <Loader2 size={12} className="animate-spin" />
             ) : (
@@ -164,7 +164,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
               id="enhance-ui-btn"
               onClick={handleEnhance}
               disabled={vfs.isEnhancingUi}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold border transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-sans font-semibold border transition-all ${
                 vfs.isEnhancingUi
                   ? 'bg-purple-500/10 border-purple-500/20 text-purple-400 cursor-not-allowed animate-pulse'
                   : 'bg-purple-500/10 border-purple-500/30 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50 hover:text-white shadow-sm shadow-purple-500/10'
@@ -188,10 +188,10 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
             type="button"
             id="preview-inspect-btn"
             onClick={() => setIsInspecting((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold border transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-sans font-semibold border transition-all ${
               isInspecting
                 ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 shadow-sm shadow-indigo-500/20 ring-1 ring-indigo-400/40 animate-pulse'
-                : 'bg-[#121216] text-zinc-400 border-white/10 hover:text-white hover:bg-white/5'
+                : 'bg-[#111113] text-zinc-400 border-white/10 hover:text-white hover:bg-white/5'
             }`}
             title="Click any element in preview to jump to its source code in Code Studio"
           >
@@ -200,7 +200,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
           </button>
 
           {/* Viewport Switcher */}
-          <div className="flex items-center gap-1 bg-[#121216] rounded-xl p-1 border border-white/10">
+          <div className="flex items-center gap-1 bg-[#111113] rounded-xl p-1 border border-white/10">
             {VIEWPORTS.map(({ id, label }) => (
               <button
                 type="button"
@@ -229,12 +229,12 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
 
       {/* Frame Container */}
       <div
-        className={`w-full flex-1 min-h-0 flex flex-col rounded-2xl border border-white/10 overflow-hidden bg-[#0e0e14] shadow-2xl relative transition-all duration-200 ${
+        className={`w-full flex-1 min-h-0 flex flex-col rounded-2xl border border-white/10 overflow-hidden bg-[#111113] shadow-2xl relative transition-all duration-200 ${
           isInspecting ? 'ring-2 ring-indigo-500/50 shadow-indigo-500/10' : ''
         }`}
       >
         {/* Browser Chrome Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 bg-[#121216] border-b border-white/10 select-none shrink-0">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-[#111113] border-b border-white/10 select-none shrink-0">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full bg-red-500/60" />
             <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
@@ -248,7 +248,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
           </div>
           <div className="flex items-center justify-end w-[110px]">
             {isInspecting && (
-              <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 animate-pulse flex items-center gap-1">
+              <span className="text-[10px] font-sans text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 animate-pulse flex items-center gap-1">
                 <Target size={10} />
                 Click element
               </span>
@@ -257,7 +257,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
         </div>
 
         {/* Canvas Display */}
-        <div className="w-full flex-1 min-h-0 bg-[#09090b] flex justify-center overflow-hidden relative">
+        <div className="w-full flex-1 min-h-0 bg-[#0A0A0B] flex justify-center overflow-hidden relative">
           <div
             className="relative h-full transition-all duration-300 ease-in-out flex flex-col min-h-0"
             style={{ width: activeViewport.width, maxWidth: '100%' }}
@@ -270,14 +270,14 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
                 isInspecting={isInspecting}
               />
             ) : blueprint && (blueprint.screens?.length || blueprint.schema?.length) ? (
-              <div className="w-full h-full overflow-auto bg-[#09090b]">
+              <div className="w-full h-full overflow-auto bg-[#0A0A0B]">
                 <SchemaUISynthesizer
                   blueprint={blueprint}
                   activeScreenId={primaryLandingScreenId || 'default'}
                 />
               </div>
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center p-6 text-zinc-400 font-mono text-xs bg-[#09090b]">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center p-6 text-zinc-400 font-sans text-xs bg-[#0A0A0B]">
                 <Loader2 size={24} className="text-indigo-400 animate-spin" />
                 <p className="animate-pulse">Initializing preview workspace...</p>
               </div>
@@ -291,7 +291,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
                 <div className="flex items-start gap-2.5 min-w-0">
                   <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={16} />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold text-red-200 font-mono tracking-tight flex items-center gap-1.5 truncate">
+                    <span className="text-xs font-bold text-red-200 font-sans tracking-tight flex items-center gap-1.5 truncate">
                       {runtimeError.title || 'Runtime Preview Error'}
                       {runtimeError.path && (
                         <span className="text-[10px] text-red-400/80 font-normal px-1.5 py-0.5 rounded bg-red-950/60 border border-red-500/20">
@@ -319,7 +319,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
                   type="button"
                   onClick={handleAutoFix}
                   disabled={isAutoFixing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold font-mono transition-all shadow-md shadow-red-500/20"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold font-sans transition-all shadow-md shadow-red-500/20"
                 >
                   <Zap size={13} className={isAutoFixing ? 'animate-spin' : ''} />
                   <span>{isAutoFixing ? 'Prompting Agent...' : 'Auto-Heal with Agent'}</span>

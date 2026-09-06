@@ -15,7 +15,7 @@ interface SynthesizerProps {
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   Active:    { bg: 'rgba(16,185,129,0.12)', text: '#34d399' },
-  Completed: { bg: 'rgba(99,102,241,0.12)', text: '#a5b4fc' },
+  Completed: { bg: 'rgba(124, 124, 244,0.12)', text: '#B8B8FA' },
   Pending:   { bg: 'rgba(245,158,11,0.12)', text: '#fcd34d' },
   Draft:     { bg: 'rgba(161,161,170,0.12)', text: '#a1a1aa' },
   Archived:  { bg: 'rgba(239,68,68,0.12)',  text: '#fca5a5' },
@@ -133,7 +133,7 @@ function parseComponents(components: string): string[] {
 
 /** Pick an accent color from app name */
 function pickAccent(appName: string): string {
-  const palettes = ['#7c3aed', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6', '#ef4444'];
+  const palettes = ['#7c3aed', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#7C7CF4', '#14b8a6', '#ef4444'];
   const h = hashSeed(appName || 'App');
   return palettes[h % palettes.length];
 }
@@ -666,9 +666,9 @@ export function SchemaUISynthesizer({ blueprint, activeScreenId }: SynthesizerPr
   }
 
   return (
-    <div className="min-h-full bg-[#09090b] text-zinc-100 flex flex-col">
+    <div className="min-h-full bg-[#0A0A0B] text-zinc-100 flex flex-col">
       {/* Top navigation bar with screen tabs */}
-      <header className="sticky top-0 z-20 bg-[#0e0e14]/95 backdrop-blur-xl border-b border-white/[0.08] px-4 py-2.5 shrink-0">
+      <header className="sticky top-0 z-20 bg-[#111113]/95 backdrop-blur-xl border-b border-white/[0.08] px-4 py-2.5 shrink-0">
         <div className="flex items-center justify-between gap-4">
           {/* Brand */}
           <div className="flex items-center gap-2.5 shrink-0">

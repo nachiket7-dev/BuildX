@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Logo } from './Logo';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from './ui/primitives';
 import {
   ChevronDown, ChevronRight, LogOut, PanelLeft,
   Cpu, Compass, Sparkles, Rocket,
@@ -29,7 +30,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
   const routeId = routeIdMatch ? routeIdMatch[1] : null;
 
   return (
-    <header className="h-16 w-full border-b border-white/10 px-6 flex items-center justify-between bg-[#08080c]/90 backdrop-blur-xl z-50 shrink-0 select-none relative">
+    <header className="h-16 w-full border-b border-white/10 px-6 flex items-center justify-between bg-[#0A0A0B]/90 backdrop-blur-xl z-50 shrink-0 select-none relative">
 
       {/* ── LEFT: Sidebar Toggle + BuildX Logo + AI ARCHITECT Badge + Breadcrumb ── */}
       <div className="flex items-center gap-4 min-w-0">
@@ -60,7 +61,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
         <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0 mx-1" />
 
         {/* Breadcrumb Path */}
-        <div className="hidden sm:flex items-center gap-2 font-mono text-xs text-zinc-400 min-w-0">
+        <div className="hidden sm:flex items-center gap-2 font-sans text-xs text-zinc-400 min-w-0">
           <span className="text-zinc-400 font-medium shrink-0">
             {isAgent ? '03 / CORTEX IDE' : isGallery ? '02 / ARCHITECTURES' : '01 / BUILDX STUDIO'}
           </span>
@@ -90,11 +91,11 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
             to={to}
             className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium font-sans transition-all duration-150 ${
               active
-                ? 'bg-white/10 text-white shadow-sm'
+                ? 'bg-[#7C7CF4]/[0.14] text-white'
                 : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'
             }`}
           >
-            <Icon size={13} className={active ? 'text-indigo-400' : 'text-zinc-500'} />
+            <Icon size={13} className={active ? 'text-[#8F8FF7]' : 'text-zinc-500'} />
             {label}
           </Link>
         ))}
@@ -104,16 +105,9 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
       <div className="flex items-center gap-3 shrink-0 font-sans">
 
         {/* Deploy CTA Button */}
-        <motion.button
-          type="button"
-          onClick={onDeploy}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
-          className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold font-sans px-4 py-2 rounded-lg text-xs shadow-lg shadow-indigo-500/20 border border-indigo-400/30 flex items-center gap-2 transition-all"
-        >
-          <Rocket size={13} />
-          <span>Deploy</span>
-        </motion.button>
+        <Button variant="primary" onClick={onDeploy} icon={<Rocket size={13} />}>
+          Deploy
+        </Button>
 
         {/* User Menu */}
         {user ? (
@@ -127,7 +121,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
               aria-haspopup="menu"
             >
               {/* Avatar circle */}
-              <div className="w-8 h-8 rounded-full bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-xs font-bold text-purple-200 shrink-0 font-mono">
+              <div className="w-8 h-8 rounded-full bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-xs font-bold text-purple-200 shrink-0 font-sans">
                 {user.name?.charAt(0)?.toUpperCase() ?? '?'}
               </div>
               <span className="hidden sm:block text-zinc-300 text-xs font-medium font-sans truncate max-w-[84px]">
@@ -144,7 +138,7 @@ export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDepl
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.96 }}
                   transition={{ duration: 0.13 }}
-                  className="absolute right-0 mt-2 w-52 rounded-xl bg-[#111116] border border-white/[0.08] shadow-2xl py-1 z-50 font-sans"
+                  className="absolute right-0 mt-2 w-52 rounded-xl bg-[#111113] border border-white/[0.08] shadow-2xl py-1 z-50 font-sans"
                 >
                   <div className="px-3.5 py-2.5 border-b border-white/[0.06]">
                     <p className="text-white text-xs font-semibold truncate font-sans">{user.name}</p>

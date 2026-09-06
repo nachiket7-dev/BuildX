@@ -40,7 +40,7 @@ export function NavOverlay({ isOpen, onClose }: NavOverlayProps) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed inset-0 z-50 bg-[#08080a]/95 backdrop-blur-3xl flex flex-col justify-between p-6 sm:p-12 overflow-hidden"
+          className="fixed inset-0 z-50 bg-[#0A0A0B]/95 backdrop-blur-3xl flex flex-col justify-between p-6 sm:p-12 overflow-hidden"
         >
           {/* ── Ambient Background Mesh Lighting ── */}
           <div className="absolute top-0 left-0 w-[600px] h-[350px] bg-emerald-500/10 blur-[140px] pointer-events-none rounded-full" />
@@ -58,7 +58,7 @@ export function NavOverlay({ isOpen, onClose }: NavOverlayProps) {
 
           {/* ── Header Bar ── */}
           <div className="flex items-center justify-between border-b border-white/10 pb-6 relative z-10">
-            <div className="flex items-center gap-2 text-xs font-mono text-neutral-400">
+            <div className="flex items-center gap-2 text-xs font-sans text-neutral-400">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>NAV_OVERLAY // BUILDX v2.4</span>
             </div>
@@ -100,7 +100,7 @@ export function NavOverlay({ isOpen, onClose }: NavOverlayProps) {
                       className="group w-full flex items-center justify-between text-left px-4 py-4 rounded-2xl border-b border-white/5 hover:border-indigo-500/40 hover:bg-white/[0.02] transition-all duration-300 transform hover:translate-x-2"
                     >
                       <div className="flex items-baseline gap-4 sm:gap-8">
-                        <span className="font-mono text-sm sm:text-lg text-indigo-400 font-bold tracking-wider">
+                        <span className="font-sans text-sm sm:text-lg text-indigo-400 font-bold tracking-wider">
                           {item.num}
                         </span>
                         <span className="font-display text-3xl sm:text-6xl font-extrabold text-white group-hover:text-indigo-400 transition-colors duration-300">
@@ -119,7 +119,7 @@ export function NavOverlay({ isOpen, onClose }: NavOverlayProps) {
           </div>
 
           {/* ── Footer Info ── */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/10 pt-6 font-mono text-xs text-neutral-500 relative z-10">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/10 pt-6 font-sans text-xs text-neutral-500 relative z-10">
             <div>BuildX Autonomous Multi-Model Platform</div>
             <div className="flex items-center gap-6">
               <a href="https://github.com/nachiket7-dev/BuildX" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>

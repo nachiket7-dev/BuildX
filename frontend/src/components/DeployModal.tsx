@@ -168,7 +168,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
           // Ensure index.html exists
           const hasIndexHtml = vfsEntries.some(([p]) => p === 'index.html' || p === 'frontend/index.html');
           if (!hasIndexHtml) {
-            zip.file('index.html', `<!DOCTYPE html>\n<html lang="en" class="dark">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <title>${appName || blueprint?.appName || 'App'}</title>\n  </head>\n  <body class="bg-[#09090b] text-zinc-100 min-h-screen">\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`);
+            zip.file('index.html', `<!DOCTYPE html>\n<html lang="en" class="dark">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <title>${appName || blueprint?.appName || 'App'}</title>\n  </head>\n  <body class="bg-[#0A0A0B] text-zinc-100 min-h-screen">\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`);
           }
 
           // Ensure README.md exists
@@ -245,7 +245,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-none"
           >
-            <div className="pointer-events-auto w-full max-w-lg bg-[#111116] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 backdrop-blur-xl overflow-hidden">
+            <div className="pointer-events-auto w-full max-w-lg bg-[#111113] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 backdrop-blur-xl overflow-hidden">
 
               {/* Ambient top glow */}
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[120px] bg-indigo-500/10 blur-[80px] pointer-events-none rounded-full" />
@@ -253,7 +253,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
               {/* Header Rail */}
               <div className="relative flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.07]">
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-mono text-xs text-zinc-500 uppercase tracking-widest">
+                  <span className="font-sans text-xs text-zinc-500 uppercase tracking-widest">
                     00 / DEPLOYMENT CENTER
                   </span>
                   <h2 className="text-base font-bold text-white tracking-tight font-sans">
@@ -294,7 +294,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                         </p>
                       </div>
                       {deploymentUrl && (
-                        <div className="w-full flex items-center gap-2 px-3 py-2 bg-white/[0.04] border border-white/10 rounded-xl font-mono text-xs text-zinc-300">
+                        <div className="w-full flex items-center gap-2 px-3 py-2 bg-white/[0.04] border border-white/10 rounded-xl font-sans text-xs text-zinc-300">
                           <span className="flex-1 truncate">{deploymentUrl}</span>
                           <button
                             onClick={handleCopy}
@@ -323,7 +323,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                   ) : (
                     <motion.div key="options" initial={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
                       {deployError && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-400 font-mono">
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2 text-xs text-red-400 font-sans">
                           <AlertCircle size={15} className="shrink-0 mt-0.5" />
                           <div className="flex-1">
                             <p>{deployError}</p>
@@ -331,7 +331,7 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                               <button
                                 type="button"
                                 onClick={handleGithubConnect}
-                                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-white font-medium text-xs font-sans transition-colors"
+                                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-300 font-medium text-xs font-sans transition-colors"
                               >
                                 <LogIn size={13} />
                                 <span>Connect GitHub Account</span>
@@ -392,10 +392,10 @@ export function DeployModal({ isOpen, onClose, blueprintId, appName, blueprint }
                     whileTap={{ scale: selected && !isDeploying ? 0.98 : 1 }}
                     onClick={handleDeploy}
                     disabled={!selected || isDeploying}
-                    className={`w-full flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold font-sans transition-all border ${
+                    className={`w-full flex items-center justify-center gap-2.5 px-5 py-3 rounded-lg text-sm font-semibold font-sans transition-all ${
                       selected && !isDeploying
-                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white border-indigo-400/30 shadow-lg shadow-indigo-500/20'
-                        : 'bg-white/[0.04] text-zinc-500 border-white/10 cursor-not-allowed'
+                        ? 'bg-[#7C7CF4] hover:bg-[#8F8FF7] text-[#0A0A0B] shadow-sm'
+                        : 'bg-white/[0.04] text-zinc-500 border border-white/10 cursor-not-allowed'
                     }`}
                   >
                     {isDeploying ? (

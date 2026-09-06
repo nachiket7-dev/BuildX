@@ -332,7 +332,7 @@ export function RefinementChat({
       variants={commandDockVariants}
       initial="hidden"
       animate="show"
-      className={`refine-chat pointer-events-auto bg-[#121216]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3.5 space-y-3 shadow-2xl relative overflow-hidden transition-all duration-200 ${
+      className={`refine-chat pointer-events-auto bg-[#111113]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3.5 space-y-3 shadow-2xl relative overflow-hidden transition-all duration-200 ${
         isExpanded ? 'border-indigo-500/30 ring-1 ring-indigo-500/20' : 'hover:border-white/20'
       }`}
     >
@@ -389,7 +389,7 @@ export function RefinementChat({
             <div className="w-7 h-7 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-105 transition-transform shrink-0">
               <Sparkles size={14} />
             </div>
-            <span className="font-mono text-xs font-semibold text-neutral-200 group-hover:text-white transition-colors truncate">
+            <span className="font-sans text-xs font-semibold text-neutral-200 group-hover:text-white transition-colors truncate">
               Cortex Agent Refinement
             </span>
           </div>
@@ -418,7 +418,7 @@ export function RefinementChat({
               e.stopPropagation();
               onClear();
             }}
-            className="ml-3 px-2 py-1 text-[10px] font-mono text-neutral-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors shrink-0"
+            className="ml-3 px-2 py-1 text-[10px] font-sans text-neutral-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors shrink-0"
             title="Clear chat"
           >
             Clear
@@ -439,7 +439,7 @@ export function RefinementChat({
               variants={timelineContainer}
               initial="hidden"
               animate="show"
-              className="timeline-feed border-l border-white/10 ml-4 pl-4 space-y-6 font-mono text-xs"
+              className="timeline-feed border-l border-white/10 ml-4 pl-4 space-y-6 font-sans text-xs"
             >
               {conversationTurns.map((turn, turnIndex) => (
                 <div key={turn.user.timestamp || turnIndex} className="space-y-4">
@@ -516,7 +516,7 @@ export function RefinementChat({
                           </span>
                         </div>
                       </div>
-                      <div className="p-3.5 rounded-xl bg-[#111116] border border-white/10 text-neutral-300 leading-relaxed font-sans text-xs">
+                      <div className="p-3.5 rounded-xl bg-[#111113] border border-white/10 text-neutral-300 leading-relaxed font-sans text-xs">
                         {turn.assistant.content}
                       </div>
                     </motion.div>
@@ -561,7 +561,7 @@ export function RefinementChat({
             </motion.div>
           ) : (
             <div className="refine-chat__suggestions p-2.5 space-y-1.5">
-              <span className="font-mono text-[9px] uppercase tracking-widest text-zinc-500 font-semibold block select-none">
+              <span className="font-sans text-[9px] uppercase tracking-widest text-zinc-500 font-semibold block select-none">
                 TRY SAYING
               </span>
               <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 whitespace-nowrap">
@@ -571,7 +571,7 @@ export function RefinementChat({
                     type="button"
                     onClick={() => handleSuggestion(s)}
                     disabled={isRefining}
-                    className="bg-white/5 hover:bg-indigo-500/10 border border-white/10 hover:border-indigo-500/30 text-zinc-300 hover:text-indigo-300 font-mono text-xs px-2.5 py-1 rounded-md transition-all shrink-0 cursor-pointer text-left border-0 outline-none tracking-tight"
+                    className="bg-white/5 hover:bg-indigo-500/10 border border-white/10 hover:border-indigo-500/30 text-zinc-300 hover:text-indigo-300 font-sans text-xs px-2.5 py-1 rounded-md transition-all shrink-0 cursor-pointer text-left border-0 outline-none tracking-tight"
                   >
                     {s}
                   </button>
@@ -584,9 +584,9 @@ export function RefinementChat({
 
       {/* Docked Glass Input Bar */}
       {isExpanded && (
-        <form onSubmit={handleSubmit} className="bg-[#08080c]/90 border-t border-white/10 pt-2.5 sticky bottom-0 z-10 backdrop-blur-xl">
+        <form onSubmit={handleSubmit} className="bg-[#0A0A0B]/90 border-t border-white/10 pt-2.5 sticky bottom-0 z-10 backdrop-blur-xl">
           <div className="h-10 flex items-center gap-2">
-            <div className="text-xs font-mono px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full tracking-tight">
+            <div className="text-xs font-sans px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full tracking-tight font-sans">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="hidden sm:inline">Engine:</span> Kimi K2.6
             </div>
@@ -601,7 +601,7 @@ export function RefinementChat({
                 isRefining ? 'Refining blueprint…' : 'e.g. "Add Stripe payment webhooks with idempotency"'
               }
               maxLength={500}
-              className="bg-black/60 border border-white/10 focus:border-indigo-500/50 text-white font-mono text-xs px-3 py-2 rounded-lg flex-1 h-full focus:outline-none placeholder:text-zinc-600 outline-none transition-all"
+              className="bg-black/60 border border-white/10 focus:border-indigo-500/50 text-white font-sans text-xs px-3 py-2 rounded-lg flex-1 h-full focus:outline-none placeholder:text-zinc-600 outline-none transition-all"
             />
 
             <motion.button

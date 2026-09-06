@@ -67,8 +67,8 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <SpotlightCard
-      className={`p-5 mb-4 bg-[#111116] border border-white/[0.08] rounded-xl ${className}`}
-      spotlightColor="rgba(82, 39, 255, 0.10)"
+      className={`p-5 mb-4 bg-[#111113] border border-white/[0.08] rounded-xl ${className}`}
+      spotlightColor="rgba(124, 124, 244, 0.10)"
     >
       {children}
     </SpotlightCard>
@@ -160,7 +160,7 @@ export function FeaturesPanel({ blueprint }: { blueprint: Blueprint }) {
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${cat.iconBg} ${cat.iconColor}`}>
                   <Icon size={14} />
                 </div>
-                <span className={`font-mono text-xs font-semibold ${cat.labelColor}`}>
+                <span className={`font-sans text-xs font-semibold ${cat.labelColor}`}>
                   {cat.label}
                 </span>
               </div>
@@ -168,7 +168,7 @@ export function FeaturesPanel({ blueprint }: { blueprint: Blueprint }) {
                 {items.map((item, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-2 py-1.5 px-2 font-mono text-xs hover:bg-white/[0.03] transition-colors rounded select-none group border-b border-white/[0.05] last:border-b-0 text-neutral-400 hover:text-neutral-200"
+                    className="flex items-start gap-2 py-1.5 px-2 font-sans text-xs hover:bg-white/[0.03] transition-colors rounded select-none group border-b border-white/[0.05] last:border-b-0 text-neutral-400 hover:text-neutral-200"
                   >
                     <span className={`font-bold select-none mr-1 opacity-60 group-hover:opacity-100 ${cat.iconColor}`}>+</span>
                     <span>{item}</span>
@@ -332,7 +332,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
             <button
               key={tabItem.id}
               onClick={() => setActiveTab(tabItem.id)}
-              className="px-3 py-1.5 rounded-lg font-mono text-[10px] font-medium transition-all duration-150 tracking-tight"
+              className="px-3 py-1.5 rounded-lg font-sans text-[10px] font-medium transition-all duration-150 tracking-tight"
               style={{
                 background: activeTab === tabItem.id ? 'var(--accent-glow)' : 'transparent',
                 color: activeTab === tabItem.id ? 'var(--accent2)' : 'var(--text3)',
@@ -374,7 +374,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
                     {table.table}
                   </span>
                   {isMongo && (
-                    <span className="font-mono text-[9px] px-1.5 py-0.5 rounded ml-auto tracking-tight"
+                    <span className="font-sans text-[9px] px-1.5 py-0.5 rounded ml-auto tracking-tight"
                       style={{ background: 'var(--accent-glow)', color: 'var(--accent2)', border: '1px solid rgba(20,184,166,0.2)' }}>
                       collection
                     </span>
@@ -384,7 +384,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
                 {/* Columns */}
                 <div style={{ background: 'var(--surface)' }}>
                   {cols.length === 0 ? (
-                    <div className="px-5 py-4 text-xs font-mono tracking-tight" style={{ color: 'var(--text3)' }}>
+                    <div className="px-5 py-4 text-xs font-sans tracking-tight" style={{ color: 'var(--text3)' }}>
                       No fields defined
                     </div>
                   ) : (
@@ -434,7 +434,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCopy}
-                className="px-2.5 py-1 rounded-md text-[10px] font-mono border transition-colors animate-fade-in tracking-tight"
+                className="px-2.5 py-1 rounded-md text-[10px] font-sans border transition-colors animate-fade-in tracking-tight"
                 style={{ borderColor: 'var(--border2)', background: 'var(--surface)', color: 'var(--text2)' }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent2)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border2)'; }}
@@ -443,7 +443,7 @@ export function SchemaPanel({ blueprint }: { blueprint: Blueprint }) {
               </button>
               <button
                 onClick={handleDownload}
-                className="px-2.5 py-1 rounded-md text-[10px] font-mono border transition-colors tracking-tight"
+                className="px-2.5 py-1 rounded-md text-[10px] font-sans border transition-colors tracking-tight"
                 style={{ borderColor: 'var(--border2)', background: 'var(--surface)', color: 'var(--text2)' }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent2)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border2)'; }}
@@ -607,7 +607,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
                 <Terminal size={13} className="text-purple-400" />
                 Sandbox REST Client
               </span>
-              <span className="text-[9px] font-mono text-green-400 bg-green-500/10 border border-green-500/25 px-1.5 py-0.5 rounded tracking-tight">
+              <span className="text-[9px] font-sans text-green-400 bg-green-500/10 border border-green-500/25 px-1.5 py-0.5 rounded tracking-tight">
                 SIMULATOR ONLINE
               </span>
             </div>
@@ -624,7 +624,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
             </div>
 
             {/* Parameter Selection Tabs */}
-            <div className="flex border-b border-white/10 mb-3 text-[10px] font-mono">
+            <div className="flex border-b border-white/10 mb-3 text-[10px] font-sans">
               <button
                 type="button"
                 onClick={() => setConsoleTab('headers')}
@@ -698,7 +698,7 @@ export function ApiPanel({ blueprint }: { blueprint: Blueprint }) {
               {(sandboxResponse || sandboxLoading) && (
                 <div className="space-y-1.5">
                   <div
-                    className="flex items-center justify-between text-[10px] uppercase tracking-wider font-mono"
+                    className="flex items-center justify-between text-[10px] uppercase tracking-wider font-sans"
                     style={{ color: 'var(--text2)' }}
                   >
                     <span>Response Payload</span>
@@ -763,7 +763,7 @@ export function UiPanel({ blueprint }: { blueprint: Blueprint }) {
               >
                 {screen.name} Page
               </div>
-              <div className="text-xs leading-relaxed font-mono opacity-70" style={{ color: 'var(--text2)' }}>
+              <div className="text-xs leading-relaxed font-sans opacity-70" style={{ color: 'var(--text2)' }}>
                 {screen.components.split(',').map((c) => `+ ${c.trim()}`).join('\n')}
               </div>
             </Card>
@@ -803,7 +803,7 @@ export function ArchPanel({ blueprint }: { blueprint: Blueprint }) {
             className="p-4"
             spotlightColor="rgba(15, 118, 110, 0.12)"
           >
-            <div className="font-mono text-[10px] uppercase tracking-widest mb-2" style={{ color: 'var(--text2)' }}>
+            <div className="font-sans text-[10px] uppercase tracking-widest mb-2" style={{ color: 'var(--text2)' }}>
               {label}
             </div>
             <div className="text-sm font-medium leading-snug font-sans" style={{ color: 'var(--text)' }}>
@@ -948,7 +948,7 @@ export function EffortPanel({ blueprint }: { blueprint: Blueprint }) {
             spotlightColor="rgba(20, 184, 166, 0.12)"
           >
             <div
-              className="font-mono text-[10px] uppercase tracking-widest mb-2.5 flex items-center gap-1.5 text-muted-foreground"
+              className="font-sans text-[10px] uppercase tracking-widest mb-2.5 flex items-center gap-1.5 text-muted-foreground"
             >
               <Icon size={14} className={color} />
               <span>{label}</span>
@@ -1007,7 +1007,7 @@ export function EffortPanel({ blueprint }: { blueprint: Blueprint }) {
                     {m.tasks.map((task, idx) => (
                       <span
                         key={idx}
-                        className="font-mono text-[10px] px-2 py-0.5 rounded bg-bg-surface2 border border-white/5 text-muted-foreground hover:text-white transition-colors tracking-tight"
+                        className="font-sans text-[10px] px-2 py-0.5 rounded bg-bg-surface2 border border-white/5 text-muted-foreground hover:text-white transition-colors tracking-tight"
                       >
                         - {task}
                       </span>

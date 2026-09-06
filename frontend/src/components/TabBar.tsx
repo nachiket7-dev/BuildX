@@ -10,7 +10,7 @@ interface TabBarProps {
 export function TabBar({ activeTab, onChange }: TabBarProps) {
   return (
     <div
-      className="inline-flex items-center gap-1 p-1.5 rounded-2xl bg-[#121216]/80 backdrop-blur-xl border border-white/10 max-w-full overflow-x-auto custom-scrollbar"
+      className="inline-flex items-center gap-1 p-1.5 rounded-2xl bg-[#111113]/80 backdrop-blur-xl border border-white/10 max-w-full overflow-x-auto custom-scrollbar"
       role="tablist"
       aria-label="Blueprint sections"
     >
@@ -23,7 +23,7 @@ export function TabBar({ activeTab, onChange }: TabBarProps) {
             role="tab"
             aria-selected={isActive}
             onClick={() => onChange(id as TabId)}
-            className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-medium transition-all whitespace-nowrap shrink-0 ${
+            className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-sans font-medium transition-all whitespace-nowrap shrink-0 ${
               isActive
                 ? 'text-white bg-indigo-600/30 border border-indigo-500/40 shadow-sm shadow-indigo-500/20'
                 : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'

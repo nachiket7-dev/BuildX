@@ -467,7 +467,7 @@ export function CommandPalette({
                     <div key={group.category} className="mb-1">
                       {/* Category Header */}
                       <div className="px-4 py-1.5 flex items-center gap-2">
-                        <span className="text-[10px] font-mono font-semibold text-gray-500 uppercase tracking-widest">
+                        <span className="text-[10px] font-sans font-semibold text-gray-500 uppercase tracking-widest">
                           {group.label}
                         </span>
                         <div className="flex-1 h-px bg-white/[0.04]" />

@@ -5,7 +5,7 @@ import { tags } from '@lezer/highlight';
 export const buildxEditorTheme = EditorView.theme(
   {
     '&': {
-      backgroundColor: '#13141F',
+      backgroundColor: '#0F0F12',
       color: '#E2E8F0',
       fontSize: '13px',
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Geist Mono', monospace",
@@ -13,10 +13,10 @@ export const buildxEditorTheme = EditorView.theme(
     },
     '.cm-content': {
       padding: '12px 0',
-      caretColor: '#A855F7',
+      caretColor: '#8F8FF7',
     },
     '.cm-cursor': {
-      borderLeftColor: '#A855F7',
+      borderLeftColor: '#8F8FF7',
       borderLeftWidth: '2px',
     },
     '.cm-activeLine': {
@@ -30,7 +30,7 @@ export const buildxEditorTheme = EditorView.theme(
       backgroundColor: 'rgba(139, 92, 246, 0.25) !important',
     },
     '.cm-gutters': {
-      backgroundColor: '#13141F',
+      backgroundColor: '#0F0F12',
       color: '#475569',
       borderRight: '1px solid rgba(255, 255, 255, 0.06)',
       paddingRight: '4px',
@@ -94,7 +94,7 @@ export const buildxHighlightStyle = HighlightStyle.define([
   { tag: [tags.string, tags.special(tags.string)], color: '#34D399' },
   {
     tag: [tags.function(tags.propertyName), tags.function(tags.variableName)],
-    color: '#A78BFA',
+    color: '#8F8FF7',
   },
   { tag: [tags.propertyName, tags.variableName], color: '#E2E8F0' },
   { tag: tags.number, color: '#F59E0B' },

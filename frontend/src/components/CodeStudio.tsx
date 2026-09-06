@@ -38,6 +38,7 @@ import { useToast } from '../hooks/useToast';
 import { getAuthHeaders } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { useVFS } from '../context/VFSContext';
+import { SegmentedControl, Button } from './ui/primitives';
 
 // ─── Cursor-Style Inline Diff Theme for CodeMirror 6 ──────────────────────────
 
@@ -781,7 +782,7 @@ export function CodeStudio({
 
   if (codegenProgress.status === 'loading' && !hasGeneratedCode && !isGenerating) {
     return (
-      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-[#09090b] text-center py-20 min-h-[480px]">
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-[#0A0A0B] text-center py-20 min-h-[480px]">
         <div className="w-12 h-12 rounded-full border-2 border-purple-500/30 border-t-purple-400 animate-spin mb-4" />
         <p className="text-zinc-400 text-sm">Loading workspace files…</p>
       </div>
@@ -790,7 +791,7 @@ export function CodeStudio({
 
   if (codegenProgress.status === 'error' && !hasGeneratedCode && !isGenerating) {
     return (
-      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-red-500/20 bg-[#09090b] text-center py-20 min-h-[480px]">
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-red-500/20 bg-[#0A0A0B] text-center py-20 min-h-[480px]">
         <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20 mb-6 shrink-0">
           <X size={32} />
         </div>
@@ -812,7 +813,7 @@ export function CodeStudio({
 
   if (!hasGeneratedCode && !isGenerating && files.length === 0) {
     return (
-      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-[#09090b] text-center py-20 min-h-[480px]">
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-[#0A0A0B] text-center py-20 min-h-[480px]">
         <div className="w-16 h-16 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20 mb-6 shrink-0 shadow-lg shadow-purple-500/5">
           <Sparkles size={32} className="animate-pulse text-purple-400" />
         </div>
@@ -828,7 +829,7 @@ export function CodeStudio({
             <div className="flex flex-col items-center gap-4">
               <button
                 onClick={() => generateCode(blueprintId)}
-                className="px-8 py-3.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-purple-500/20"
+                className="px-8 py-3.5 bg-[#7C7CF4] hover:bg-[#8F8FF7] text-[#0A0A0B] shadow-sm rounded-lg font-semibold text-sm flex items-center gap-2 transition-colors"
               >
                 <Play size={16} fill="currentColor" />
                 Start Code Generation
@@ -855,20 +856,20 @@ export function CodeStudio({
         ? Math.round((codegenProgress.currentFileIndex / codegenProgress.totalFiles) * 100)
         : 0;
     return (
-      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-[#09090b] text-center py-20 min-h-[480px]">
+      <div className="w-full flex flex-col items-center justify-center p-8 rounded-2xl border border-white/10 bg-[#0A0A0B] text-center py-20 min-h-[480px]">
         <div className="w-16 h-16 rounded-full border-4 border-purple-500 border-t-transparent animate-spin mb-8 flex items-center justify-center shrink-0" />
         <h3 className="font-bold text-lg text-white mb-2">Generating Application Files...</h3>
-        <p className="text-xs text-purple-400 font-mono mb-6">
+        <p className="text-xs text-purple-400 font-sans mb-6">
           {codegenProgress.currentFilePath || 'Connecting to Multi-Model Pipeline...'}
         </p>
 
         <div className="w-full max-w-xs bg-white/5 rounded-full h-1.5 overflow-hidden mb-3">
           <div
-            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-300"
+            className="h-full bg-[#7C7CF4] transition-all duration-300"
             style={{ width: `${percent}%` }}
           />
         </div>
-        <div className="text-[10px] text-zinc-500 font-mono">
+        <div className="text-[10px] text-zinc-500 font-sans">
           File {codegenProgress.currentFileIndex} of {codegenProgress.totalFiles} ({percent}%)
         </div>
       </div>
@@ -879,10 +880,10 @@ export function CodeStudio({
   const languageExts = activeFile ? getLanguageExtension(activeFile.name) : [javascript({ jsx: true, typescript: true })];
 
   return (
-    <div className="relative flex flex-col md:flex-row rounded-xl border border-white/10 bg-[#0e0e14] overflow-hidden h-full w-full select-none">
+    <div className="relative flex flex-col md:flex-row rounded-xl border border-white/10 bg-[#111113] overflow-hidden h-full w-full select-none">
       {codegenProgress.status === 'error' && codegenProgress.retryable && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-3 py-2 rounded-lg border border-red-500/30 bg-[#160d12]/95 backdrop-blur-xl shadow-xl text-xs max-w-[min(90%,42rem)]">
-          <span className="text-red-300 font-mono truncate">
+          <span className="text-red-300 font-sans truncate">
             {codegenProgress.partialOutput
               ? 'Generation stopped after partial output.'
               : 'Generation failed before the workspace commit.'}
@@ -890,7 +891,7 @@ export function CodeStudio({
           <button
             type="button"
             onClick={() => generateCode(blueprintId)}
-            className="shrink-0 px-2.5 py-1 rounded-md bg-red-500/15 hover:bg-red-500/25 text-red-200 border border-red-500/30 font-mono"
+            className="shrink-0 px-2.5 py-1 rounded-md bg-red-500/15 hover:bg-red-500/25 text-red-200 border border-red-500/30 font-sans"
           >
             Retry stage
           </button>
@@ -899,13 +900,13 @@ export function CodeStudio({
       {/* File Tree Explorer (Left) */}
       <div className="w-full md:w-64 bg-[#09090c] border-b md:border-b-0 md:border-r border-white/10 flex flex-col h-48 md:h-full shrink-0">
         <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2 shrink-0">
-          <span className="font-mono text-xs text-zinc-400 font-bold tracking-wider uppercase truncate">
+          <span className="font-sans text-xs text-zinc-400 font-bold tracking-wider uppercase truncate">
             Workspace
           </span>
           <button
             onClick={handleDownloadAll}
             disabled={downloading}
-            className="text-xs text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded hover:bg-purple-500/20 hover:text-purple-300 font-mono flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50 whitespace-nowrap tracking-tight"
+            className="text-xs text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded hover:bg-purple-500/20 hover:text-purple-300 font-sans flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50 whitespace-nowrap tracking-tight"
           >
             {downloading ? (
               <div className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
@@ -923,58 +924,32 @@ export function CodeStudio({
       </div>
 
       {/* Editor & View Area (Center) */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#08080c] min-h-0 md:h-full relative select-text">
+      <div className="flex-1 flex flex-col min-w-0 bg-[#0A0A0B] min-h-0 md:h-full relative select-text">
         {/* Editor Tabs & Controls */}
-        <div className="h-11 bg-[#0d0d12] border-b border-white/10 px-3 flex items-center justify-between select-none shrink-0">
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06] relative" role="tablist">
-            {[
-              { id: 'code', label: '01 CODE', icon: <FileCode size={12} /> },
-              { id: 'diffs', label: '02 DIFFS', icon: <GitCompare size={12} /> },
-            ].map((tabItem) => {
-              const isActive =
-                (tabItem.id === 'diffs' && (isDiffMode || pendingDiff !== null)) ||
-                (tabItem.id === 'code' && !isDiffMode && pendingDiff === null);
-              return (
-                <button
-                  key={tabItem.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  onClick={() => {
-                    if (tabItem.id === 'diffs') {
-                      setIsDiffMode(true);
-                      if (!pendingDiff && activeFile) {
-                        setPendingDiff({
-                          original: activeFile.content,
-                          modified: activeFile.content,
-                          filePath: activeFile.path,
-                        });
-                      }
-                    }
-                    if (tabItem.id === 'code') {
-                      setIsDiffMode(false);
-                      setPendingDiff(null);
-                    }
-                  }}
-                  className={`relative flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-medium transition-colors z-10 tracking-tight ${
-                    isActive ? 'text-white' : 'text-neutral-500 hover:text-white'
-                  }`}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="codeStudioTab"
-                      className="absolute inset-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30"
-                      transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center gap-1.5">
-                    {tabItem.icon}
-                    {tabItem.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="h-11 bg-[#111113] border-b border-white/10 px-3 flex items-center justify-between select-none shrink-0">
+          <SegmentedControl
+            ariaLabel="Code studio view"
+            value={isDiffMode || pendingDiff !== null ? 'diffs' : 'code'}
+            onChange={(v) => {
+              if (v === 'diffs') {
+                setIsDiffMode(true);
+                if (!pendingDiff && activeFile) {
+                  setPendingDiff({
+                    original: activeFile.content,
+                    modified: activeFile.content,
+                    filePath: activeFile.path,
+                  });
+                }
+              } else {
+                setIsDiffMode(false);
+                setPendingDiff(null);
+              }
+            }}
+            options={[
+              { value: 'code', label: 'Code', icon: <FileCode size={12} /> },
+              { value: 'diffs', label: 'Diffs', icon: <GitCompare size={12} /> },
+            ]}
+          />
 
           {/* Active file metadata badge & actions */}
           <div className="flex items-center gap-2 pr-2 ml-auto">
@@ -990,7 +965,7 @@ export function CodeStudio({
             <button
               type="button"
               onClick={handleTestDiff}
-              className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg hover:bg-amber-500/20 hover:text-amber-300 font-mono flex items-center gap-1.5 transition-colors shrink-0"
+              className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg hover:bg-amber-500/20 hover:text-amber-300 font-sans flex items-center gap-1.5 transition-colors shrink-0"
               title="Test diff visuals with a sample addition"
             >
               <FlaskConical size={12} />
@@ -1009,7 +984,7 @@ export function CodeStudio({
         </div>
 
         {/* Editor View / CodeMirror 6 Engine / AI Diff Review Overlay */}
-        <div className="flex-1 overflow-hidden relative min-h-0 bg-[#08080c] flex flex-col">
+        <div className="flex-1 overflow-hidden relative min-h-0 bg-[#0A0A0B] flex flex-col">
           {/* Patch apply flash effect */}
           <AnimatePresence>
             {patchFlash && (
@@ -1031,42 +1006,28 @@ export function CodeStudio({
           {isShowingDiff && activeFile && currentStagedDiff ? (
             <div className="h-full flex flex-col min-h-0 relative">
               {/* Floating Action Header Bar */}
-              <div className="z-20 flex items-center justify-between px-4 py-2.5 bg-indigo-950/70 backdrop-blur-xl border-b border-indigo-500/30 text-indigo-300 text-xs shrink-0 shadow-xl">
+              <div className="z-20 flex items-center justify-between px-4 py-2.5 bg-[#18181B] border-b border-white/10 text-zinc-300 text-xs shrink-0 shadow-sm">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <GitCompare size={14} className="text-indigo-400 shrink-0" />
-                  <span className="font-mono text-xs">
-                    Cursor-Style Inline Diff — <strong className="text-white">{activeFile.name}</strong>
+                  <GitCompare size={14} className="text-[#8F8FF7] shrink-0" />
+                  <span className="font-sans text-xs">
+                    Cursor-Style Inline Diff — <strong className="text-white font-mono">{activeFile.name}</strong>
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleAcceptDiff}
-                    className="px-3.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-emerald-500/20"
-                    title="Accept Changes (⌘+Enter)"
-                  >
-                    <CheckCircle2 size={13} />
-                    <span>Accept Changes</span>
-                    <kbd className="text-[10px] opacity-60 font-sans ml-1">⌘Enter</kbd>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRejectDiff}
-                    className="px-3.5 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-red-500/20"
-                    title="Reject (Esc)"
-                  >
-                    <XCircle size={13} />
-                    <span>Reject</span>
-                    <kbd className="text-[10px] opacity-60 font-sans ml-1">Esc</kbd>
-                  </button>
+                  <Button variant="success" size="sm" onClick={handleAcceptDiff} icon={<CheckCircle2 size={13} />} title="Accept Changes (⌘+Enter)">
+                    Accept Changes <kbd className="text-[10px] opacity-60 font-mono ml-1">⌘Enter</kbd>
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={handleRejectDiff} icon={<XCircle size={13} />} title="Reject (Esc)">
+                    Reject <kbd className="text-[10px] opacity-60 font-mono ml-1">Esc</kbd>
+                  </Button>
                 </div>
               </div>
 
               {/* CodeMirror 6 Unified Merge View Engine - Raw DOM Mount */}
               <div
                 key={`diff-${activeFilePath}-${diffKey}`}
-                className="flex-1 overflow-auto relative min-h-0 bg-[#08080c] [&>.cm-editor]:h-full [&>.cm-editor]:text-xs [&>.cm-editor]:font-mono"
+                className="flex-1 overflow-auto relative min-h-0 bg-[#0A0A0B] [&>.cm-editor]:h-full [&>.cm-editor]:text-xs [&>.cm-editor]:font-mono"
                 ref={diffContainerRef}
               />
             </div>
@@ -1104,7 +1065,7 @@ export function CodeStudio({
               />
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center text-zinc-500 text-sm font-mono">
+            <div className="h-full flex items-center justify-center text-zinc-500 text-sm font-sans">
               No files open. Select a file from the explorer.
             </div>
           )}
@@ -1114,7 +1075,7 @@ export function CodeStudio({
         {onRefineMessage && (
           <form
             onSubmit={handleSubmitRefine}
-            className="p-3 bg-[#0d0d12] border-t border-white/10 flex items-center gap-2 shrink-0 select-none"
+            className="p-3 bg-[#111113] border-t border-white/10 flex items-center gap-2 shrink-0 select-none"
           >
             <div className="w-6 h-6 rounded-md flex items-center justify-center bg-purple-500/10 text-purple-400 shrink-0 border border-purple-500/20">
               <Sparkles size={13} className="text-purple-400 animate-pulse" />
@@ -1125,12 +1086,12 @@ export function CodeStudio({
               onChange={(e) => setRefineInput(e.target.value)}
               placeholder={`Ask Cortex Agent to edit this file (e.g. "Change button color to emerald green inside App.tsx")...`}
               disabled={isAiModifying || propIsRefining}
-              className="flex-1 bg-transparent border-none outline-none text-xs text-white placeholder-zinc-500 font-mono"
+              className="flex-1 bg-transparent border-none outline-none text-xs text-white placeholder-zinc-500 font-sans"
             />
             <button
               type="submit"
               disabled={!refineInput.trim() || isAiModifying || propIsRefining}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 disabled:opacity-30 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-purple-500/10 shrink-0"
+              className="px-3.5 py-1.5 bg-[#7C7CF4] hover:bg-[#8F8FF7] text-[#0A0A0B] shadow-sm disabled:opacity-30 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-colors shrink-0"
             >
               {isAiModifying || propIsRefining ? (
                 <>

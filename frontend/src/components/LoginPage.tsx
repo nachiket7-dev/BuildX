@@ -83,7 +83,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#08080c] text-white relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 selection:bg-purple-500 selection:text-white">
+    <div className="min-h-screen bg-[#0A0A0B] text-white relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 selection:bg-purple-500 selection:text-white">
       <PageHead
         title={tab === 'login' ? 'Sign in — BuildX' : 'Create account — BuildX'}
         description="Sign in to BuildX to generate and manage AI product blueprints."
@@ -96,12 +96,12 @@ export function LoginPage() {
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-purple-600/15 blur-[150px] pointer-events-none rounded-full" />
 
       {/* ── Left Column (5 Cols): Brand & Showcase ─────────────────────── */}
-      <aside className="hidden lg:flex lg:col-span-5 flex-col justify-between p-12 bg-[#08080c]/60 backdrop-blur-md relative z-10 border-r border-white/10">
+      <aside className="hidden lg:flex lg:col-span-5 flex-col justify-between p-12 bg-[#0A0A0B]/60 backdrop-blur-md relative z-10 border-r border-white/10">
         <div className="flex items-center justify-between">
           <Link to="/" className="inline-block focus-visible:outline-none">
             <Logo size="lg" />
           </Link>
-          <span className="inline-flex items-center gap-2 font-mono text-xs text-emerald-400/90 border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full">
+          <span className="inline-flex items-center gap-2 font-sans text-xs text-emerald-400/90 border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             00 / AUTHENTICATION
           </span>
@@ -109,7 +109,7 @@ export function LoginPage() {
 
         <div className="my-auto py-8">
           <h1 className="font-display font-extrabold text-3xl xl:text-4xl text-white leading-tight tracking-tight mb-3">
-            Turn ideas into <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-purple-300 to-emerald-300 font-normal italic">full-stack</span> blueprints
+            Turn ideas into <span className="text-[#8F8FF7] font-medium italic">full-stack</span> blueprints
           </h1>
           <p className="text-sm text-zinc-400 leading-relaxed max-w-md mb-8 font-sans">
             Join BuildX to generate schemas, APIs, UI specs, diagrams, and downloadable code — all from a single prompt.
@@ -126,7 +126,7 @@ export function LoginPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-[10px] text-zinc-500">{num} /</span>
-                      <span className="font-mono text-xs font-semibold text-zinc-200">{perk.title}</span>
+                      <span className="font-sans text-xs font-semibold text-zinc-200">{perk.title}</span>
                     </div>
                     <p className="text-xs text-zinc-400 leading-relaxed font-sans">{perk.description}</p>
                   </div>
@@ -137,7 +137,7 @@ export function LoginPage() {
         </div>
 
         <div className="pt-4 border-t border-white/5">
-          <span className="inline-flex items-center gap-2 font-mono text-xs text-emerald-400/90 border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full">
+          <span className="inline-flex items-center gap-2 font-sans text-xs text-emerald-400/90 border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             00 / SECURE JWT AUTH · GROQ &amp; GEMINI
           </span>
@@ -145,7 +145,7 @@ export function LoginPage() {
       </aside>
 
       {/* ── Right Column (7 Cols): Auth Form Card Area ──────────────────── */}
-      <main className="col-span-12 lg:col-span-7 bg-[#121216]/80 backdrop-blur-xl border-l border-white/10 flex flex-col justify-between p-8 sm:p-12 md:p-16 relative z-10 min-h-screen lg:min-h-0">
+      <main className="col-span-12 lg:col-span-7 bg-[#111113]/80 backdrop-blur-xl border-l border-white/10 flex flex-col justify-between p-8 sm:p-12 md:p-16 relative z-10 min-h-screen lg:min-h-0">
         {/* Top Header Row */}
         <div className="flex items-center justify-between mb-8">
           <div className="lg:hidden">
@@ -153,13 +153,13 @@ export function LoginPage() {
               <Logo size="md" />
             </Link>
           </div>
-          <span className="inline-flex items-center gap-2 font-mono text-xs text-emerald-400/90 border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full hidden sm:inline-flex">
+          <span className="inline-flex items-center gap-2 font-sans text-xs text-emerald-400/90 border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 rounded-full hidden sm:inline-flex">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             01 / ACCESS WORKSPACE
           </span>
           <Link
             to="/"
-            className="bg-zinc-900/90 border border-white/10 hover:border-white/20 text-zinc-300 hover:text-white px-3.5 py-1.5 rounded-full text-xs font-mono flex items-center gap-1.5 transition-all ml-auto"
+            className="bg-zinc-900/90 border border-white/10 hover:border-white/20 text-zinc-300 hover:text-white px-3.5 py-1.5 rounded-full text-xs font-sans flex items-center gap-1.5 transition-all ml-auto"
           >
             <ArrowLeft size={13} />
             Back to home
@@ -185,7 +185,7 @@ export function LoginPage() {
           </div>
 
           {/* Gliding Tab Pill Switcher */}
-          <div className="flex items-center p-1 rounded-xl bg-zinc-950/80 border border-white/10 mb-6 relative font-mono text-xs" role="tablist">
+          <div className="flex items-center p-1 rounded-xl bg-zinc-950/80 border border-white/10 mb-6 relative font-sans text-xs" role="tablist">
             {(['login', 'signup'] as AuthTab[]).map((t, idx) => {
               const num = String(idx + 1).padStart(2, '0');
               const label = t === 'login' ? 'Sign in' : 'Sign up';
@@ -224,7 +224,7 @@ export function LoginPage() {
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className="mb-5 px-4 py-3 rounded-xl bg-red-950/40 border border-red-500/30 text-xs font-mono text-red-400"
+                className="mb-5 px-4 py-3 rounded-xl bg-red-950/40 border border-red-500/30 text-xs font-sans text-red-400"
                 role="alert"
               >
                 {error}
@@ -244,7 +244,7 @@ export function LoginPage() {
                   className="overflow-hidden"
                 >
                   <div className="space-y-1.5">
-                    <label htmlFor="auth-name" className="block font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+                    <label htmlFor="auth-name" className="block font-sans text-[10px] uppercase tracking-wider text-zinc-400">
                       01 / FULL NAME
                     </label>
                     <input
@@ -256,7 +256,7 @@ export function LoginPage() {
                       required
                       minLength={2}
                       autoComplete="name"
-                      className="w-full bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-mono"
+                      className="w-full bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-sans"
                     />
                   </div>
                 </motion.div>
@@ -264,7 +264,7 @@ export function LoginPage() {
             </AnimatePresence>
 
             <div className="space-y-1.5">
-              <label htmlFor="auth-email" className="block font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+              <label htmlFor="auth-email" className="block font-sans text-[10px] uppercase tracking-wider text-zinc-400">
                 {tab === 'signup' ? '02 / EMAIL ADDRESS' : '01 / EMAIL ADDRESS'}
               </label>
               <input
@@ -275,12 +275,12 @@ export function LoginPage() {
                 placeholder="you@company.com"
                 required
                 autoComplete="email"
-                className="w-full bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-mono"
+                className="w-full bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none transition-all font-sans"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="auth-password" className="block font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+              <label htmlFor="auth-password" className="block font-sans text-[10px] uppercase tracking-wider text-zinc-400">
                 {tab === 'signup' ? '03 / PASSWORD' : '02 / PASSWORD'}
               </label>
               <div className="relative">
@@ -293,7 +293,7 @@ export function LoginPage() {
                   required
                   minLength={6}
                   autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-                  className="w-full bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none transition-all font-mono"
+                  className="w-full bg-zinc-950/80 border border-white/10 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none transition-all font-sans"
                 />
                 <button
                   type="button"
@@ -312,10 +312,10 @@ export function LoginPage() {
               whileTap={{ scale: 0.99 }}
               type="submit"
               disabled={isLoading || !authReady}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium py-3 rounded-xl text-sm transition-all shadow-lg shadow-indigo-500/25 border border-indigo-400/30 flex items-center justify-center gap-2 mt-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full bg-[#7C7CF4] hover:bg-[#8F8FF7] text-[#0A0A0B] shadow-sm font-semibold py-3 rounded-lg text-sm transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isLoading ? (
-                <span className="font-mono text-xs">Please wait…</span>
+                <span className="font-sans text-xs">Please wait…</span>
               ) : (
                 <>
                   <span>{tab === 'login' ? 'Sign in' : 'Create account'}</span>
@@ -328,7 +328,7 @@ export function LoginPage() {
           {/* Divider */}
           <div className="my-5 flex items-center gap-3">
             <span className="h-px flex-1 bg-white/10" />
-            <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600">or</span>
+            <span className="text-[10px] font-sans uppercase tracking-widest text-zinc-600">or</span>
             <span className="h-px flex-1 bg-white/10" />
           </div>
 
@@ -346,7 +346,7 @@ export function LoginPage() {
         </motion.div>
 
         {/* Footer info */}
-        <div className="pt-6 border-t border-white/5 flex items-center justify-between text-xs font-mono text-zinc-500">
+        <div className="pt-6 border-t border-white/5 flex items-center justify-between text-xs font-sans text-zinc-500">
           <span>BUILDX V2.4</span>
           <span>SECURE WORKSPACE ACCESS</span>
         </div>

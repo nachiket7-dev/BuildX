@@ -20,6 +20,7 @@ import { WorkspaceFileTree } from './WorkspaceFileTree';
 import { useCodeGeneration } from '../hooks/useCodeGeneration';
 import { useVFS } from '../context/VFSContext';
 import { CommandPalette, type PaletteAction } from './CommandPalette';
+import { SegmentedControl, Button } from './ui/primitives';
 import {
   Cpu,
   FileCode,
@@ -789,7 +790,7 @@ export function AgentPage() {
             <ArrowLeft size={13} />
             <span>Back to Gallery</span>
           </button>
-          <span className="text-[11px] font-mono text-zinc-500">CORTEX AGENT WORKSPACE</span>
+          <span className="text-[11px] font-sans tracking-wide text-zinc-500">CORTEX AGENT WORKSPACE</span>
         </div>
 
         <div className="text-center mb-8">
@@ -805,7 +806,7 @@ export function AgentPage() {
         {loadingWorkspaces ? (
           <div className="flex flex-col items-center gap-2 py-12">
             <Loader2 className="animate-spin text-indigo-400" size={24} />
-            <span className="text-xs text-gray-500 font-mono tracking-tight">Loading workspaces…</span>
+            <span className="text-xs text-gray-500 font-sans tracking-tight">Loading workspaces…</span>
           </div>
         ) : workspaces.length === 0 ? (
           <div className="text-center py-12 border border-white/5 bg-white/[0.02] rounded-2xl px-8 max-w-md w-full">
@@ -836,7 +837,7 @@ export function AgentPage() {
                 whileTap={{ scale: 0.98 }}
                 className="flex items-start text-left p-5 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-indigo-500/20 rounded-2xl transition-colors group"
               >
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-lg font-bold text-indigo-400 shrink-0 mr-4 group-hover:scale-105 transition-transform font-mono">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-lg font-bold text-indigo-400 shrink-0 mr-4 group-hover:scale-105 transition-transform font-sans">
                   {w.appName?.[0]?.toUpperCase() || 'A'}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -856,7 +857,7 @@ export function AgentPage() {
 
   // ── Active workspace: Studio 3-Column Layout ─────────────────────────────
   return (
-    <div className="w-full h-full overflow-hidden flex flex-col bg-[#08080c] text-white relative selection:bg-purple-500 selection:text-white font-sans">
+    <div className="w-full h-full overflow-hidden flex flex-col bg-[#0A0A0B] text-white relative selection:bg-purple-500 selection:text-white font-sans">
       {/* Top Ambient Mesh Light */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[250px] bg-emerald-500/10 blur-[150px] pointer-events-none rounded-full" />
 
@@ -913,7 +914,7 @@ export function AgentPage() {
       </AnimatePresence>
 
       {/* ── Flex Workspace Wrapper ── */}
-      <div className="flex-1 min-h-0 w-full flex overflow-hidden relative z-10 bg-[#08080c]">
+      <div className="flex-1 min-h-0 w-full flex overflow-hidden relative z-10 bg-[#0A0A0B]">
 
         {/* ── 1. Workspace File Tree Column ────────────── */}
         {/* ── 1. Workspace File Tree (240px, clean glassmorphic IDE layout) ── */}
@@ -932,52 +933,36 @@ export function AgentPage() {
         </aside>
 
         {/* ── 2. Center Code Editor (w-0 flex-1 — absorbs all remaining space) ── */}
-        <main className="flex-1 w-0 min-w-0 h-full relative overflow-hidden bg-[#08080c] flex flex-col">
+        <main className="flex-1 w-0 min-w-0 h-full relative overflow-hidden bg-[#0A0A0B] flex flex-col">
 
         {/* Tab Bar Header */}
         <div className="flex items-center justify-between border-b border-white/[0.06] px-3 h-11 shrink-0 bg-white/[0.02]">
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => navigate('/gallery')}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white hover:border-indigo-500/30 hover:bg-indigo-500/10 text-[11px] font-mono transition-all shrink-0"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white hover:border-indigo-500/30 hover:bg-indigo-500/10 text-[11px] font-sans transition-all shrink-0"
               title="Return to Gallery"
             >
               <ArrowLeft size={12} />
               <span className="hidden sm:inline">Gallery</span>
             </button>
 
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06] relative">
-              {(
-                [
-                  { key: 'editor',   label: '01 CODE',     icon: <FileCode size={12} /> },
-                  { key: 'preview',  label: '02 PREVIEW',  icon: <PlayCircle size={12} /> },
-                ] as const
-              ).map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`relative flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-mono font-medium transition-colors z-10 ${
-                    activeTab === tab.key ? 'text-white' : 'text-neutral-500 hover:text-white'
-                  }`}
-                >
-                  {activeTab === tab.key && (
-                    <motion.div
-                      layoutId="studioActiveTab"
-                      className="absolute inset-0 rounded-lg bg-indigo-500/20 border border-indigo-500/30"
-                      transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center gap-1.5">{tab.icon}{tab.label}</span>
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              ariaLabel="Workspace view"
+              value={activeTab}
+              onChange={(v) => setActiveTab(v)}
+              options={[
+                { value: 'editor', label: 'Code', icon: <FileCode size={12} /> },
+                { value: 'preview', label: 'Preview', icon: <PlayCircle size={12} /> },
+              ]}
+            />
           </div>
 
           {selectedFile && activeTab === 'editor' && (
-            <div className="flex items-center gap-2 font-mono text-[11px] text-gray-400 truncate min-w-0 tracking-tight">
+            <div className="flex items-center gap-2 font-sans text-[11px] text-gray-400 truncate min-w-0 tracking-tight">
               <button
                 onClick={() => setIsPaletteOpen(true)}
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-white/10 bg-white/[0.03] text-gray-500 hover:text-white hover:border-indigo-500/30 hover:bg-indigo-500/10 text-[10px] font-mono transition-all shrink-0"
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-white/10 bg-white/[0.03] text-gray-500 hover:text-white hover:border-indigo-500/30 hover:bg-indigo-500/10 text-[10px] font-sans transition-all shrink-0"
                 title="Search files (⌘K)"
               >
                 <Search size={10} />
@@ -987,7 +972,7 @@ export function AgentPage() {
               <button
                 type="button"
                 onClick={handleTestDiff}
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 text-[10px] font-mono transition-all shrink-0"
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 text-[10px] font-sans transition-all shrink-0"
                 title="Test diff visuals with a sample addition"
               >
                 <FlaskConical size={10} />
@@ -1020,7 +1005,7 @@ export function AgentPage() {
                   key={tabPath}
                   className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-mono cursor-pointer border-r border-white/[0.04] select-none transition-colors ${
                     isActive
-                      ? 'bg-[#08080c] text-white border-b-2 border-b-indigo-500'
+                      ? 'bg-[#0A0A0B] text-white border-b-2 border-b-indigo-500'
                       : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.02] border-b-2 border-b-transparent'
                   }`}
                   onClick={() => {
@@ -1086,37 +1071,27 @@ export function AgentPage() {
             ) : pendingDiff !== null && selectedFile ? (
               <div className="h-full flex flex-col min-h-0 relative">
                 {/* Floating Diff Review Action Bar */}
-                <div className="z-20 flex items-center justify-between px-4 py-2 bg-indigo-950/60 backdrop-blur-md border-b border-indigo-500/30 text-indigo-300 text-xs shrink-0 shadow-lg">
-                  <div className="flex items-center gap-2 font-mono">
-                    <GitCompare size={14} className="text-indigo-400 shrink-0" />
+                <div className="z-20 flex items-center justify-between px-4 py-2 bg-[#18181B] border-b border-white/10 text-zinc-300 text-xs shrink-0 shadow-sm">
+                  <div className="flex items-center gap-2 font-sans">
+                    <GitCompare size={14} className="text-[#8F8FF7] shrink-0" />
                     <span>
-                      AI Diff Review Mode — <strong className="text-white">{selectedFile.path}</strong>
+                      AI Diff Review Mode — <strong className="text-white font-mono">{selectedFile.path}</strong>
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleAcceptDiff}
-                      className="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-emerald-500/20"
-                      title="Accept Changes (⌘+Enter)"
-                    >
-                      <CheckCircle2 size={13} />
-                      <span>Accept Changes (⌘Enter)</span>
-                    </button>
-                    <button
-                      onClick={handleRejectDiff}
-                      className="px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 flex items-center gap-1.5 text-xs font-bold font-mono transition-all hover:scale-105 shadow-sm shadow-red-500/20"
-                      title="Reject (Esc)"
-                    >
-                      <XCircle size={13} />
-                      <span>Reject (Esc)</span>
-                    </button>
+                    <Button variant="success" size="sm" onClick={handleAcceptDiff} icon={<CheckCircle2 size={13} />} title="Accept Changes (⌘+Enter)">
+                      Accept Changes <kbd className="text-[10px] opacity-60 font-mono ml-1">⌘Enter</kbd>
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={handleRejectDiff} icon={<XCircle size={13} />} title="Reject (Esc)">
+                      Reject <kbd className="text-[10px] opacity-60 font-mono ml-1">Esc</kbd>
+                    </Button>
                   </div>
                 </div>
 
                 {/* CodeMirror 6 Unified Merge View Engine - Raw DOM Mount */}
                 <div
                   ref={diffContainerRef}
-                  className="flex-1 overflow-auto relative min-h-0 bg-[#08080c] [&>.cm-editor]:h-full [&>.cm-editor]:text-xs [&>.cm-editor]:font-mono"
+                  className="flex-1 overflow-auto relative min-h-0 bg-[#0A0A0B] [&>.cm-editor]:h-full [&>.cm-editor]:text-xs [&>.cm-editor]:font-mono"
                 />
               </div>
             ) : selectedFile ? (
@@ -1154,7 +1129,7 @@ export function AgentPage() {
                 />
               </div>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-xs gap-2 font-mono">
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-xs gap-2 font-sans">
                 <FileCode size={24} className="opacity-30" />
                 <span>Select a file from the left sidebar or Overview.</span>
               </div>
@@ -1182,7 +1157,7 @@ export function AgentPage() {
       </main>
 
       {/* ── 3. Cortex Agent Right Panel (w-80 shrink-0 — always visible) ── */}
-      <aside className="w-80 shrink-0 h-full overflow-hidden border-l border-white/10 bg-[#08080c] z-10 studio-card flex flex-col min-h-0">
+      <aside className="w-80 shrink-0 h-full overflow-hidden border-l border-white/10 bg-[#0A0A0B] z-10 studio-card flex flex-col min-h-0">
 
         {/* Panel Header */}
         <div className="p-3 border-b border-white/5 flex flex-col gap-2 shrink-0 bg-white/[0.02]">
@@ -1278,7 +1253,7 @@ export function AgentPage() {
         {/* Conversation Stream */}
         <div
           ref={chatScrollRef}
-          className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 font-mono text-xs chat-scroll-area scroll-smooth"
+          className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 font-sans text-xs chat-scroll-area scroll-smooth"
         >
           {messages.length === 0 && !isThinking && (
             <div className="text-center py-10 px-3">
@@ -1310,7 +1285,7 @@ export function AgentPage() {
                         onClick={() =>
                           setExpandedThinking(prev => ({ ...prev, [i]: !prev[i] }))
                         }
-                        className="flex items-center gap-1.5 text-[10px] font-mono text-gray-500 hover:text-emerald-400 transition-colors w-full text-left tracking-tight"
+                        className="flex items-center gap-1.5 text-[10px] font-sans text-gray-500 hover:text-emerald-400 transition-colors w-full text-left tracking-tight"
                       >
                         <Brain size={10} className="text-emerald-500/60 shrink-0" />
                         <span className="uppercase tracking-widest font-semibold">
@@ -1390,7 +1365,7 @@ export function AgentPage() {
                     <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                   </div>
-                  <span className="text-xs font-bold text-white font-mono tracking-tight flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-white font-sans tracking-tight flex items-center gap-1.5">
                     <Activity size={13} className="text-emerald-400" />
                     Autonomous Multi-Model Pipeline
                   </span>
@@ -1454,7 +1429,7 @@ export function AgentPage() {
                     <motion.div
                       key={stageItem.id}
                       animate={isCurrent ? { scale: [1, 1.015, 1], transition: { repeat: Infinity, duration: 2.5 } } : {}}
-                      className={`p-2 rounded-xl border transition-all text-[10px] font-mono flex flex-col justify-between ${
+                      className={`p-2 rounded-xl border transition-all text-[10px] font-sans flex flex-col justify-between ${
                         isCurrent
                           ? 'bg-indigo-950/40 border-indigo-500/50 shadow-lg shadow-indigo-500/10'
                           : isDone
@@ -1492,7 +1467,7 @@ export function AgentPage() {
                       <div className="flex items-center justify-between mt-1 text-[9px]">
                         <span className="text-gray-400 font-sans">{stageItem.provider}</span>
                         <span
-                          className={`px-1.5 py-0.5 rounded font-mono font-bold ${
+                          className={`px-1.5 py-0.5 rounded font-sans font-bold ${
                             isCurrent
                               ? 'bg-indigo-500/30 text-indigo-200 border border-indigo-500/40'
                               : isDone
@@ -1541,7 +1516,7 @@ export function AgentPage() {
             onChange={e => setPrompt(e.target.value)}
             placeholder={isThinking ? 'Pipeline running…' : 'Ask Agent to refine code…'}
             disabled={isThinking}
-            className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-indigo-500/50 font-mono"
+            className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-indigo-500/50 font-sans"
           />
           <button
             type="submit"

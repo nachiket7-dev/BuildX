@@ -11,6 +11,7 @@ import { Search, X, Eye, Code2, Database, Shield, ArrowRight, Layers, Sparkles, 
 
 import { ScrollReveal } from './animations/ScrollReveal';
 import { StaggerGridContainer, StaggerGridItem } from './animations/StaggerGrid';
+import { SegmentedControl } from './ui/primitives';
 import { modalBackdrop, modalPanel } from '../lib/motion';
 
 function timeAgo(dateStr: string): string {
@@ -114,7 +115,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
   };
 
   return (
-    <div className="min-h-screen bg-[#08080a] text-white">
+    <div className="min-h-screen bg-[#0A0A0B] text-white">
       <PageHead
         title={isPersonal ? 'My Blueprints — BuildX' : 'Architecture Library — BuildX'}
         description={
@@ -131,70 +132,43 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
           <div className="mb-10">
             {/* Top Breadcrumb & Switcher Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-              <div className="flex items-center gap-2 font-mono text-xs text-zinc-400">
+              <div className="flex items-center gap-2 font-sans text-xs text-zinc-400">
                 <span className="text-indigo-400 font-semibold">02 / ARCHITECTURE REPOSITORY</span>
                 <span>•</span>
                 <span className="text-zinc-500">{isPersonal ? 'PERSONAL WORKSPACE' : 'COMMUNITY SHOWCASE'}</span>
               </div>
 
-              {/* Obsidian-grade Scope Switcher */}
-              <div className="flex items-center p-1 rounded-xl bg-zinc-900/90 border border-white/10 text-xs font-mono self-start sm:self-auto shadow-lg shadow-black/40">
-                <button
-                  type="button"
-                  onClick={() => handleScopeChange('mine')}
-                  className={`relative px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 ${
-                    requestedScope === 'mine'
-                      ? 'text-white font-semibold'
-                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {requestedScope === 'mine' && (
-                    <motion.div
-                      layoutId="galleryScopeIndicator"
-                      className="absolute inset-0 rounded-lg bg-indigo-600/30 border border-indigo-500/40"
-                      transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center gap-1.5">
-                    <Sparkles size={12} className={requestedScope === 'mine' ? 'text-indigo-400' : 'text-zinc-500'} />
-                    <span>My Blueprints</span>
-                    {user && items.length > 0 && requestedScope === 'mine' && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/30 text-indigo-300 font-mono">
-                        {items.length}
-                      </span>
-                    )}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleScopeChange('public')}
-                  className={`relative px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 ${
-                    requestedScope === 'public'
-                      ? 'text-white font-semibold'
-                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {requestedScope === 'public' && (
-                    <motion.div
-                      layoutId="galleryScopeIndicator"
-                      className="absolute inset-0 rounded-lg bg-indigo-600/30 border border-indigo-500/40"
-                      transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center gap-1.5">
-                    <Globe size={12} className={requestedScope === 'public' ? 'text-indigo-400' : 'text-zinc-500'} />
-                    <span>Community Gallery</span>
-                  </span>
-                </button>
-              </div>
+              {/* Scope Switcher */}
+              <SegmentedControl
+                ariaLabel="Gallery scope"
+                className="self-start sm:self-auto"
+                value={requestedScope}
+                onChange={handleScopeChange}
+                options={[
+                  {
+                    value: 'mine',
+                    label: (
+                      <>
+                        My Blueprints
+                        {user && items.length > 0 && requestedScope === 'mine' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#7C7CF4]/20 text-[#B8B8FA] font-mono">
+                            {items.length}
+                          </span>
+                        )}
+                      </>
+                    ),
+                    icon: <Sparkles size={12} />,
+                  },
+                  { value: 'public', label: 'Community Gallery', icon: <Globe size={12} /> },
+                ]}
+              />
             </div>
 
             {/* Title & Primary CTA */}
             <div className="flex items-end justify-between gap-6 flex-wrap">
               <div>
-                <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-white tracking-tight leading-none mb-3">
-                  {isPersonal ? 'MY SYSTEM ARCHITECTURES' : 'COMMUNITY ARCHITECTURE GALLERY'}
+                <h1 className="font-display font-bold text-2xl sm:text-3xl text-white tracking-tight leading-tight mb-2.5">
+                  {isPersonal ? 'My architectures' : 'Architecture gallery'}
                 </h1>
                 <p className="text-xs sm:text-sm text-neutral-400 max-w-xl leading-relaxed">
                   {isPersonal
@@ -206,7 +180,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
               <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                 <Link
                   to="/create"
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/25 border border-indigo-400/30"
+                  className="px-5 py-2.5 rounded-lg bg-[#7C7CF4] hover:bg-[#8F8FF7] text-[#0A0A0B] shadow-sm font-semibold text-xs flex items-center gap-2 transition-colors"
                 >
                   <span>+ Create Blueprint</span>
                   <ArrowRight size={14} />
@@ -219,7 +193,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
         {/* ── Sticky Glass Filter Bar ───────────────────────────── */}
         <ScrollReveal direction="up" delay={0.1}>
           <div className="sticky top-14 z-30 mb-8">
-            <div className="p-3 rounded-2xl border border-white/[0.07] bg-[#08080a]/90 backdrop-blur-xl shadow-xl flex flex-col sm:flex-row items-center gap-3">
+            <div className="p-3 rounded-2xl border border-white/[0.07] bg-[#0A0A0B]/90 backdrop-blur-xl shadow-xl flex flex-col sm:flex-row items-center gap-3">
               {/* Search */}
               <div className="relative flex-1 w-full">
                 <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-600" />
@@ -228,7 +202,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search blueprints…"
-                  className="w-full pl-10 pr-8 py-2 rounded-xl bg-white/[0.04] border border-white/[0.07] text-xs text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500/40 font-mono transition-colors"
+                  className="w-full pl-10 pr-8 py-2 rounded-xl bg-white/[0.04] border border-white/[0.07] text-xs text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500/40 font-sans transition-colors"
                 />
                 {searchQuery && (
                   <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">
@@ -238,7 +212,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
               </div>
 
               {/* Gliding Filter Tabs */}
-              <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.07] text-xs font-mono relative overflow-x-auto max-w-full">
+              <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.07] text-xs font-sans relative overflow-x-auto max-w-full">
                 {FILTER_TABS.map((tab) => {
                   const count = tabCounts[tab] ?? 0;
                   const isSelected = activeFilter === tab;
@@ -275,10 +249,10 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
 
               {/* Complexity Dropdown / Quick Filter */}
               <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[10px] font-mono text-zinc-500 hidden lg:inline uppercase tracking-wider">
+                <span className="text-[10px] font-sans text-zinc-500 hidden lg:inline uppercase tracking-wider">
                   COMPLEXITY:
                 </span>
-                <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.07] text-xs font-mono relative">
+                <div className="flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.07] text-xs font-sans relative">
                   {(['All', 'Low', 'Medium', 'High'] as const).map((lvl) => {
                     const isSelected = complexityFilter === lvl;
                     return (
@@ -311,7 +285,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
 
         {/* ── Unauthenticated "My Blueprints" State ─────────────── */}
         {isViewingMineUnauthenticated ? (
-          <div className="rounded-3xl p-12 text-center border border-white/[0.07] bg-[#111116]/60 backdrop-blur-xl max-w-lg mx-auto my-8">
+          <div className="rounded-3xl p-12 text-center border border-white/[0.07] bg-[#111113]/60 backdrop-blur-xl max-w-lg mx-auto my-8">
             <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-4 text-indigo-400">
               <Lock size={22} />
             </div>
@@ -325,14 +299,14 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
               <Link
                 to="/login"
                 state={{ from: '/gallery?scope=mine' }}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs transition-all shadow-lg shadow-indigo-500/25 border border-indigo-400/30"
+                className="px-5 py-2.5 rounded-lg bg-[#7C7CF4] hover:bg-[#8F8FF7] text-[#0A0A0B] shadow-sm font-semibold text-xs transition-colors"
               >
                 Sign In
               </Link>
               <button
                 type="button"
                 onClick={() => handleScopeChange('public')}
-                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-mono text-neutral-400 hover:text-white border border-white/10 transition-colors"
+                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-sans text-neutral-400 hover:text-white border border-white/10 transition-colors"
               >
                 Browse Community
               </button>
@@ -352,11 +326,11 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
             {/* ── Error State ───────────────────────────────────────── */}
             {isError && (
               <div className="rounded-2xl p-8 text-center bg-red-950/20 border border-red-500/20">
-                <p className="text-sm font-mono text-red-400 mb-4">Failed to load blueprints.</p>
+                <p className="text-sm font-sans text-red-400 mb-4">Failed to load blueprints.</p>
                 <button
                   type="button"
                   onClick={() => refetch()}
-                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-mono text-white border border-white/10 transition-colors"
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-sans text-white border border-white/10 transition-colors"
                 >
                   Retry
                 </button>
@@ -365,7 +339,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
 
             {/* ── Empty State ───────────────────────────────────────── */}
             {!isLoading && !isError && filteredItems.length === 0 && (
-              <div className="rounded-3xl p-12 text-center border border-white/[0.07] bg-[#111116]/60 backdrop-blur-xl">
+              <div className="rounded-3xl p-12 text-center border border-white/[0.07] bg-[#111113]/60 backdrop-blur-xl">
                 <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-4 text-indigo-400">
                   <Layers size={22} />
                 </div>
@@ -392,7 +366,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
                         setActiveFilter('All');
                         setComplexityFilter('All');
                       }}
-                      className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-mono text-indigo-300 hover:text-white border border-indigo-500/30 transition-colors flex items-center gap-1.5"
+                      className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-sans text-indigo-300 hover:text-white border border-indigo-500/30 transition-colors flex items-center gap-1.5"
                     >
                       <X size={13} />
                       <span>Reset Filters</span>
@@ -400,7 +374,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
                   )}
                   <Link
                     to="/create"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs transition-all shadow-lg shadow-indigo-500/25 border border-indigo-400/30"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#7C7CF4] hover:bg-[#8F8FF7] text-[#0A0A0B] shadow-sm font-semibold text-xs transition-colors"
                   >
                     <span>+ Create Blueprint</span>
                     <ArrowRight size={14} />
@@ -432,8 +406,8 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
                 <StaggerGridItem key={item?.id ?? idx} className="h-full">
                   <SpotlightCard
                     fillHeight
-                    spotlightColor="rgba(99, 102, 241, 0.16)"
-                    className="h-full p-5 rounded-2xl bg-[#0e0e14]/90 border border-white/[0.08] hover:border-indigo-500/40 transition-all duration-300 flex flex-col justify-between group cursor-pointer shadow-xl shadow-black/40 hover:shadow-indigo-950/30 hover:-translate-y-1"
+                    spotlightColor="rgba(124, 124, 244, 0.16)"
+                    className="h-full p-5 rounded-2xl bg-[#111113]/90 border border-white/[0.08] hover:border-indigo-500/40 transition-all duration-300 flex flex-col justify-between group cursor-pointer shadow-xl shadow-black/40 hover:shadow-indigo-950/30 hover:-translate-y-1"
                     onClick={() => navigate(`/blueprint/${item?.id}`)}
                   >
                     {/* Top Section */}
@@ -444,10 +418,10 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
                         <h3 className="font-display text-sm font-bold text-white group-hover:text-indigo-200 transition-colors truncate flex-1 tracking-tight">
                           {name}
                         </h3>
-                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border shrink-0 font-medium ${categoryBadgeStyle}`}>
+                        <span className={`text-[9px] font-sans px-2 py-0.5 rounded-full border shrink-0 font-medium ${categoryBadgeStyle}`}>
                           {category}
                         </span>
-                        <span className={`font-mono text-[9px] px-2 py-0.5 rounded-full border shrink-0 font-medium ${complexityColor(complexity)}`}>
+                        <span className={`font-sans text-[9px] px-2 py-0.5 rounded-full border shrink-0 font-medium ${complexityColor(complexity)}`}>
                           {complexity}
                         </span>
                       </div>
@@ -461,19 +435,19 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
                       <div className="grid grid-cols-3 gap-2 mb-4 py-2 px-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
                         <div className="flex items-center gap-1.5 min-w-0" title={`${endpointsCount} REST Endpoints`}>
                           <Code2 size={12} className="text-indigo-400 shrink-0" />
-                          <span className="text-[10px] font-mono text-zinc-300 truncate">
+                          <span className="text-[10px] font-sans text-zinc-300 truncate">
                             <strong className="text-white font-semibold">{endpointsCount}</strong> API{endpointsCount !== 1 ? 's' : ''}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 min-w-0" title={`${schemaCount} Database Tables`}>
                           <Database size={12} className="text-emerald-400 shrink-0" />
-                          <span className="text-[10px] font-mono text-zinc-300 truncate">
+                          <span className="text-[10px] font-sans text-zinc-300 truncate">
                             <strong className="text-white font-semibold">{schemaCount}</strong> DB{schemaCount !== 1 ? 's' : ''}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 min-w-0" title={`${screensCount} UI Screens`}>
                           <Layout size={12} className="text-purple-400 shrink-0" />
-                          <span className="text-[10px] font-mono text-zinc-300 truncate">
+                          <span className="text-[10px] font-sans text-zinc-300 truncate">
                             <strong className="text-white font-semibold">{screensCount}</strong> View{screensCount !== 1 ? 's' : ''}
                           </span>
                         </div>
@@ -481,7 +455,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
 
                       {/* Multi-Model Pipeline Tags */}
                       <div className="flex items-center gap-1.5 flex-wrap mb-4">
-                        <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider mr-0.5">PIPELINE:</span>
+                        <span className="text-[8px] font-sans text-zinc-500 uppercase tracking-wider mr-0.5">PIPELINE:</span>
                         <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">
                           Gemini 3.5 Flash
                         </span>
@@ -495,8 +469,8 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
                     </div>
 
                     {/* Card Footer */}
-                    <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between font-mono text-[10px]">
-                      <div className="flex items-center gap-1.5 text-zinc-500">
+                    <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between font-sans text-[10px]">
+                      <div className="flex items-center gap-1.5 text-zinc-500 font-mono">
                         <Clock size={11} className="text-zinc-600" />
                         <span>{timeAgo(item?.createdAt ?? '')}</span>
                       </div>
@@ -561,10 +535,10 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
                 <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] pb-4">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
+                      <span className="text-[10px] font-sans text-neutral-500 uppercase tracking-widest">
                         ARCHITECTURE PREVIEW
                       </span>
-                      <span className={`font-mono text-[10px] px-2 py-0.5 rounded-full border ${complexityColor(previewItem?.complexity)}`}>
+                      <span className={`font-sans text-[10px] px-2 py-0.5 rounded-full border ${complexityColor(previewItem?.complexity)}`}>
                         {previewItem?.complexity ?? 'Medium'}
                       </span>
                     </div>
@@ -581,21 +555,21 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
 
                 {/* Description */}
                 <div>
-                  <h4 className="text-[10px] font-mono text-indigo-400 uppercase tracking-widest mb-2">Spec Overview</h4>
+                  <h4 className="text-[10px] font-sans text-indigo-400 uppercase tracking-widest mb-2">Spec Overview</h4>
                   <p className="text-xs text-neutral-300 leading-relaxed">{previewItem?.description ?? previewItem?.idea ?? ''}</p>
                 </div>
 
                 {/* Quick Spec */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-white font-mono mb-1">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-white font-sans mb-1">
                       <Code2 size={12} className="text-indigo-400" />
                       Endpoints
                     </div>
                     <div className="text-2xl font-bold font-mono text-indigo-300">{previewItem?.endpointsCount ?? 8}</div>
                   </div>
                   <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-white font-mono mb-1">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-white font-sans mb-1">
                       <Database size={12} className="text-emerald-400" />
                       DB Schemas
                     </div>
@@ -604,7 +578,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
                 </div>
 
                 {/* Model Router Telemetry */}
-                <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/15 font-mono text-xs space-y-2">
+                <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/15 font-sans text-xs space-y-2">
                   <div className="flex items-center gap-2 text-indigo-300 font-semibold text-[11px]">
                     <Shield size={12} className="text-emerald-400" />
                     Multi-Model Router Telemetry
@@ -630,7 +604,7 @@ export function GalleryPage({ defaultScope }: GalleryPageProps = {}) {
               <div className="pt-6 border-t border-white/[0.07] flex items-center justify-between gap-3">
                 <button
                   onClick={() => setPreviewItem(null)}
-                  className="px-4 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs font-mono text-neutral-400 hover:text-white transition-colors"
+                  className="px-4 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-xs font-sans text-neutral-400 hover:text-white transition-colors"
                 >
                   Close
                 </button>

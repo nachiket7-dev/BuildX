@@ -12,9 +12,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Inter', 'Geist', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
-        display: ['Bricolage Grotesque', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -51,10 +51,10 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
         bg: {
-          DEFAULT: '#080b0f',
-          surface: '#0c1016',
-          surface2: '#121820',
-          surface3: '#181f28',
+          DEFAULT: '#0A0A0B',
+          surface: '#111113',
+          surface2: '#18181B',
+          surface3: '#1F1F23',
         },
       },
       borderRadius: {
