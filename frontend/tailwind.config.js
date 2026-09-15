@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  darkMode: 'class',
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  darkMode: "class",
   theme: {
     container: {
       center: true,
@@ -12,11 +12,31 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
-        display: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ["Inter", "system-ui", "sans-serif"],
+        mono: ['"JetBrains Mono"', '"Fira Code"', "monospace"],
+        display: ["Inter", "system-ui", "sans-serif"],
       },
       colors: {
+        surface: {
+          0: "var(--color-surface-0)",
+          1: "var(--color-surface-1)",
+          2: "var(--color-surface-2)",
+          3: "var(--color-surface-3)",
+        },
+        default: "var(--color-border)",
+        strong: "var(--color-border-strong)",
+        danger: {
+          DEFAULT: "var(--color-danger)",
+          dim: "var(--color-danger-dim)",
+        },
+        success: {
+          DEFAULT: "var(--color-success)",
+          dim: "var(--color-success-dim)",
+        },
+        warning: {
+          DEFAULT: "var(--color-warning)",
+          dim: "var(--color-warning-dim)",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -39,6 +59,9 @@ export default {
           foreground: "hsl(var(--muted-foreground))",
         },
         accent: {
+          hover: "var(--color-accent-hover)",
+          active: "var(--color-accent-active)",
+          muted: "var(--color-accent-muted)",
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
         },
@@ -51,10 +74,10 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
         bg: {
-          DEFAULT: '#0A0A0B',
-          surface: '#111113',
-          surface2: '#18181B',
-          surface3: '#1F1F23',
+          DEFAULT: "#0A0A0B",
+          surface: "#111113",
+          surface2: "#18181B",
+          surface3: "#1F1F23",
         },
       },
       borderRadius: {
@@ -72,38 +95,44 @@ export default {
           to: { height: "0" },
         },
         breathe: {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(20,184,166,0.15)', transform: 'scale(1)' },
-          '50%': { boxShadow: '0 0 45px rgba(20,184,166,0.35)', transform: 'scale(1.05)' },
+          "0%, 100%": {
+            boxShadow: "0 0 20px rgba(20,184,166,0.15)",
+            transform: "scale(1)",
+          },
+          "50%": {
+            boxShadow: "0 0 45px rgba(20,184,166,0.35)",
+            transform: "scale(1.05)",
+          },
         },
         fadeIn: {
-          from: { opacity: '0' },
-          to: { opacity: '1' },
+          from: { opacity: "0" },
+          to: { opacity: "1" },
         },
         slideUp: {
-          from: { opacity: '0', transform: 'translateY(16px)' },
-          to: { opacity: '1', transform: 'translateY(0)' },
+          from: { opacity: "0", transform: "translateY(16px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
         },
         terminalPulse: {
-          '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '0.4' },
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.4" },
         },
         glitch: {
-          '0%, 100%': { transform: 'translate(0)' },
-          '20%': { transform: 'translate(-2px, 2px)' },
-          '40%': { transform: 'translate(-2px, -2px)' },
-          '60%': { transform: 'translate(2px, 2px)' },
-          '80%': { transform: 'translate(2px, -2px)' },
-        }
+          "0%, 100%": { transform: "translate(0)" },
+          "20%": { transform: "translate(-2px, 2px)" },
+          "40%": { transform: "translate(-2px, -2px)" },
+          "60%": { transform: "translate(2px, 2px)" },
+          "80%": { transform: "translate(2px, -2px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        'pulse-slow': 'pulse 3s ease-in-out infinite',
-        breathe: 'breathe 2.5s ease-in-out infinite',
-        'fade-in': 'fadeIn 0.3s ease-out forwards',
-        'slide-up': 'slideUp 0.4s ease-out forwards',
-        'terminal-cursor': 'terminalPulse 1s step-end infinite',
-        'glitch': 'glitch 1s linear infinite',
+        "pulse-slow": "pulse 3s ease-in-out infinite",
+        breathe: "breathe 2.5s ease-in-out infinite",
+        "fade-in": "fadeIn 0.3s ease-out forwards",
+        "slide-up": "slideUp 0.4s ease-out forwards",
+        "terminal-cursor": "terminalPulse 1s step-end infinite",
+        glitch: "glitch 1s linear infinite",
       },
     },
   },

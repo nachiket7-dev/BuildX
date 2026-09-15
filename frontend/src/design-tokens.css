@@ -1,0 +1,112 @@
+/**
+ * BuildX Design Tokens — Single Source of Truth
+ * All colors, spacing, typography, shadows, radii, transitions defined here.
+ * Tailwind config references these CSS variables.
+ * Import this file at the top of index.css
+ */
+
+/* ─── Color Primitives ────────────────────────────────────────────────── */
+
+/* Surfaces — 4-level depth system */
+:root {
+  --color-surface-0: #0A0A0B;
+  --color-surface-1: #111113;
+  --color-surface-2: #18181B;
+  --color-surface-3: #1F1F23;
+
+  /* Accent — Single brand color with variants */
+  --color-accent: #7C7CF4;
+  --color-accent-hover: #8F8FF7;
+  --color-accent-active: #6E6EE8;
+  --color-accent-muted: rgba(124, 124, 244, 0.12);
+  --color-accent-border: rgba(124, 124, 244, 0.35);
+  --color-accent-glow: rgba(124, 124, 244, 0.25);
+
+  /* Semantic — Only these hues allowed */
+  --color-success: #10B981;
+  --color-success-dim: rgba(16, 185, 129, 0.1);
+  --color-warning: #F59E0B;
+  --color-warning-dim: rgba(245, 158, 11, 0.08);
+  --color-danger: #EF4444;
+  --color-danger-dim: rgba(239, 68, 68, 0.08);
+  --color-info: #3B82F6;
+  --color-info-dim: rgba(59, 130, 246, 0.1);
+
+  /* Text — 3 levels only */
+  --color-text-1: #FAFAFA;
+  --color-text-2: #A1A1AA;
+  --color-text-3: #71717A;
+
+  /* Borders */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.15);
+
+  /* ─── Semantic Aliases (for Tailwind/Shadcn compatibility) ────────────── */
+  --background: 240 5% 4%;
+  --foreground: 0 0% 98%;
+  --card: 240 5% 7%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 5% 4%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 240 84% 72%;
+  --primary-foreground: 240 30% 8%;
+  --secondary: 240 5% 11%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 5% 10%;
+  --muted-foreground: 240 4% 62%;
+  --accent: 240 84% 72%;
+  --accent-foreground: 240 30% 8%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5% 15%;
+  --input: 240 5% 15%;
+  --ring: 240 84% 72%;
+  --radius: 0.5rem;
+
+  /* ─── Surfaces (BuildX) ───────────────────────────────────────────────── */
+  --color-surface-0: #0A0A0B;
+  --color-surface-1: #111113;
+  --color-surface-2: #18181B;
+  --color-surface-3: #1F1F23;
+  --editor-bg: #0F0F12;
+
+  /* Accent Variants */
+  --accent-hex: #7C7CF4;
+  --accent2: #8F8FF7;
+  --accent3: #10b981;
+  --accent-deep: #6464E8;
+  --accent-glow: rgba(124, 124, 244, 0.12);
+  --accent-rgb: 124, 124, 244;
+
+  /* Semantic */
+  --green: #10b981;
+  --green-dim: rgba(16, 185, 129, 0.1);
+  --amber: #f59e0b;
+  --amber-dim: rgba(245, 158, 11, 0.08);
+  --coral: #ef4444;
+  --coral-dim: rgba(239, 68, 68, 0.08);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59, 130, 246, 0.1);
+  --purple: #7C7CF4;
+  --purple-dim: rgba(124, 124, 244, 0.1);
+
+  /* Text */
+  --text: #ffffff;
+  --text2: #a1a1aa;
+  --text3: #71717a;
+
+  /* Shell */
+  --shell-bg: rgba(10, 10, 11, 0.85);
+  --shell-bg-solid: #111113;
+  --shell-border: rgba(124, 124, 244, 0.12);
+  --shell-border-subtle: rgba(255, 255, 255, 0.06);
+  --shell-inset-glow: rgba(124, 124, 244, 0.08);
+  --nav-active-bg: var(--accent-glow);
+  --nav-active-border: rgba(124, 124, 244, 0.28);
+  --nav-active-text: var(--accent2);
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
