@@ -146,27 +146,11 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const syncFilesState = (fileArray: VFSFile[]) => {
-    const map: Record<string, string> = {};
-    for (const f of fileArray) {
-      map[f.path] = f.content;
-    }
-    setFiles(map);
+  const syncFilesState = useCallback((fileArray: VFSFile[]) => {
+    setFiles(Object.fromEntries(fileArray.map(file=>[file.path,file.content])));
     setFileList(fileArray);
-
-    if (fileArray.length === 0) {
-      setActiveFilePath('');
-      return;
-    }
-
-    const activeFile = fileArray.find(f => f.path === activeFilePath);
-    if (!activeFile) {
-      const first = fileArray.find(
-        f => f.path !== 'preview.html' && (f.path.endsWith('.tsx') || f.path.endsWith('.ts'))
-      ) || fileArray[0];
-      if (first) setActiveFilePath(first.path);
-    }
-  };
+    setActiveFilePath(current=>fileArray.some(file=>file.path===current) ? current : (fileArray.find(file=>file.path!=='preview.html' && /\.tsx?$/.test(file.path)) || fileArray[0])?.path || '');
+  }, []);
 
   const loadVFS = useCallback(async (blueprintId: string): Promise<Record<string, string>> => {
     setIsLoadingVFS(true);
@@ -186,7 +170,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       setIsLoadingVFS(false);
     }
-  }, []);
+  }, [syncFilesState]);
 
   const initVFS = useCallback(async (blueprintId: string): Promise<Record<string, string>> => {
     setIsLoadingVFS(true);
@@ -208,7 +192,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       setIsLoadingVFS(false);
     }
-  }, []);
+  }, [syncFilesState]);
 
   const updateFile = useCallback(
     async (blueprintId: string, path: string, content: string): Promise<void> => {
@@ -386,7 +370,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       setIsEnhancingUi(false);
     }
-  }, []);
+  }, [syncFilesState]);
 
   const handleSetActiveFile = useCallback((file: VFSFile | string | null) => {
     if (!file) {
@@ -442,6 +426,8 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     agentLockRef.current = false;
     setIsAgentExecuting(false);
   }, []);
+
+  React.useEffect(() => () => { agentAbortRef.current?.abort(); }, []);
 
   const streamAgentPrompt = useCallback(
     async (
@@ -585,7 +571,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loadVFS(blueprintId).catch(() => {});
       }
     },
-    [files, stageFileDiff, isAgentExecuting]
+    [files, stageFileDiff, isAgentExecuting, activeFilePath, runtimeError, loadVFS]
   );
 
   return (

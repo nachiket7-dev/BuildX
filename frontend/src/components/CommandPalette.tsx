@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Modal } from './ui/Modal';
 import {
   Search,
   FileCode,
@@ -18,7 +18,7 @@ import {
   CornerDownLeft,
   ChevronUp,
   ChevronDown,
-} from 'lucide-react';
+} from './ui/icons';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -404,29 +404,7 @@ export function CommandPalette({
   let flatIdx = 0;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            key="cmd-palette-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
-          />
-
-          {/* Palette Modal */}
-          <motion.div
-            key="cmd-palette-modal"
-            initial={{ opacity: 0, scale: 0.95, y: -20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.8 }}
-            className="fixed top-[18%] left-1/2 -translate-x-1/2 z-[10000] w-[min(580px,92vw)]"
-          >
+    <Modal isOpen={isOpen} onClose={onClose} title="Quick actions" description="Search files, workspace actions, and models." size="lg">
             <div
               className="rounded-2xl border border-white/[0.08] bg-[#0c0c10]/95 backdrop-blur-2xl shadow-2xl shadow-black/60 overflow-hidden"
               onKeyDown={handleKeyDown}
@@ -435,6 +413,11 @@ export function CommandPalette({
               <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]">
                 <Search size={16} className="text-gray-500 shrink-0" />
                 <input
+                  aria-label="Search quick actions"
+                  role="combobox"
+                  aria-expanded="true"
+                  aria-controls="command-results"
+                  aria-activedescendant={flatItems[selectedIndex] ? `command-${selectedIndex}` : undefined}
                   ref={inputRef}
                   type="text"
                   value={query}
@@ -454,6 +437,7 @@ export function CommandPalette({
 
               {/* ── Results List ────────────────────────────────────────── */}
               <div
+                id="command-results" role="listbox" aria-label="Search results"
                 ref={listRef}
                 className="max-h-[380px] overflow-y-auto custom-scrollbar py-2"
               >
@@ -480,6 +464,7 @@ export function CommandPalette({
                         return (
                           <button
                             key={item.id}
+                            id={`command-${idx}`} role="option" aria-selected={isSelected} tabIndex={-1}
                             data-selected={isSelected}
                             onClick={() => handleSelect(item)}
                             onMouseEnter={() => setSelectedIndex(idx)}
@@ -544,9 +529,6 @@ export function CommandPalette({
                 )}
               </div>
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 }

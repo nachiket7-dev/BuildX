@@ -32,11 +32,12 @@ import {
   Wand2,
   FlaskConical,
   AlertTriangle
-} from 'lucide-react';
+} from './ui/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../hooks/useToast';
 import { getAuthHeaders } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
+import { useFileSave } from '../hooks/useFileSave';
 import { useVFS } from '../context/VFSContext';
 import { SegmentedControl, Button } from './ui/primitives';
 
@@ -194,6 +195,8 @@ export function CodeStudio({
   const { toast } = useToast();
   const { user } = useAuth();
   const vfs = useVFS();
+  const fileSave=useFileSave(blueprintId ?? undefined,vfs.updateFile);
+  const [editorDrafts,setEditorDrafts]=useState<Record<string,string>>({});
 
   const [openFiles, setOpenFiles] = useState<string[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string>('');
@@ -221,15 +224,6 @@ export function CodeStudio({
   const editorViewRef = useRef<EditorView | null>(null);
   const diffContainerRef = useRef<HTMLDivElement>(null);
   const diffEditorViewRef = useRef<EditorView | null>(null);
-  const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-
-  useEffect(() => {
-    return () => {
-      Object.values(saveTimersRef.current).forEach(clearTimeout);
-    };
-  }, []);
-
-
   const triggerPatchFlash = () => {
     setPatchFlash(true);
     setTimeout(() => setPatchFlash(false), 600);
@@ -251,6 +245,12 @@ export function CodeStudio({
 
   const isMongo = (blueprint.architecture?.database || '').toLowerCase().includes('mongo');
 
+  // Merge VFS files and codegen files
+  const activeVfsFiles = vfs.files;
+  const hasVfsCode = Object.keys(activeVfsFiles).length > 0;
+  const hasDbGeneratedCode = Object.keys(generatedFilesMap || {}).length > 0;
+
+  const files: VirtualFile[] = useMemo(() => {
   const unescapeString = (str: string) => {
     if (!str) return '';
     let result = str;
@@ -270,12 +270,6 @@ export function CodeStudio({
     return raw || '-- No SQL/Schema defined';
   };
 
-  // Merge VFS files and codegen files
-  const activeVfsFiles = vfs.files || {};
-  const hasVfsCode = Object.keys(activeVfsFiles).length > 0;
-  const hasDbGeneratedCode = Object.keys(generatedFilesMap || {}).length > 0;
-
-  const files: VirtualFile[] = useMemo(() => {
     const combinedFilesMap: Record<string, string> = {
       ...generatedFilesMap,
       ...activeVfsFiles,
@@ -331,7 +325,7 @@ export function CodeStudio({
       },
     ];
     return legacy;
-  }, [hasVfsCode, hasDbGeneratedCode, activeVfsFiles, generatedFilesMap, blueprint, isMongo]);
+  }, [activeVfsFiles, generatedFilesMap, blueprint, isMongo]);
 
   useEffect(() => {
     if (files.length > 0 && (!activeFilePath || !files.some((f) => f.path === activeFilePath))) {
@@ -579,6 +573,7 @@ export function CodeStudio({
     try {
       if (blueprintId) {
         await vfs.acceptDiff(blueprintId, activeFile.path);
+        setEditorDrafts(prev=>{const next={...prev};delete next[activeFile.path];return next;});
       } else {
         await vfs.acceptDiff(activeFile.path);
       }
@@ -876,7 +871,7 @@ export function CodeStudio({
     );
   }
 
-  const activeContent = activeFile ? activeFile.content : '';
+  const activeContent = activeFile ? editorDrafts[activeFile.path] ?? activeFile.content : '';
   const languageExts = activeFile ? getLanguageExtension(activeFile.name) : [javascript({ jsx: true, typescript: true })];
 
   return (
@@ -1004,7 +999,7 @@ export function CodeStudio({
 
           {/* ─── Diff Mode / Cursor-Style Inline AI Review Mode ─── */}
           {isShowingDiff && activeFile && currentStagedDiff ? (
-            <div className="h-full flex flex-col min-h-0 relative">
+            <div className="h-full flex flex-col min-h-0 relative diff-sweep-once">
               {/* Floating Action Header Bar */}
               <div className="z-20 flex items-center justify-between px-4 py-2.5 bg-[#18181B] border-b border-white/10 text-zinc-300 text-xs shrink-0 shadow-sm">
                 <div className="flex items-center gap-2">
@@ -1033,7 +1028,8 @@ export function CodeStudio({
             </div>
           ) : activeFile ? (
             /* ─── Standard CodeMirror 6 Live Editor ─── */
-            <div className="h-full flex-1 min-h-0 overflow-hidden relative">
+            <div className="h-full flex-1 min-h-0 overflow-hidden relative flex flex-col">
+              {activeFile && <div className="workspace-save" role="status">{fileSave.states[activeFile.path]==='error'?<>Save failed <button onClick={()=>fileSave.retry(activeFile.path)}>Retry save</button></>:fileSave.states[activeFile.path]==='pending'?'Unsaved changes':fileSave.states[activeFile.path]==='saving'?'Saving changes…':'All changes saved'}</div>}
               <CodeMirror
                 key={`editor-${activeFilePath}`}
                 ref={editorRef}
@@ -1051,17 +1047,11 @@ export function CodeStudio({
                 onChange={(val) => {
                   if (blueprintId && activeFile) {
                     const path = activeFile.path;
-                    const previousTimer = saveTimersRef.current[path];
-                    if (previousTimer) clearTimeout(previousTimer);
-                    saveTimersRef.current[path] = setTimeout(() => {
-                      delete saveTimersRef.current[path];
-                      vfs.updateFile(blueprintId, path, val).catch((err: Error) => {
-                        toast(err.message || 'Failed to save file changes', 'error');
-                      });
-                    }, 400);
+                    setEditorDrafts(prev=>({...prev,[path]:val}));
+                    fileSave.schedule(path,val);
                   }
                 }}
-                className="h-full text-xs font-mono"
+                className="flex-1 min-h-0 text-xs font-mono"
               />
             </div>
           ) : (
