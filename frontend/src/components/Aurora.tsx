@@ -130,7 +130,7 @@ export function Aurora({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     let renderer: Renderer;
     try {
@@ -161,14 +161,14 @@ export function Aurora({
       uniforms: {
         uTime: { value: 0 },
         uAmplitude: { value: amplitude },
-        uColorStops: { value: toColorStops(colorStops) },
+        uColorStops: { value: toColorStops(propsRef.current.colorStops) },
         uResolution: { value: [container.offsetWidth, container.offsetHeight] },
         uBlend: { value: blend },
       },
     });
 
     function resize() {
-      if (!container) return;
+      if (!container || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       const width = container.offsetWidth;
       const height = container.offsetHeight;
       renderer.setSize(width, height);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Github, Download, Check, Sparkles, Layers, Zap, Bot, FileCode2, GitBranch, Shield } from 'lucide-react';
+import { Play, Github, Download, Check, Sparkles, Layers, Zap, Bot, FileCode2, GitBranch, Shield } from './ui/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SpotlightCard } from './SpotlightCard';
 import { StaggerGridContainer, StaggerGridItem } from './animations/StaggerGrid';
