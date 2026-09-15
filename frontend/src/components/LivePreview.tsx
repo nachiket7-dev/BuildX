@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useVFS, type RuntimeErrorPayload } from '../context/VFSContext';
-import { AlertCircle, AlertTriangle, Loader2, Wand2, Zap, X, Target } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Loader2, Wand2, Zap, X, Target } from './ui/icons';
 import { SchemaUISynthesizer } from './preview/SchemaUISynthesizer';
 import { BuildXLiveEngine } from './preview/BuildXLiveEngine';
 import type { LayoutParadigm, ProductArchetype, Blueprint } from '../lib/types';
@@ -55,7 +55,8 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
   onPromptAgent,
 }: LivePreviewProps) => {
   const vfs = useVFS();
-  const files = propFiles || vfs.previewFiles || vfs.files || {};
+  const files = propFiles || vfs.previewFiles || vfs.files;
+  const { clearRuntimeError, setRuntimeError: reportRuntimeError } = vfs;
 
   const [runtimeError, setRuntimeError] = useState<RuntimeErrorPayload | null>(null);
   const [isInspecting, setIsInspecting] = useState<boolean>(false);
@@ -63,8 +64,8 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
   // Clear runtime error whenever VFS files update
   useEffect(() => {
     setRuntimeError((prev) => (prev ? null : prev));
-    vfs.clearRuntimeError?.();
-  }, [files, vfs.clearRuntimeError]);
+    clearRuntimeError();
+  }, [files, clearRuntimeError]);
 
   const handleRuntimeErrorChange = useCallback((err: RuntimeErrorPayload | null) => {
     setRuntimeError((prev) => {
@@ -83,8 +84,8 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
       return err;
     });
 
-    vfs.setRuntimeError?.(err);
-  }, [vfs.setRuntimeError]);
+    reportRuntimeError(err);
+  }, [reportRuntimeError]);
 
   const layoutParadigm = useMemo(() => {
     return (
@@ -132,9 +133,9 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
     setTimeout(() => {
       setIsAutoFixing(false);
       setRuntimeError(null);
-      vfs.clearRuntimeError?.();
+      clearRuntimeError();
     }, 2000);
-  }, [runtimeError, isAutoFixing, onPromptAgent, vfs]);
+  }, [runtimeError, isAutoFixing, onPromptAgent, clearRuntimeError]);
 
   const activeViewport = VIEWPORTS.find((v) => v.id === selectedViewport) || VIEWPORTS[0];
 

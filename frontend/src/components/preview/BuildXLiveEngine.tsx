@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2 } from '../ui/icons';
 import type { RuntimeErrorPayload } from '../../context/VFSContext';
 import { BUILTIN_ICON_PATHS } from './lucideIconPaths';
 

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, ChevronDown, MoreVertical, Plus, Filter, ArrowUpRight, ArrowDownRight, Eye, Edit, Trash, FileText, Layout } from 'lucide-react';
+import { Search, ChevronDown, MoreVertical, Plus, Filter, ArrowUpRight, ArrowDownRight, Eye, Edit, Trash, FileText, Layout } from '../ui/icons';
 import type { Blueprint, UiScreen, SchemaTable, SchemaColumn, ApiEndpoint } from '../../lib/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -622,7 +622,7 @@ function GenericView({ screen, table }: { screen: UiScreen; table: SchemaTable |
 // ─── Main Synthesizer ─────────────────────────────────────────────────────────
 
 export function SchemaUISynthesizer({ blueprint, activeScreenId }: SynthesizerProps) {
-  const screens = blueprint.screens || [];
+  const screens = useMemo(() => blueprint.screens || [], [blueprint.screens]);
   const tables = blueprint.schema || [];
   const endpoints = blueprint.endpoints || [];
   const appName = blueprint.appName || blueprint.title || 'App';
