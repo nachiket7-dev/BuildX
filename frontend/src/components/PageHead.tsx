@@ -11,7 +11,7 @@ const DEFAULT_DESCRIPTION =
 
 export function PageHead({ title, description }: PageHeadProps) {
   useEffect(() => {
-    document.title = title ? `${title} · BuildX` : DEFAULT_TITLE;
+    document.title = title ? (/buildx/i.test(title) ? title : `${title} · BuildX`) : DEFAULT_TITLE;
 
     let meta = document.querySelector('meta[name="description"]');
     if (!meta) {
