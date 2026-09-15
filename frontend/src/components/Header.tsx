@@ -1,170 +1,139 @@
-import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Logo } from './Logo';
-import { useAuth } from '../hooks/useAuth';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Button } from './ui/primitives';
+import { Logo } from "./Logo";
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
-  ChevronDown, ChevronRight, LogOut, PanelLeft,
-  Cpu, Compass, Sparkles, Rocket,
-} from 'lucide-react';
-
+  ArrowUpRight,
+  Code2,
+  Grid,
+  LogOut,
+  Menu,
+  PanelLeft,
+  Plus,
+} from './ui/icons';
+import { useAuth } from "../hooks/useAuth";
+import { Button } from "./ui/Button";
+import { Modal } from "./ui/Modal";
+import { Dropdown } from "./ui/Dropdown";
 interface HeaderProps {
   onToggleSidebar?: () => void;
   showSidebarToggle?: boolean;
   sidebarOpen?: boolean;
   onDeploy?: () => void;
 }
-
-export function Header({ onToggleSidebar, showSidebarToggle, sidebarOpen, onDeploy }: HeaderProps) {
-  const location = useLocation();
-  const path = location.pathname;
-  const isGallery = path === '/gallery';
-  const isHome    = path === '/create' || path.startsWith('/blueprint/');
-  const isAgent   = path.startsWith('/agent');
-
+export function Header({
+  onToggleSidebar,
+  showSidebarToggle,
+  sidebarOpen,
+  onDeploy,
+}: HeaderProps) {
+  const { pathname } = useLocation();
   const { user, logout } = useAuth();
-  const [showMenu, setShowMenu] = useState(false);
-
-  const routeIdMatch = path.match(/\/(?:agent|blueprint)\/([^/]+)/);
-  const routeId = routeIdMatch ? routeIdMatch[1] : null;
-
+  const [menuOpen, setMenuOpen] = useState(false);
+  const links = [
+    { to: "/create", label: "Studio", Icon: Plus },
+    { to: "/gallery", label: "Gallery", Icon: Grid },
+    ...(user ? [{ to: "/agent", label: "Workspace", Icon: Code2 }] : []),
+  ];
+  const active = (to: string) =>
+    to === "/agent" ? pathname.startsWith("/agent") : pathname === to;
   return (
-    <header className="h-16 w-full border-b border-white/10 px-6 flex items-center justify-between bg-[#0A0A0B]/90 backdrop-blur-xl z-50 shrink-0 select-none relative">
-
-      {/* ── LEFT: Sidebar Toggle + BuildX Logo + AI ARCHITECT Badge + Breadcrumb ── */}
-      <div className="flex items-center gap-4 min-w-0">
-
-        {/* Sidebar Toggle Button */}
-        {showSidebarToggle && (
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.9 }}
-            onClick={onToggleSidebar}
-            className={`shrink-0 p-2 rounded-xl border transition-all ${
-              sidebarOpen
-                ? 'bg-indigo-500/15 border-indigo-500/25 text-indigo-300'
-                : 'bg-transparent hover:bg-white/[0.07] border-white/[0.08] text-zinc-400 hover:text-white'
-            }`}
-            title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-          >
-            <PanelLeft size={18} />
-          </motion.button>
-        )}
-
-        {/* BuildX Logo (md size for spacious 64px header) */}
-        <Link to="/create" className="shrink-0 focus-visible:outline-none">
-          <Logo size="md" />
-        </Link>
-
-        {/* Divider */}
-        <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0 mx-1" />
-
-        {/* Breadcrumb Path */}
-        <div className="hidden sm:flex items-center gap-2 font-sans text-xs text-zinc-400 min-w-0">
-          <span className="text-zinc-400 font-medium shrink-0">
-            {isAgent ? '03 / CORTEX IDE' : isGallery ? '02 / ARCHITECTURES' : '01 / BUILDX STUDIO'}
-          </span>
-          <ChevronRight size={12} className="text-zinc-600 shrink-0" />
-          <span className="text-zinc-200 bg-zinc-900 border border-white/10 px-2.5 py-1 rounded-lg text-xs truncate max-w-[130px]">
-            {isAgent
-              ? routeId ? `agent / ${routeId.slice(0, 7)}` : 'workspace'
-              : isGallery
-                ? (new URLSearchParams(location.search).get('scope') === 'mine' ? 'my-blueprints' : 'gallery')
-                : `buildx / ${routeId ? routeId.slice(0, 7) : 'studio'}`}
+    <>
+      <header className="app-header">
+        <div className="app-header-left">
+          {showSidebarToggle && (
+            <button
+              className="ui-icon-button"
+              onClick={onToggleSidebar}
+              aria-label={
+                sidebarOpen ? "Close projects sidebar" : "Open projects sidebar"
+              }
+              aria-expanded={sidebarOpen}
+            >
+              <PanelLeft size={18} />
+            </button>
+          )}
+          <Link to="/" className="brand-lockup" aria-label="BuildX home">
+            <Logo />
+          </Link>
+          <span className="app-header-context">
+            {pathname.startsWith("/blueprint/")
+              ? "Project overview"
+              : pathname.startsWith("/agent")
+                ? "Workspace"
+                : pathname === "/gallery"
+                  ? "Your next inspiration"
+                  : "Architecture studio"}
           </span>
         </div>
-      </div>
-
-      {/* ── CENTER: Navigation Pills ── */}
-      <nav
-        className="hidden md:flex items-center gap-1 bg-zinc-900/80 border border-white/10 p-1.5 rounded-xl font-sans"
-        aria-label="Main Navigation"
-      >
-        {[
-          { to: '/create', label: 'Studio', Icon: Sparkles, active: isHome },
-          { to: '/gallery', label: 'Gallery', Icon: Compass, active: isGallery },
-          ...(user ? [{ to: '/agent', label: 'IDE', Icon: Cpu, active: isAgent }] : []),
-        ].map(({ to, label, Icon, active }) => (
-          <Link
-            key={to}
-            to={to}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium font-sans transition-all duration-150 ${
-              active
-                ? 'bg-[#7C7CF4]/[0.14] text-white'
-                : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'
-            }`}
-          >
-            <Icon size={13} className={active ? 'text-[#8F8FF7]' : 'text-zinc-500'} />
-            {label}
-          </Link>
-        ))}
-      </nav>
-
-      {/* ── RIGHT: Deploy CTA + User Avatar/Menu ── */}
-      <div className="flex items-center gap-3 shrink-0 font-sans">
-
-        {/* Deploy CTA Button */}
-        <Button variant="primary" onClick={onDeploy} icon={<Rocket size={13} />}>
-          Deploy
-        </Button>
-
-        {/* User Menu */}
-        {user ? (
-          <div className="relative font-sans">
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowMenu(v => !v)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] text-xs text-white transition-all font-sans"
-              aria-expanded={showMenu}
-              aria-haspopup="menu"
+        <nav className="app-header-nav" aria-label="Main navigation">
+          {links.map(({ to, label, Icon }) => (
+            <Link
+              key={to}
+              to={to}
+              aria-current={active(to) ? "page" : undefined}
             >
-              {/* Avatar circle */}
-              <div className="w-8 h-8 rounded-full bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-xs font-bold text-purple-200 shrink-0 font-sans">
-                {user.name?.charAt(0)?.toUpperCase() ?? '?'}
-              </div>
-              <span className="hidden sm:block text-zinc-300 text-xs font-medium font-sans truncate max-w-[84px]">
-                {user.name?.split(' ')[0]}
-              </span>
-              <ChevronDown size={12} className="text-zinc-500 shrink-0" />
-            </motion.button>
-
-            <AnimatePresence>
-              {showMenu && (
-                <motion.div
-                  role="menu"
-                  initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 4, scale: 0.96 }}
-                  transition={{ duration: 0.13 }}
-                  className="absolute right-0 mt-2 w-52 rounded-xl bg-[#111113] border border-white/[0.08] shadow-2xl py-1 z-50 font-sans"
-                >
-                  <div className="px-3.5 py-2.5 border-b border-white/[0.06]">
-                    <p className="text-white text-xs font-semibold truncate font-sans">{user.name}</p>
-                    <p className="text-zinc-500 text-[10px] truncate mt-0.5 font-sans">{user.email}</p>
-                  </div>
-                  <button
-                    role="menuitem"
-                    onClick={() => { setShowMenu(false); logout(); }}
-                    className="w-full text-left px-3.5 py-2 text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors text-xs font-medium font-sans"
-                  >
-                    <LogOut size={13} />
-                    <span>Sign out</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        ) : (
-          <Link
-            to="/login"
-            className="px-3.5 py-2 rounded-lg border border-white/10 hover:border-white/20 text-xs text-zinc-400 hover:text-white transition-all font-medium font-sans"
+              <Icon size={14} />
+              {label}
+            </Link>
+          ))}
+        </nav>
+        <div className="app-header-actions">
+          {onDeploy && (
+            <Button variant="secondary" onClick={onDeploy}>
+              Export <ArrowUpRight size={14} />
+            </Button>
+          )}
+          {user ? (
+            <Dropdown
+              trigger={
+                <button className="ui-icon-button" aria-label="Account menu">
+                  <span className="account-avatar">
+                    {user.name?.charAt(0).toUpperCase() || "U"}
+                  </span>
+                </button>
+              }
+              items={[
+                {
+                  label: "Sign out",
+                  icon: <LogOut size={14} />,
+                  onClick: logout,
+                  danger: true,
+                },
+              ]}
+            />
+          ) : (
+            <Link
+              className="ui-button ui-button--secondary"
+              to="/login"
+              state={{ from: pathname }}
+            >
+              Sign in
+            </Link>
+          )}
+          <button
+            className="ui-icon-button app-mobile-toggle"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open app navigation"
+            aria-expanded={menuOpen}
           >
-            Sign in
-          </Link>
-        )}
-      </div>
-    </header>
+            <Menu size={20} />
+          </button>
+        </div>
+      </header>
+      <Modal
+        isOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title="Your workspace"
+      >
+        <nav className="mobile-nav-links" aria-label="Mobile app navigation">
+          {links.map(({ to, label }) => (
+            <Link key={to} to={to} onClick={() => setMenuOpen(false)}>
+              {label}
+              <ArrowUpRight size={18} />
+            </Link>
+          ))}
+        </nav>
+      </Modal>
+    </>
   );
 }

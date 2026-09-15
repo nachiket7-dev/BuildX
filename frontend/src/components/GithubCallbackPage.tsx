@@ -5,7 +5,7 @@ import { AmbientBackground } from './AmbientBackground';
 import { Logo } from './Logo';
 import { PageHead } from './PageHead';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Check, AlertTriangle, ArrowRight } from './ui/icons';
 
 interface SyncStep {
   id: string;

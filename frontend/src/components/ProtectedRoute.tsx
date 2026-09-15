@@ -3,26 +3,15 @@ import { useAuth } from '../hooks/useAuth';
 import { Logo } from './Logo';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, authReady } = useAuth();
+  const { user, authReady, sessionError, retrySession } = useAuth();
   const location = useLocation();
 
   if (!authReady) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <Logo size="lg" />
-        <div
-          className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin-slow"
-          style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
-        />
-        <p className="font-sans text-xs tracking-tight" style={{ color: 'var(--text3)' }}>
-          Verifying session...
-        </p>
-      </div>
-    );
+    return <div className="route-loading"><Logo size="lg" />{sessionError ? <><p role="alert">We couldn’t verify your session. Check your connection and try again.</p><button className="ui-button ui-button--primary" onClick={retrySession}>Try again</button></> : <p role="status">Verifying your session…</p>}</div>;
   }
 
   if (!user) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   }
 
   return <>{children}</>;

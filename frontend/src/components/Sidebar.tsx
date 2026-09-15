@@ -3,7 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { useBlueprintList, invalidateBlueprintQueries } from '../hooks/useBlueprints';
-import { Button } from './ui/primitives';
+import { Button } from './ui/Button';
+import { Modal } from './ui/Modal';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import {
   Lightbulb,
   MoreHorizontal,
@@ -11,7 +13,7 @@ import {
   FileCode2,
   Pencil,
   Trash2,
-} from 'lucide-react';
+} from './ui/icons';
 
 interface SidebarItem {
   id: string;
@@ -37,6 +39,7 @@ function SidebarSkeleton() {
 }
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
+  const desktop = useMediaQuery('(min-width: 1024px)');
   const { user, token, authReady } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -90,7 +93,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
       });
       if (res.ok) {
         await invalidateBlueprintQueries(queryClient);
-        if (currentId === id) navigate('/create');
+        if (currentId === id) navigate('/create?new=1');
       }
     } catch {
       // silent
@@ -119,7 +122,10 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
     ];
 
     items.forEach((item) => {
-      const date = new Date(item.createdAt + 'Z');
+      const timestamp = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(item.createdAt)
+        ? item.createdAt
+        : `${item.createdAt}Z`;
+      const date = new Date(timestamp);
       if (date >= today) groups[0].items.push(item);
       else if (date >= yesterday) groups[1].items.push(item);
       else if (date >= lastWeek) groups[2].items.push(item);
@@ -133,19 +139,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
   const groups = groupByDate(items);
 
-  return (
-    <>
-      {isOpen && (
-        <div
-          className="fixed inset-x-0 top-16 bottom-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
-          onClick={onToggle}
-        />
-      )}
-
-      <aside
-        className={`sidebar-panel ${isOpen ? 'sidebar-panel--open' : ''}`}
-        aria-label="Blueprint history"
-      >
+  const content = <>
         {/* Aurora accent edge */}
         <div className="sidebar-panel__accent" aria-hidden />
 
@@ -158,15 +152,15 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
           </div>
 
           <Button
-            variant="primary"
-            className="w-full"
+            variant="secondary"
+            className="w-full sidebar-create-action"
             onClick={() => {
-              navigate('/create');
-              if (window.innerWidth < 768) onToggle();
+              navigate('/create?new=1');
+              if (window.innerWidth < 1024) onToggle();
             }}
             icon={<Plus size={15} strokeWidth={2.5} />}
           >
-            New Blueprint
+            New project
           </Button>
         </div>
 
@@ -227,7 +221,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                         <button
                           onClick={() => {
                             navigate(`/blueprint/${item.id}`);
-                            if (window.innerWidth < 768) onToggle();
+                            if (window.innerWidth < 1024) onToggle();
                             setMenuId(null);
                           }}
                           className={`sidebar-item ${isActive ? 'sidebar-item--active' : ''}`}
@@ -298,7 +292,6 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
             </button>
           )}
         </div>
-      </aside>
-    </>
-  );
+    </>;
+  return desktop ? <aside className={`sidebar-panel ${isOpen ? 'sidebar-panel--open' : ''}`} aria-label="Project history" hidden={!isOpen}>{content}</aside> : <Modal isOpen={isOpen} onClose={onToggle} title="Your projects" size="sm"><div className="mobile-project-history">{content}</div></Modal>;
 }
