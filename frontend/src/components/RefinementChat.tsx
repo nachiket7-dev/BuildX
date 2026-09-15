@@ -1,11 +1,31 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { ChevronUp, Send, AlertTriangle, Wrench, X, Brain, Zap, GitCompare, Sparkles } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useVFS } from '../context/VFSContext';
-import type { ChatMessage } from '../hooks/useRefinement';
-import type { Blueprint } from '../lib/types';
-import { timelineNodeSlide, timelineContainer, commandDock as commandDockVariants } from '../lib/motion';
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+} from "react";
+import { createPortal } from "react-dom";
+import {
+  ChevronUp,
+  Send,
+  AlertTriangle,
+  Wrench,
+  X,
+  Brain,
+  Zap,
+  GitCompare,
+  Sparkles,
+} from "./ui/icons";
+import { motion, AnimatePresence } from "framer-motion";
+import { useVFS } from "../context/VFSContext";
+import type { ChatMessage } from "../hooks/useRefinement";
+import type { Blueprint } from "../lib/types";
+import {
+  timelineNodeSlide,
+  timelineContainer,
+  commandDock as commandDockVariants,
+} from "../lib/motion";
 
 interface RefinementChatProps {
   messages: ChatMessage[];
@@ -21,66 +41,79 @@ interface RefinementChatProps {
 }
 
 function resolveSuggestions(blueprint?: Blueprint): string[] {
-  if (blueprint?.suggestedRefinements && Array.isArray(blueprint.suggestedRefinements) && blueprint.suggestedRefinements.length > 0) {
+  if (
+    blueprint?.suggestedRefinements &&
+    Array.isArray(blueprint.suggestedRefinements) &&
+    blueprint.suggestedRefinements.length > 0
+  ) {
     return blueprint.suggestedRefinements;
   }
 
-  const textToMatch = `${blueprint?.appName ?? ''} ${blueprint?.title ?? ''} ${blueprint?.category ?? ''} ${blueprint?.description ?? ''}`.toLowerCase();
+  const textToMatch =
+    `${blueprint?.appName ?? ""} ${blueprint?.title ?? ""} ${blueprint?.category ?? ""} ${blueprint?.description ?? ""}`.toLowerCase();
 
   // CRM / Sales apps
   if (/crm|sale|lead|deal|customer|pipeline|contact/i.test(textToMatch)) {
     return [
-      'Add CSV lead bulk import with validation',
-      'Add email thread tracking & webhook sync',
-      'Add automated deal stage pipeline transition rules',
-      'Add sales performance leaderboard panel',
+      "Add CSV lead bulk import with validation",
+      "Add email thread tracking & webhook sync",
+      "Add automated deal stage pipeline transition rules",
+      "Add sales performance leaderboard panel",
     ];
   }
 
   // Health / Medical apps
-  if (/health|med|care|clinic|doc|patient|appoint|pharm/i.test(textToMatch)) {
+  if (
+    /\b(health(?:care)?|medical|care|clinic|doctor|patient|appointment|pharmacy)\b/i.test(
+      textToMatch,
+    )
+  ) {
     return [
-      'Add HIPAA compliance audit logging',
-      'Add automated SMS appointment reminders',
-      'Add doctor calendar sync & availability slots',
-      'Add patient prescription history export',
+      "Add HIPAA compliance audit logging",
+      "Add automated SMS appointment reminders",
+      "Add doctor calendar sync & availability slots",
+      "Add patient prescription history export",
     ];
   }
 
   // E-commerce / Store apps
-  if (/shop|store|e-?commerce|cart|checkout|product|inventory|stripe/i.test(textToMatch)) {
+  if (
+    /shop|store|e-?commerce|cart|checkout|product|inventory|stripe/i.test(
+      textToMatch,
+    )
+  ) {
     return [
-      'Add Stripe payment webhooks with idempotency',
-      'Add real-time WebSocket order tracking',
-      'Add inventory depletion alert triggers',
-      'Add multi-currency checkout support',
+      "Add Stripe payment webhooks with idempotency",
+      "Add real-time WebSocket order tracking",
+      "Add inventory depletion alert triggers",
+      "Add multi-currency checkout support",
     ];
   }
 
   // Generic / Fallback
   return [
-    'Add role-based access control (RBAC) schema',
-    'Add Redis caching layer for API endpoints',
-    'Add automated database audit trail tables',
-    'Add OAuth 2.0 social login support',
+    "Add role-based access control (RBAC) schema",
+    "Add Redis caching layer for API endpoints",
+    "Add automated database audit trail tables",
+    "Add OAuth 2.0 social login support",
   ];
 }
 
 function formatModelName(modelKey?: string): string {
-  if (!modelKey) return 'Gemini 3.5 Flash';
+  if (!modelKey) return "Gemini 3.5 Flash";
   const map: Record<string, string> = {
-    'gemini-3.5-flash': 'Gemini 3.5 Flash',
-    'gemini-3.1-pro': 'Gemini 3.1 Pro',
-    'nemotron-3-super-120b': 'Nemotron 3 Super',
-    'nemotron-3-550b': 'Nemotron 3 Ultra',
-    'nemotron-3-ultra-550b': 'Nemotron 3 Ultra',
-    'kimi-k3': 'Kimi K3',
-    'kimi-k2.6': 'Kimi K2.6',
-    'glm-5.2': 'GLM 5.2',
-    'gpt-oss-120b': 'GPT-OSS 120B',
-    'qwen-3-32b': 'Qwen 3 32B',
+    "gemini-3.5-flash": "Gemini 3.5 Flash",
+    "gemini-3.1-pro": "Gemini 3.1 Pro",
+    "nemotron-3-super-120b": "Nemotron 3 Super",
+    "nemotron-3-550b": "Nemotron 3 Ultra",
+    "nemotron-3-ultra-550b": "Nemotron 3 Ultra",
+    "kimi-k3": "Kimi K3",
+    "kimi-k2.6": "Kimi K2.6",
+    "glm-5.2": "GLM 5.2",
+    "gpt-oss-120b": "GPT-OSS 120B",
+    "qwen-3-32b": "Qwen 3 32B",
   };
-  return map[modelKey] || modelKey.split('/').pop() || modelKey;
+  return map[modelKey] || modelKey.split("/").pop() || modelKey;
 }
 
 const SHELL_TRANSITION_MS = 320;
@@ -94,20 +127,20 @@ function groupConversationTurns(messages: ChatMessage[]): ConversationTurn[] {
   const turns: ConversationTurn[] = [];
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
-    if (msg.role !== 'user') continue;
+    if (msg.role !== "user") continue;
     const next = messages[i + 1];
     turns.push({
       user: msg,
-      assistant: next?.role === 'assistant' ? next : undefined,
+      assistant: next?.role === "assistant" ? next : undefined,
     });
-    if (next?.role === 'assistant') i++;
+    if (next?.role === "assistant") i++;
   }
   return turns;
 }
 
 function useAnchorBounds(
   anchorRef: React.RefObject<HTMLElement>,
-  layoutSyncKey?: boolean
+  layoutSyncKey?: boolean,
 ) {
   const [bounds, setBounds] = useState({ left: 0, width: 0 });
 
@@ -127,20 +160,20 @@ function useAnchorBounds(
     const observer = new ResizeObserver(update);
     observer.observe(el);
 
-    const shell = el.closest('.app-shell-content');
+    const shell = el.closest(".app-shell-content");
     if (shell) {
       observer.observe(shell);
-      shell.addEventListener('transitionend', update);
+      shell.addEventListener("transitionend", update);
     }
 
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
 
     return () => {
       observer.disconnect();
-      if (shell) shell.removeEventListener('transitionend', update);
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
+      if (shell) shell.removeEventListener("transitionend", update);
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
     };
   }, [anchorRef]);
 
@@ -181,7 +214,7 @@ export function RefinementChat({
   layoutSyncKey,
 }: RefinementChatProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [mounted, setMounted] = useState(false);
 
   const [sandboxError, setSandboxError] = useState<string | null>(null);
@@ -189,6 +222,24 @@ export function RefinementChat({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const dockRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    const scroller =
+      anchorRef.current?.closest<HTMLElement>(".blueprint-scroll");
+    if (!dock || !scroller) return;
+    const sync = () => {
+      scroller.style.marginBottom = `${dock.getBoundingClientRect().height}px`;
+    };
+    const observer = new ResizeObserver(sync);
+    observer.observe(dock);
+    sync();
+    return () => {
+      observer.disconnect();
+      scroller.style.marginBottom = "";
+    };
+  }, [mounted, anchorRef]);
 
   const anchorBounds = useAnchorBounds(anchorRef, layoutSyncKey);
   const vfs = useVFS();
@@ -200,11 +251,13 @@ export function RefinementChat({
     // When refinement finishes (transitions from true to false), parse full buffered code
     if (prevIsRefiningRef.current && !isRefining && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content) {
-        const codeBlockRegex = /(?:(?:###|##|#|\*\*|File:?|\/\/)\s*[`*]?([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)[`*]?\s*\n\s*)?```(?:[a-zA-Z0-9_-]+)?(?:\s+(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+))?\s*(?:\n\s*(?:\/\/|\/\*|#)\s*(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)(?:\s*\*\/)?)?\n([\s\S]*?)```/gi;
+      if (lastMsg && lastMsg.role === "assistant" && lastMsg.content) {
+        const codeBlockRegex =
+          /(?:(?:###|##|#|\*\*|File:?|\/\/)\s*[`*]?([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)[`*]?\s*\n\s*)?```(?:[a-zA-Z0-9_-]+)?(?:\s+(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+))?\s*(?:\n\s*(?:\/\/|\/\*|#)\s*(?:filepath:?|path:?|file:?)?\s*([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)(?:\s*\*\/)?)?\n([\s\S]*?)```/gi;
         let match;
         while ((match = codeBlockRegex.exec(lastMsg.content)) !== null) {
-          const rawPath = match[1]?.trim() || match[2]?.trim() || match[3]?.trim();
+          const rawPath =
+            match[1]?.trim() || match[2]?.trim() || match[3]?.trim();
           const code = match[4]?.trim();
           if (rawPath && code) {
             const matchingKey = Object.keys(vfs.files).find(
@@ -212,7 +265,7 @@ export function RefinementChat({
                 k === rawPath ||
                 k.endsWith(`/${rawPath}`) ||
                 rawPath.endsWith(`/${k}`) ||
-                k.split('/').pop() === rawPath
+                k.split("/").pop() === rawPath,
             );
             const targetPath = matchingKey || rawPath;
             vfs.stageDiff(targetPath, code);
@@ -227,13 +280,17 @@ export function RefinementChat({
   // Listen for external stage diff window messages
   useEffect(() => {
     const handleStageEvent = (e: MessageEvent) => {
-      if (e.data?.type === 'BUILDX_STAGE_FILE_DIFF' && e.data.filePath && e.data.incomingCode) {
+      if (
+        e.data?.type === "BUILDX_STAGE_FILE_DIFF" &&
+        e.data.filePath &&
+        e.data.incomingCode
+      ) {
         vfs.stageDiff(e.data.filePath, e.data.incomingCode);
         vfs.setActiveFile(e.data.filePath);
       }
     };
-    window.addEventListener('message', handleStageEvent);
-    return () => window.removeEventListener('message', handleStageEvent);
+    window.addEventListener("message", handleStageEvent);
+    return () => window.removeEventListener("message", handleStageEvent);
   }, [vfs]);
 
   useEffect(() => {
@@ -246,26 +303,47 @@ export function RefinementChat({
 
   useEffect(() => {
     if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isRefining]);
+
+  const triggerAutoFix = useCallback(
+    (promptText: string) => {
+      if (isRefining || isAutoFixing) return;
+      setIsAutoFixing(true);
+      setIsExpanded(true);
+      const fullPrompt =
+        promptText.startsWith("Fix ") || promptText.startsWith("[AUTO-FIX")
+          ? promptText
+          : `[AUTO-FIX DISPATCH] Fix sandbox execution error: ${promptText}`;
+      onSend(fullPrompt);
+      setTimeout(() => {
+        setIsAutoFixing(false);
+        setSandboxError(null);
+      }, 2000);
+    },
+    [isRefining, isAutoFixing, onSend],
+  );
 
   // Listen for sandbox errors and autofix triggers from live preview iframe postMessage & window events
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
-      if (event.data?.type === 'BUILDX_SANDBOX_ERROR') {
+      if (event.data?.type === "BUILDX_SANDBOX_ERROR") {
         const errPayload = event.data.error;
-        const msg = typeof errPayload === 'string'
-          ? errPayload
-          : errPayload?.message || 'Runtime execution error captured';
+        const msg =
+          typeof errPayload === "string"
+            ? errPayload
+            : errPayload?.message || "Runtime execution error captured";
         setSandboxError(msg);
-      } else if (event.data?.type === 'BUILDX_TRIGGER_AUTO_FIX') {
+      } else if (event.data?.type === "BUILDX_TRIGGER_AUTO_FIX") {
         const err = event.data.error;
-        const prompt = event.data.prompt || (err
-          ? `Fix runtime preview error in file ${err.path || 'active component'}: ${err.message || err}${err.line ? ` at line ${err.line}` : ''}`
-          : sandboxError
-            ? `Fix sandbox execution error: ${sandboxError}`
-            : null);
+        const prompt =
+          event.data.prompt ||
+          (err
+            ? `Fix runtime preview error in file ${err.path || "active component"}: ${err.message || err}${err.line ? ` at line ${err.line}` : ""}`
+            : sandboxError
+              ? `Fix sandbox execution error: ${sandboxError}`
+              : null);
         if (prompt) {
           triggerAutoFix(prompt);
         }
@@ -276,42 +354,31 @@ export function RefinementChat({
       if (isRefining || isAutoFixing) return;
       const customEvent = e as CustomEvent;
       const detail = customEvent.detail;
-      const prompt = detail?.message || detail?.prompt || (detail?.error
-        ? `Fix runtime preview error in file ${detail.error.path || 'active component'}: ${detail.error.message || detail.error}${detail.error.line ? ` at line ${detail.error.line}` : ''}`
-        : null);
+      const prompt =
+        detail?.message ||
+        detail?.prompt ||
+        (detail?.error
+          ? `Fix runtime preview error in file ${detail.error.path || "active component"}: ${detail.error.message || detail.error}${detail.error.line ? ` at line ${detail.error.line}` : ""}`
+          : null);
       if (prompt) {
         triggerAutoFix(prompt);
       }
     }
 
-    window.addEventListener('message', handleMessage);
-    window.addEventListener('buildx:trigger-autofix', handleCustomAutoFix);
+    window.addEventListener("message", handleMessage);
+    window.addEventListener("buildx:trigger-autofix", handleCustomAutoFix);
 
     return () => {
-      window.removeEventListener('message', handleMessage);
-      window.removeEventListener('buildx:trigger-autofix', handleCustomAutoFix);
+      window.removeEventListener("message", handleMessage);
+      window.removeEventListener("buildx:trigger-autofix", handleCustomAutoFix);
     };
-  }, [sandboxError, isRefining, isAutoFixing]);
-
-  const triggerAutoFix = (promptText: string) => {
-    if (isRefining || isAutoFixing) return;
-    setIsAutoFixing(true);
-    setIsExpanded(true);
-    const fullPrompt = promptText.startsWith('Fix ') || promptText.startsWith('[AUTO-FIX')
-      ? promptText
-      : `[AUTO-FIX DISPATCH] Fix sandbox execution error: ${promptText}`;
-    onSend(fullPrompt);
-    setTimeout(() => {
-      setIsAutoFixing(false);
-      setSandboxError(null);
-    }, 2000);
-  };
+  }, [sandboxError, isRefining, isAutoFixing, triggerAutoFix]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isRefining) return;
     onSend(input.trim());
-    setInput('');
+    setInput("");
   };
 
   const handleSuggestion = (suggestionText: string) => {
@@ -324,7 +391,7 @@ export function RefinementChat({
   const suggestions = resolveSuggestions(blueprint);
   const conversationTurns = groupConversationTurns(messages);
   const pendingUserMessage = isRefining
-    ? [...messages].reverse().find((m) => m.role === 'user')
+    ? [...messages].reverse().find((m) => m.role === "user")
     : undefined;
 
   const chatPanel = (
@@ -333,7 +400,9 @@ export function RefinementChat({
       initial="hidden"
       animate="show"
       className={`refine-chat pointer-events-auto bg-[#111113]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3.5 space-y-3 shadow-2xl relative overflow-hidden transition-all duration-200 ${
-        isExpanded ? 'border-indigo-500/30 ring-1 ring-indigo-500/20' : 'hover:border-white/20'
+        isExpanded
+          ? "border-indigo-500/30 ring-1 ring-indigo-500/20"
+          : "hover:border-white/20"
       }`}
     >
       {/* Sandbox Error Interceptor Bar */}
@@ -390,21 +459,21 @@ export function RefinementChat({
               <Sparkles size={14} />
             </div>
             <span className="font-sans text-xs font-semibold text-neutral-200 group-hover:text-white transition-colors truncate">
-              Cortex Agent Refinement
+              Refine this blueprint
             </span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             {messages.length > 0 && (
               <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium tracking-tight">
-                {messages.length} message{messages.length !== 1 ? 's' : ''}
+                {messages.length} message{messages.length !== 1 ? "s" : ""}
               </span>
             )}
             <div className="p-1 rounded-lg hover:bg-white/[0.08] text-neutral-400 group-hover:text-white transition-colors flex items-center justify-center">
               <ChevronUp
                 size={15}
                 strokeWidth={2}
-                className={`transition-transform duration-300 ${isExpanded ? 'rotate-180 text-indigo-400' : ''}`}
+                className={`transition-transform duration-300 ${isExpanded ? "rotate-180 text-indigo-400" : ""}`}
                 aria-hidden
               />
             </div>
@@ -429,10 +498,14 @@ export function RefinementChat({
       {/* Timeline Event Feed */}
       <div
         className="refine-chat__collapse overflow-hidden transition-all duration-300"
-        style={{ maxHeight: isExpanded ? 'min(55vh, 440px)' : '0px' }}
+        aria-hidden={!isExpanded}
+        ref={(node) => {
+          if (node) node.inert = !isExpanded;
+        }}
+        style={{ maxHeight: isExpanded ? "min(55vh, 440px)" : "0px" }}
       >
         <div
-          className={`refine-chat__scroll ${messages.length > 0 ? 'refine-chat__scroll--has-history p-4 max-h-[380px]' : 'p-2 max-h-none'} overflow-y-auto relative`}
+          className={`refine-chat__scroll ${messages.length > 0 ? "refine-chat__scroll--has-history p-4 max-h-[380px]" : "p-2 max-h-none"} overflow-y-auto relative`}
         >
           {messages.length > 0 ? (
             <motion.div
@@ -442,11 +515,19 @@ export function RefinementChat({
               className="timeline-feed border-l border-white/10 ml-4 pl-4 space-y-6 font-sans text-xs"
             >
               {conversationTurns.map((turn, turnIndex) => (
-                <div key={turn.user.timestamp || turnIndex} className="space-y-4">
+                <div
+                  key={turn.user.timestamp || turnIndex}
+                  className="space-y-4"
+                >
                   {/* User Question Node */}
-                  <motion.div variants={timelineNodeSlide} className="timeline-node relative">
+                  <motion.div
+                    variants={timelineNodeSlide}
+                    className="timeline-node relative"
+                  >
                     <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400">
-                      <span className="font-mono text-[10px] text-indigo-400 font-semibold">01 / ARCHITECT</span>
+                      <span className="font-mono text-[10px] text-indigo-400 font-semibold">
+                        01 / ARCHITECT
+                      </span>
                       <span className="text-zinc-600">•</span>
                       <span>Request #{turnIndex + 1}</span>
                     </div>
@@ -457,10 +538,15 @@ export function RefinementChat({
 
                   {/* Assistant Answer Node */}
                   {turn.assistant ? (
-                    <motion.div variants={timelineNodeSlide} className="timeline-node relative">
+                    <motion.div
+                      variants={timelineNodeSlide}
+                      className="timeline-node relative"
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5 text-[10px] text-zinc-400">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-[10px] text-emerald-400 font-semibold">02 / SUBAGENT PIPELINE</span>
+                          <span className="font-mono text-[10px] text-emerald-400 font-semibold">
+                            02 / SUBAGENT PIPELINE
+                          </span>
                           <span className="text-zinc-600">•</span>
                           <span>Multi-Model Stream</span>
                         </div>
@@ -470,16 +556,22 @@ export function RefinementChat({
                           <span
                             className={`px-1.5 py-0.5 rounded flex items-center gap-1 border ${
                               turn.assistant.telemetry?.planner?.wasFallback
-                                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
-                                : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
+                                ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                                : "bg-purple-500/15 border-purple-500/30 text-purple-300"
                             }`}
                           >
                             <Brain size={9} />
                             <span>
-                              PLAN: {formatModelName(turn.assistant.telemetry?.planner?.modelUsed || 'nemotron-3-550b')}
+                              PLAN:{" "}
+                              {formatModelName(
+                                turn.assistant.telemetry?.planner?.modelUsed ||
+                                  "nemotron-3-550b",
+                              )}
                             </span>
                             {turn.assistant.telemetry?.planner?.wasFallback && (
-                              <span className="px-0.5 rounded bg-amber-500/30 text-[8px] font-bold">FALLBACK</span>
+                              <span className="px-0.5 rounded bg-amber-500/30 text-[8px] font-bold">
+                                FALLBACK
+                              </span>
                             )}
                           </span>
 
@@ -494,17 +586,25 @@ export function RefinementChat({
 
                           <span
                             className={`px-1.5 py-0.5 rounded flex items-center gap-1 border ${
-                              turn.assistant.telemetry?.patches?.[0]?.wasFallback
-                                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
-                                : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                              turn.assistant.telemetry?.patches?.[0]
+                                ?.wasFallback
+                                ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                                : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
                             }`}
                           >
                             <GitCompare size={9} />
                             <span>
-                              PATCH: {formatModelName(turn.assistant.telemetry?.patches?.[0]?.modelUsed || 'kimi-k3')}
+                              PATCH:{" "}
+                              {formatModelName(
+                                turn.assistant.telemetry?.patches?.[0]
+                                  ?.modelUsed || "kimi-k3",
+                              )}
                             </span>
-                            {turn.assistant.telemetry?.patches?.[0]?.wasFallback && (
-                              <span className="px-0.5 rounded bg-amber-500/30 text-[8px] font-bold">FALLBACK</span>
+                            {turn.assistant.telemetry?.patches?.[0]
+                              ?.wasFallback && (
+                              <span className="px-0.5 rounded bg-amber-500/30 text-[8px] font-bold">
+                                FALLBACK
+                              </span>
                             )}
                           </span>
 
@@ -520,10 +620,16 @@ export function RefinementChat({
                         {turn.assistant.content}
                       </div>
                     </motion.div>
-                  ) : pendingUserMessage?.timestamp === turn.user.timestamp && isRefining ? (
-                    <motion.div variants={timelineNodeSlide} className="timeline-node relative">
+                  ) : pendingUserMessage?.timestamp === turn.user.timestamp &&
+                    isRefining ? (
+                    <motion.div
+                      variants={timelineNodeSlide}
+                      className="timeline-node relative"
+                    >
                       <div className="flex items-center gap-2 mb-1.5 text-[10px] text-amber-400">
-                        <span className="font-mono text-[10px] font-semibold">03 / SUBAGENT_EXECUTION</span>
+                        <span className="font-mono text-[10px] font-semibold">
+                          03 / SUBAGENT_EXECUTION
+                        </span>
                         <span className="text-zinc-600">•</span>
                         <span>Cortex Multi-Stage Routing</span>
                       </div>
@@ -534,15 +640,21 @@ export function RefinementChat({
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-indigo-300/80 pt-2 border-t border-indigo-500/20 font-mono">
                           <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-300">
-                            <Brain size={10} className="text-purple-400" /> PLAN: Nemotron 3 Ultra
+                            <Brain size={10} className="text-purple-400" />{" "}
+                            PLAN: Nemotron 3 Ultra
                           </span>
                           <span className="text-neutral-600">›</span>
                           <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-sky-300">
-                            <Zap size={10} className="text-sky-400" /> INGEST: GLM 5.2
+                            <Zap size={10} className="text-sky-400" /> INGEST:
+                            GLM 5.2
                           </span>
                           <span className="text-neutral-600">›</span>
                           <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
-                            <GitCompare size={10} className="text-emerald-400" /> PATCH: Kimi K2.6
+                            <GitCompare
+                              size={10}
+                              className="text-emerald-400"
+                            />{" "}
+                            PATCH: Kimi K2.6
                           </span>
                           <span className="text-neutral-600">›</span>
                           <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 font-semibold">
@@ -584,7 +696,10 @@ export function RefinementChat({
 
       {/* Docked Glass Input Bar */}
       {isExpanded && (
-        <form onSubmit={handleSubmit} className="bg-[#0A0A0B]/90 border-t border-white/10 pt-2.5 sticky bottom-0 z-10 backdrop-blur-xl">
+        <form
+          onSubmit={handleSubmit}
+          className="bg-[#0A0A0B]/90 border-t border-white/10 pt-2.5 sticky bottom-0 z-10 backdrop-blur-xl"
+        >
           <div className="h-10 flex items-center gap-2">
             <div className="text-xs font-sans px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full tracking-tight font-sans">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -598,7 +713,9 @@ export function RefinementChat({
               onChange={(e) => setInput(e.target.value)}
               disabled={isRefining}
               placeholder={
-                isRefining ? 'Refining blueprint…' : 'e.g. "Add Stripe payment webhooks with idempotency"'
+                isRefining
+                  ? "Refining blueprint…"
+                  : 'e.g. "Add Stripe payment webhooks with idempotency"'
               }
               maxLength={500}
               className="bg-black/60 border border-white/10 focus:border-indigo-500/50 text-white font-sans text-xs px-3 py-2 rounded-lg flex-1 h-full focus:outline-none placeholder:text-zinc-600 outline-none transition-all"
@@ -610,7 +727,7 @@ export function RefinementChat({
               type="submit"
               disabled={!input.trim() || isRefining}
               className="bg-indigo-600 hover:bg-indigo-500 text-white font-sans text-xs font-semibold px-3.5 h-full rounded-lg transition-all shrink-0 flex items-center justify-center border-0 cursor-pointer disabled:opacity-40 gap-1.5"
-              aria-label={isRefining ? 'Refining' : 'Send refinement'}
+              aria-label={isRefining ? "Refining" : "Send refinement"}
             >
               {isRefining ? (
                 <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -630,16 +747,22 @@ export function RefinementChat({
   const fixedDock = mounted
     ? createPortal(
         <div
+          ref={dockRef}
           className="refine-chat-dock"
           style={
             anchorBounds.width > 0
               ? { left: anchorBounds.left, width: anchorBounds.width }
-              : { left: '50%', transform: 'translateX(-50%)', width: 'calc(100% - 2rem)', maxWidth: '1024px' }
+              : {
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: "calc(100% - 2rem)",
+                  maxWidth: "1024px",
+                }
           }
         >
           {chatPanel}
         </div>,
-        document.body
+        document.body,
       )
     : null;
 

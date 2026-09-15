@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { html } from '@codemirror/lang-html';
@@ -11,6 +11,11 @@ import { EditorView } from '@codemirror/view';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { unifiedMergeView } from '@codemirror/merge';
 import { buildxEditorTheme, buildxExtensions } from './theme/buildxTheme';
+import { AgentMessage, AgentRunStatus, type AgentChatMessage as ChatMessage } from './AgentConversation';
+import { PanelResizeHandle } from './PanelResizeHandle';
+import { useEventCallback } from '../hooks/useEventCallback';
+import { useFileSave } from '../hooks/useFileSave';
+import type { AppShellOutletContext } from './AppShell';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import { fetchBlueprintFilesWithContent, fetchBlueprint, fetchMyBlueprints } from '../lib/api';
@@ -26,26 +31,18 @@ import {
   FileCode,
   Send,
   Loader2,
-  Sparkles,
   ArrowLeft,
-  CheckSquare,
   PlayCircle,
   FileText,
-  ChevronDown,
   ChevronRight,
-  Brain,
   Terminal,
   GitCompare,
   CheckCircle2,
   XCircle,
-  Clock,
-  Layers,
-  Activity,
-  Check,
   Search,
   Database,
   FlaskConical,
-} from 'lucide-react';
+} from './ui/icons';
 
 const cursorInlineDiffTheme = EditorView.theme({
   '.cm-merge-b, .cm-insertedLine, .cm-change-b': {
@@ -89,45 +86,26 @@ interface VfsFile {
   language: string;
 }
 
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  thinkingSteps?: string[];
-  model?: string;
-  telemetry?: {
-    planner?: { modelUsed: string; executionTimeMs?: number; wasFallback?: boolean };
-    patches?: Array<{ filePath: string; modelUsed: string; executionTimeMs?: number; wasFallback?: boolean }>;
-  };
-}
-
-function formatAgentModelName(modelKey?: string): string {
-  if (!modelKey) return 'Gemini 3.5 Flash';
-  const map: Record<string, string> = {
-    'gemini-3.5-flash': 'Gemini 3.5 Flash',
-    'gemini-3.1-pro': 'Gemini 3.1 Pro',
-    'nemotron-3-super-120b': 'Nemotron 3 Super',
-    'nemotron-3-550b': 'Nemotron 3 Ultra',
-    'nemotron-3-ultra-550b': 'Nemotron 3 Ultra',
-    'kimi-k3': 'Kimi K3',
-    'kimi-k2.6': 'Kimi K2.6',
-    'glm-5.2': 'GLM 5.2',
-    'gpt-oss-120b': 'GPT-OSS 120B',
-    'qwen-3-32b': 'Qwen 3 32B',
-  };
-  return map[modelKey] || modelKey.split('/').pop() || modelKey;
-}
-
 export function AgentPage() {
+  const reducedMotion = useReducedMotion();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token } = useAuth();
   const { toast } = useToast();
   const vfs = useVFS();
+  const {loadVFS} = vfs;
+  const {onDeploy} = useOutletContext<AppShellOutletContext>();
+  const fileSave = useFileSave(id, vfs.updateFile);
+  const [surface,setSurface] = useState<'files'|'code'|'preview'|'agent'>('code');
+  const [fileWidth,setFileWidth] = useState(220);
+  const [agentWidth,setAgentWidth] = useState(320);
 
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(true);
 
   // Active workspace state
+  const [workspaceError,setWorkspaceError]=useState('');
+  const [loadAttempt,setLoadAttempt]=useState(0);
   const [appName, setAppName] = useState<string>('');
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [files, setFiles] = useState<VfsFile[]>([]);
@@ -141,6 +119,8 @@ export function AgentPage() {
   // Multi-tab state: track open file tabs with order
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [tabDirtyState, setTabDirtyState] = useState<Record<string, boolean>>({});
+
+  useEffect(()=>{setTabDirtyState(prev=>{const next={...prev};for(const [path,state] of Object.entries(fileSave.states))next[path]=state!=='saved';return next;});},[fileSave.states]);
 
   // Tab management functions
   const openFileTab = useCallback((filePath: string) => {
@@ -176,14 +156,12 @@ export function AgentPage() {
   const selectFileAndOpenTab = useCallback((file: VfsFile) => {
     setSelectedFile(file);
     setActiveTab('editor');
+    setSurface('code');
     openFileTab(file.path);
   }, [openFileTab]);
 
   // Subagent Telemetry State
-  const [activeTelemetry, setActiveTelemetry] = useState<{
-    planner?: { modelUsed: string; executionTimeMs?: number; wasFallback?: boolean };
-    patch?: { modelUsed: string; executionTimeMs?: number; wasFallback?: boolean };
-  }>({});
+  const runTelemetry = useRef<NonNullable<ChatMessage['telemetry']>>({});
 
   // AI Diff Review State
   const [pendingDiff, setPendingDiff] = useState<{
@@ -200,14 +178,6 @@ export function AgentPage() {
   const editorViewRef = useRef<EditorView | null>(null);
   const diffContainerRef = useRef<HTMLDivElement>(null);
   const diffEditorViewRef = useRef<EditorView | null>(null);
-  const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-
-  useEffect(() => {
-    return () => {
-      Object.values(saveTimersRef.current).forEach(clearTimeout);
-    };
-  }, []);
-
   // Mount raw DOM CodeMirror 6 unifiedMergeView when pendingDiff is active for selectedFile
   useEffect(() => {
     if (pendingDiff && selectedFile && (pendingDiff.filePath === selectedFile.path || !pendingDiff.filePath) && diffContainerRef.current) {
@@ -260,7 +230,6 @@ export function AgentPage() {
   const [liveThinkingSteps, setLiveThinkingSteps] = useState<string[]>([]);
   const [previewKey, setPreviewKey] = useState(0);
   const [agentModel, setAgentModel] = useState<string>('nemotron-3-550b');
-  const [expandedThinking, setExpandedThinking] = useState<Record<number, boolean>>({});
   const [pipelineHeartbeat, setPipelineHeartbeat] = useState<{
     elapsedMs: number;
     activeStage: string;
@@ -280,6 +249,8 @@ export function AgentPage() {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
+
+  const sendMessage = useEventCallback(handleSend);
 
   // ── Command Palette action handler ────────────────────────────────────────
   const handlePaletteAction = useCallback((action: PaletteAction) => {
@@ -308,7 +279,7 @@ export function AgentPage() {
             const errorCtx = vfs.runtimeError;
             if (errorCtx) {
               const autoFixPrompt = `Fix runtime preview error: ${errorCtx.message}${errorCtx.path ? ` in file ${errorCtx.path}` : ''}${errorCtx.line ? ` at line ${errorCtx.line}` : ''}`;
-              handleSend(undefined, autoFixPrompt);
+              sendMessage(undefined, autoFixPrompt);
             } else {
               toast('No runtime errors detected to fix', 'info');
             }
@@ -316,8 +287,7 @@ export function AgentPage() {
           }
           case 'deploy-github':
           case 'export-zip':
-            // Trigger deploy modal via outlet context
-            // These are wired through AppShell's onDeploy callback
+            onDeploy?.();
             break;
           default:
             break;
@@ -329,19 +299,10 @@ export function AgentPage() {
         toast(`Model switched to ${action.modelKey}`, 'info');
         break;
       case 'prompt':
-        handleSend(undefined, action.prompt);
+        sendMessage(undefined, action.prompt);
         break;
     }
-  }, [files, id, vfs, toast, handleSend]);
-
-  const formatElapsed = (ms?: number) => {
-    if (!ms || ms <= 0) return '00:00';
-    const totalSecs = Math.floor(ms / 1000);
-    const mins = Math.floor(totalSecs / 60);
-    const secs = totalSecs % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}s`;
-  };
-
+  }, [files, id, vfs, toast, sendMessage, selectFileAndOpenTab, onDeploy]);
 
   // Automatically refresh VFS files when codegen is done
   useEffect(() => {
@@ -360,7 +321,7 @@ export function AgentPage() {
         .catch(() => {})
         .finally(() => setLoadingWorkspace(false));
     }
-  }, [codegen.progress.status, id]);
+  }, [codegen.progress.status, id, toast]);
 
   // Load user's blueprints for workspace selector
   useEffect(() => {
@@ -373,81 +334,63 @@ export function AgentPage() {
     }
   }, [id, token]);
 
-  // Load VFS, chat history, blueprint name
+  // Keep a late project response from replacing the current workspace.
   useEffect(() => {
-    if (id && token) {
-      setLoadingWorkspace(true);
-      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
-
-      fetchBlueprint(id)
-        .then(bp => {
-          setAppName(bp.appName);
-          setBlueprint(bp);
-        })
-        .catch(() => {});
-
-      const fetchFilesPromise = fetchBlueprintFilesWithContent(id)
-        .then(async res => {
-          if (res.length === 0) {
-            try {
-              const initRes = await fetch(`${BASE_URL}/api/blueprints/${id}/vfs/init`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              const json = await initRes.json();
-              if (json.data?.files?.length) {
-                res = json.data.files;
-              }
-            } catch {
-              // ignore error
-            }
-          }
-          setFiles(res);
-          // Sync VFS context state
-          vfs.loadVFS(id).catch(() => {});
-          // Select first non-preview file
-          const first = res.find(
-            f => f.path !== 'preview.html' && (f.path.endsWith('.tsx') || f.path.endsWith('.ts'))
-          ) || res.find(f => f.path !== 'preview.html') || null;
-          setSelectedFile(first);
-        })
-        .catch(() => {});
-
-      const fetchChatPromise = fetch(`${BASE_URL}/api/auth/chat/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then(r => r.json())
-        .then(r => {
-          if (r.success) {
-            setMessages(r.data.map((m: any) => ({ role: m.role, content: m.content })));
-          }
-        })
-        .catch(() => {});
-
-      Promise.allSettled([fetchFilesPromise, fetchChatPromise]).finally(() => {
-        setLoadingWorkspace(false);
-      });
+    if (!id || !token) return;
+    let cancelled=false;
+    const controller=new AbortController();
+    const BASE_URL=import.meta.env.VITE_API_URL ?? '';
+    setLoadingWorkspace(true); setWorkspaceError('');
+    async function load() {
+      try {
+        const bp=await fetchBlueprint(id!);
+        if(cancelled)return;
+        if(!bp.isOwner)throw new Error('Only the project owner can edit this workspace. Open its blueprint from the gallery to view it.');
+        setAppName(bp.appName);setBlueprint(bp);
+        let nextFiles=await fetchBlueprintFilesWithContent(id!);
+        if(cancelled)return;
+        if(!nextFiles.length){
+          const response=await fetch(`${BASE_URL}/api/blueprints/${id}/vfs/init`,{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal});
+          if(!response.ok)throw new Error('Could not initialize workspace files.');
+          const data=await response.json();nextFiles=data.data?.files || [];
+        }
+        if(cancelled)return;
+        setFiles(nextFiles);
+        const first=nextFiles.find(file=>file.path!=='preview.html' && /\.tsx?$/.test(file.path)) || nextFiles.find(file=>file.path!=='preview.html') || null;
+        setSelectedFile(first);if(first)openFileTab(first.path);
+        void loadVFS(id!);
+        const chat=await fetch(`${BASE_URL}/api/auth/chat/${id}`,{headers:{Authorization:`Bearer ${token}`},signal:controller.signal});
+        if(chat.ok){const data=await chat.json();if(!cancelled && data.success)setMessages(data.data.map((message:ChatMessage)=>({role:message.role,content:message.content, thinkingSteps:message.thinkingSteps, telemetry:message.telemetry, error:message.error})));}
+      }catch(error){if(!cancelled)setWorkspaceError(error instanceof Error?error.message:'Could not load this workspace.');}
+      finally{if(!cancelled)setLoadingWorkspace(false);}
     }
-  }, [id, token]);
+    void load();
+    return ()=>{cancelled=true;controller.abort();};
+  }, [id,token,loadVFS,loadAttempt,openFileTab]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const followConversation = useRef(true);
   const isSendingRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTo({
         top: chatScrollRef.current.scrollHeight,
-        behavior: 'smooth',
+        behavior: 'auto',
       });
     } else {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }
   }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, liveThinkingSteps, isThinking, expandedThinking, scrollToBottom]);
+    if (followConversation.current) scrollToBottom();
+  }, [messages, liveThinkingSteps, isThinking, scrollToBottom]);
+
+  useEffect(() => {
+    if (surface === 'agent' && followConversation.current) scrollToBottom();
+  }, [surface, scrollToBottom]);
 
   async function handleSend(e?: React.FormEvent, overridePrompt?: string) {
     if (e) e.preventDefault();
@@ -455,6 +398,11 @@ export function AgentPage() {
     if (!userMessage || isThinking || isSendingRef.current || vfs.isAgentExecuting || !id || !token) return;
 
     isSendingRef.current = true;
+    followConversation.current = true;
+    runTelemetry.current = {};
+    setPlan('');
+    setPipelineHeartbeat(null);
+    setActivePipelineStage('INGESTION');
     setPrompt('');
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsThinking(true);
@@ -478,15 +426,7 @@ export function AgentPage() {
         onTelemetry: (payload) => {
           const { stage, modelUsed, executionTimeMs, wasFallback } = payload;
           if (stage === 'PLANNER') {
-            setActiveTelemetry(prev => ({
-              ...prev,
-              planner: { modelUsed, executionTimeMs, wasFallback },
-            }));
-          } else if (stage === 'PATCH_GENERATOR') {
-            setActiveTelemetry(prev => ({
-              ...prev,
-              patch: { modelUsed, executionTimeMs, wasFallback },
-            }));
+            runTelemetry.current.planner = { modelUsed, executionTimeMs, wasFallback };
           }
         },
         onPlan: (newPlan) => {
@@ -496,11 +436,8 @@ export function AgentPage() {
         },
         onPatch: (payload) => {
           const { filePath, content, modelUsed, executionTimeMs, wasFallback } = payload;
-          if (modelUsed) {
-            setActiveTelemetry(prev => ({
-              ...prev,
-              patch: { modelUsed, executionTimeMs, wasFallback },
-            }));
+          if (modelUsed && filePath) {
+            runTelemetry.current.patches = [...(runTelemetry.current.patches || []).filter(patch => patch.filePath !== filePath), { filePath, modelUsed, executionTimeMs, wasFallback }];
           }
           if (filePath && content) {
             const origContent = files.find(f => f.path === filePath)?.content || '';
@@ -549,10 +486,10 @@ export function AgentPage() {
               content: message,
               thinkingSteps: [...collectedSteps],
               model: agentModel,
-              telemetry: doneTelemetry || activeTelemetry,
+              telemetry: doneTelemetry || { ...runTelemetry.current },
             },
           ]);
-          if (newPlan) setPlan(newPlan);
+          if (newPlan) setPlan(Array.isArray(newPlan) ? newPlan.join('\n') : newPlan);
 
           if (serverStagedDiffs && typeof serverStagedDiffs === 'object') {
             for (const [filePath, diffData] of Object.entries(serverStagedDiffs as Record<string, { original: string; modified: string }>)) {
@@ -579,7 +516,7 @@ export function AgentPage() {
           setPipelineHeartbeat(null);
           setMessages(prev => [
             ...prev,
-            { role: 'assistant', content: errMsg, thinkingSteps: [...collectedSteps], model: agentModel },
+            { role: 'assistant', error: true, content: errMsg, thinkingSteps: [...collectedSteps], model: agentModel },
           ]);
           toast(errMsg, 'error');
         },
@@ -590,7 +527,7 @@ export function AgentPage() {
       const msg = err.message || 'Failed to connect to agent';
       setMessages(prev => [
         ...prev,
-        { role: 'assistant', content: msg, model: agentModel },
+        { role: 'assistant', error: true, content: msg, model: agentModel },
       ]);
       toast(msg, 'error');
     } finally {
@@ -695,7 +632,7 @@ export function AgentPage() {
         : null);
       if (autoFixPrompt) {
         setPrompt(autoFixPrompt);
-        handleSend(undefined, autoFixPrompt);
+        sendMessage(undefined, autoFixPrompt);
         toast('Dispatched auto-fix command to Cortex Agent', 'info');
       }
     };
@@ -709,7 +646,7 @@ export function AgentPage() {
       window.removeEventListener('buildx:inspect_target', handleCustomInspect);
       window.removeEventListener('buildx:trigger-autofix', handleCustomAutoFix);
     };
-  }, [files, selectedFile, toast, isThinking]);
+  }, [files, selectedFile, toast, isThinking, sendMessage, triggerPatchFlash]);
 
   // ─── Dev Test Diff Trigger: instantly verifies inline diff visuals ─────────
   const handleTestDiff = useCallback(() => {
@@ -740,7 +677,7 @@ export function AgentPage() {
       setFiles((prev) =>
         prev.map((f) => (f.path === targetPath ? { ...f, content: targetContent } : f))
       );
-      setSelectedFile((prev) => (prev ? { ...prev, content: targetContent } : null));
+      setSelectedFile((prev) => (prev?.path === targetPath ? { ...prev, content: targetContent } : prev));
       setPatchFlash(true);
       setTimeout(() => setPatchFlash(false), 600);
       setPendingDiff(null);
@@ -781,144 +718,66 @@ export function AgentPage() {
   // ── Workspace selector ────────────────────────────────────────────────────
   if (!id) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
-        <div className="w-full flex items-center justify-between mb-8 pb-3 border-b border-white/5 font-sans">
-          <button
-            onClick={() => navigate('/gallery')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white hover:border-indigo-500/40 hover:bg-indigo-500/10 text-xs font-semibold transition-all font-sans"
-          >
-            <ArrowLeft size={13} />
-            <span>Back to Gallery</span>
+      <section className="workspace-selector" aria-labelledby="workspace-selector-title">
+        <div className="workspace-selector-toolbar">
+          <button type="button" onClick={() => navigate('/gallery')} className="workspace-selector-back">
+            <ArrowLeft size={14} aria-hidden="true" />
+            Back to Gallery
           </button>
-          <span className="text-[11px] font-sans tracking-wide text-zinc-500">CORTEX AGENT WORKSPACE</span>
+          <span>YOUR WORKSPACE</span>
         </div>
 
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-4">
-            <Cpu className="text-indigo-400" size={32} />
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Cortex Agent Workspace</h1>
-          <p className="text-gray-400 text-sm max-w-md">
-            Select a project workspace to plan, edit files, and build code interactively with AI.
-          </p>
-        </div>
+        <header className="workspace-selector-heading">
+          <div className="workspace-selector-mark"><Cpu size={28} aria-hidden="true" /></div>
+          <h1 id="workspace-selector-title">Cortex Agent Workspace</h1>
+          <p>Select a project to plan, edit files, and build with AI.</p>
+        </header>
 
         {loadingWorkspaces ? (
-          <div className="flex flex-col items-center gap-2 py-12">
-            <Loader2 className="animate-spin text-indigo-400" size={24} />
-            <span className="text-xs text-gray-500 font-sans tracking-tight">Loading workspaces…</span>
+          <div className="workspace-selector-state" role="status">
+            <Loader2 className="animate-spin" size={24} aria-hidden="true" />
+            <p>Loading workspaces…</p>
           </div>
         ) : workspaces.length === 0 ? (
-          <div className="text-center py-12 border border-white/5 bg-white/[0.02] rounded-2xl px-8 max-w-md w-full">
-            <p className="text-sm text-gray-400 mb-4 font-sans">You don't have any blueprints yet.</p>
-            <button
-              onClick={() => navigate('/create')}
-              className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold rounded-xl transition-all font-sans"
-            >
-              Build your first app
-            </button>
+          <div className="workspace-selector-state workspace-selector-empty">
+            <p>You don't have any blueprints yet.</p>
+            <Button onClick={() => navigate('/create')}>Build your first app</Button>
           </div>
         ) : (
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full"
-            initial="hidden"
-            animate="show"
-            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
-          >
-            {workspaces.map(w => (
-              <motion.button
-                key={w.id}
-                onClick={() => navigate(`/agent/${w.id}`)}
-                variants={{
-                  hidden: { opacity: 0, y: 20, scale: 0.97 },
-                  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } },
-                }}
-                whileHover={{ scale: 1.02, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                className="flex items-start text-left p-5 bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-indigo-500/20 rounded-2xl transition-colors group"
+          <div className="workspace-selector-grid">
+            {workspaces.map((w, index) => (
+              <motion.button type="button" key={w.id} onClick={() => navigate(`/agent/${w.id}`)} className="workspace-selector-card"
+                initial={reducedMotion ? false : { opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.1 }}
+                transition={{ duration: reducedMotion ? 0 : 0.35, delay: reducedMotion ? 0 : (index % 2) * 0.045 }}
               >
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-lg font-bold text-indigo-400 shrink-0 mr-4 group-hover:scale-105 transition-transform font-sans">
-                  {w.appName?.[0]?.toUpperCase() || 'A'}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-white truncate font-sans">{w.appName}</h3>
-                  <p className="text-xs text-gray-400 truncate mt-1 font-sans">{w.idea}</p>
-                  <span className="inline-block mt-3 text-[10px] font-mono text-indigo-400 border border-indigo-500/10 px-2 py-0.5 rounded tracking-tight">
-                    Open IDE Studio →
-                  </span>
-                </div>
+                <span className="workspace-selector-avatar" aria-hidden="true">{w.appName?.[0]?.toUpperCase() || 'A'}</span>
+                <span className="workspace-selector-card-content">
+                  <strong>{w.appName}</strong>
+                  <span className="workspace-selector-description">{w.idea}</span>
+                  <span className="workspace-selector-open">Open workspace <span aria-hidden="true">↗</span></span>
+                </span>
               </motion.button>
             ))}
-          </motion.div>
+          </div>
         )}
-      </div>
+      </section>
     );
   }
 
+  if(workspaceError) return <div className="route-loading" role="alert"><h1>Couldn’t open this workspace</h1><p>{workspaceError}</p><Button onClick={()=>setLoadAttempt(value=>value+1)}>Try again</Button><Button variant="ghost" onClick={()=>navigate(`/blueprint/${id}`)}>View blueprint</Button></div>;
+
   // ── Active workspace: Studio 3-Column Layout ─────────────────────────────
   return (
-    <div className="w-full h-full overflow-hidden flex flex-col bg-[#0A0A0B] text-white relative selection:bg-purple-500 selection:text-white font-sans">
-      {/* Top Ambient Mesh Light */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[250px] bg-emerald-500/10 blur-[150px] pointer-events-none rounded-full" />
-
-      {/* ── Floating Telemetry Status Pill (visible during pipeline execution) ── */}
-      <AnimatePresence>
-        {isThinking && pipelineHeartbeat && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-1.5 rounded-full bg-[#0c0c14]/90 backdrop-blur-2xl border border-indigo-500/20 shadow-xl shadow-indigo-900/20"
-          >
-            {/* Pulsing dot */}
-            <span className="relative flex items-center justify-center">
-              <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-60" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-            </span>
-
-            {/* Active stage */}
-            <span className="text-[10px] font-mono font-bold text-indigo-300 uppercase tracking-wider">
-              {activePipelineStage === 'INGESTION' ? 'Ingesting' :
-               activePipelineStage === 'PLANNING' ? 'Planning' :
-               activePipelineStage === 'DIFF_GENERATION' ? 'Patching' :
-               activePipelineStage === 'SCHEMA_VERIFIER' ? 'Verifying' :
-               activePipelineStage}
-            </span>
-
-            <span className="w-px h-3 bg-white/10" />
-
-            {/* Active model */}
-            <span className="text-[10px] font-mono text-gray-400">
-              <span className="text-white/80 font-semibold">
-                {formatAgentModelName(pipelineHeartbeat.activeModel)}
-              </span>
-            </span>
-
-            <span className="w-px h-3 bg-white/10" />
-
-            {/* Elapsed time */}
-            <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400">
-              <Clock size={10} className="animate-pulse" />
-              {formatElapsed(pipelineHeartbeat.elapsedMs)}
-            </span>
-
-            <span className="w-px h-3 bg-white/10" />
-
-            {/* File count */}
-            <span className="text-[10px] font-mono text-gray-500">
-              {visibleFiles.length} files
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+    <div className="agent-workspace w-full h-full overflow-hidden flex flex-col text-white relative font-sans">
+      <nav className="agent-mobile-panels" aria-label="Workspace panels">{(['files','code','preview','agent'] as const).map(view => <button type="button" key={view} aria-pressed={surface === view} onClick={() => { setSurface(view); if(view === 'code' || view === 'preview') setActiveTab(view === 'code' ? 'editor' : 'preview'); }}>{view}</button>)}</nav>
       {/* ── Flex Workspace Wrapper ── */}
-      <div className="flex-1 min-h-0 w-full flex overflow-hidden relative z-10 bg-[#0A0A0B]">
+      <div className="workspace-panels flex-1 min-h-0 w-full flex overflow-hidden relative z-10" data-surface={surface} style={{'--files-width':`${fileWidth}px`,'--agent-width':`${agentWidth}px`} as React.CSSProperties}>
 
         {/* ── 1. Workspace File Tree Column ────────────── */}
         {/* ── 1. Workspace File Tree (240px, clean glassmorphic IDE layout) ── */}
-        <aside className="w-60 shrink-0 h-full border-r border-white/[0.08] bg-[#090a10]/95 backdrop-blur-xl flex flex-col min-h-0">
+        <aside className="workspace-files shrink-0 h-full border-r border-white/10 flex flex-col min-h-0">
           <WorkspaceFileTree
             files={files}
             activeFilePath={selectedFile?.path}
@@ -932,25 +791,18 @@ export function AgentPage() {
           />
         </aside>
 
+        <PanelResizeHandle label="Resize files panel" value={fileWidth} min={170} max={320} onChange={setFileWidth}/>
         {/* ── 2. Center Code Editor (w-0 flex-1 — absorbs all remaining space) ── */}
-        <main className="flex-1 w-0 min-w-0 h-full relative overflow-hidden bg-[#0A0A0B] flex flex-col">
+        <main className="workspace-editor flex-1 w-0 min-w-0 h-full relative overflow-hidden flex flex-col">
 
         {/* Tab Bar Header */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-3 h-11 shrink-0 bg-white/[0.02]">
+        <div className="agent-editor-toolbar">
           <div className="flex items-center gap-2 min-w-0">
-            <button
-              onClick={() => navigate('/gallery')}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white hover:border-indigo-500/30 hover:bg-indigo-500/10 text-[11px] font-sans transition-all shrink-0"
-              title="Return to Gallery"
-            >
-              <ArrowLeft size={12} />
-              <span className="hidden sm:inline">Gallery</span>
-            </button>
-
+            <button onClick={() => navigate('/agent')} className="agent-project-switch" title="Back to workspaces" aria-label={`Switch workspace, current project ${appName || 'Workspace'}`}><ArrowLeft size={13} /><strong>{appName || 'Workspace'}</strong></button>
             <SegmentedControl
               ariaLabel="Workspace view"
               value={activeTab}
-              onChange={(v) => setActiveTab(v)}
+              onChange={(v) => {setActiveTab(v);setSurface(v==='editor'?'code':'preview');}}
               options={[
                 { value: 'editor', label: 'Code', icon: <FileCode size={12} /> },
                 { value: 'preview', label: 'Preview', icon: <PlayCircle size={12} /> },
@@ -968,16 +820,16 @@ export function AgentPage() {
                 <Search size={10} />
                 <span className="hidden lg:inline">⌘K</span>
               </button>
-              {/* Dev Test Diff Button */}
-              <button
+              {/* Dev-only diff fixture */}
+              {import.meta.env.DEV && <button
                 type="button"
                 onClick={handleTestDiff}
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 text-[10px] font-sans transition-all shrink-0"
+                className="agent-dev-control"
                 title="Test diff visuals with a sample addition"
               >
                 <FlaskConical size={10} />
                 <span className="hidden lg:inline">Test Diff</span>
-              </button>
+              </button>}
             </div>
           )}
         </div>
@@ -1069,9 +921,9 @@ export function AgentPage() {
                 <span>Initialize the VFS workspace files first to edit or view code.</span>
               </div>
             ) : pendingDiff !== null && selectedFile ? (
-              <div className="h-full flex flex-col min-h-0 relative">
+              <div className="h-full flex flex-col min-h-0 relative diff-sweep-once">
                 {/* Floating Diff Review Action Bar */}
-                <div className="z-20 flex items-center justify-between px-4 py-2 bg-[#18181B] border-b border-white/10 text-zinc-300 text-xs shrink-0 shadow-sm">
+                <div className="workspace-diff-actions z-20 flex items-center justify-between px-4 py-2 bg-[#18181B] border-b border-white/10 text-zinc-300 text-xs shrink-0 shadow-sm">
                   <div className="flex items-center gap-2 font-sans">
                     <GitCompare size={14} className="text-[#8F8FF7] shrink-0" />
                     <span>
@@ -1090,6 +942,7 @@ export function AgentPage() {
 
                 {/* CodeMirror 6 Unified Merge View Engine - Raw DOM Mount */}
                 <div
+                  key={`diff-${selectedFile.path}-${diffKey}`}
                   ref={diffContainerRef}
                   className="flex-1 overflow-auto relative min-h-0 bg-[#0A0A0B] [&>.cm-editor]:h-full [&>.cm-editor]:text-xs [&>.cm-editor]:font-mono"
                 />
@@ -1114,16 +967,8 @@ export function AgentPage() {
                     setFiles((prev) =>
                       prev.map((f) => (f.path === path ? { ...f, content: val } : f))
                     );
-                    if (id) {
-                      const previousTimer = saveTimersRef.current[path];
-                      if (previousTimer) clearTimeout(previousTimer);
-                      saveTimersRef.current[path] = setTimeout(() => {
-                        delete saveTimersRef.current[path];
-                        vfs.updateFile(id, path, val).catch((err: Error) => {
-                          toast(err.message || 'Failed to save file changes', 'error');
-                        });
-                      }, 400);
-                    }
+                    fileSave.schedule(path,val);
+                    setTabDirtyState(prev=>({...prev,[path]:true}));
                   }}
                   className="h-full text-xs font-mono"
                 />
@@ -1149,383 +994,54 @@ export function AgentPage() {
               key={previewKey}
               onPromptAgent={(p) => {
                 setPrompt(p);
-                handleSend(undefined, p);
+                sendMessage(undefined, p);
               }}
             />
           </div>
         </div>
+          {/* ── IDE status bar — one calm mono readout ── */}
+          {selectedFile && <div className="workspace-save" role="status"><span>{fileSave.states[selectedFile.path]==='error'?'Save failed — your edits are still in this workspace':fileSave.states[selectedFile.path]==='saving'?'Saving changes…':fileSave.states[selectedFile.path]==='pending'?'Unsaved changes':'All changes saved'}</span>{fileSave.states[selectedFile.path]==='error' && <button onClick={()=>fileSave.retry(selectedFile.path)}>Retry save</button>}</div>}
+          {activeTab === 'editor' && (
+            <div className="h-7 shrink-0 flex items-center justify-between px-3 border-t border-white/[0.06] bg-[#0A0A0B] font-mono text-[10px] text-zinc-600 tracking-wider select-none">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isThinking ? 'bg-[#8F8FF7] animate-pulse' : 'bg-zinc-700'}`} />
+                  {isThinking ? 'CORTEX · THINKING' : 'CORTEX · IDLE'}
+                </span>
+                {selectedFile && <span className="text-zinc-500">{selectedFile.path}</span>}
+              </div>
+              <div className="flex items-center gap-3">
+                {pipelineHeartbeat && (
+                  <span className="text-zinc-500">{pipelineHeartbeat.activeStage} · {(pipelineHeartbeat.elapsedMs / 1000).toFixed(0)}s</span>
+                )}
+                <span>{visibleFiles.length} files</span>
+              </div>
+            </div>
+          )}
+
       </main>
 
+      <PanelResizeHandle label="Resize agent panel" value={agentWidth} min={280} max={440} onChange={setAgentWidth} reverse/>
       {/* ── 3. Cortex Agent Right Panel (w-80 shrink-0 — always visible) ── */}
-      <aside className="w-80 shrink-0 h-full overflow-hidden border-l border-white/10 bg-[#0A0A0B] z-10 studio-card flex flex-col min-h-0">
+      <aside className="workspace-agent shrink-0 h-full overflow-hidden border-l border-white/10 z-10 flex flex-col min-h-0">
 
-        {/* Panel Header */}
-        <div className="p-3 border-b border-white/5 flex flex-col gap-2 shrink-0 bg-white/[0.02]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => navigate('/agent')}
-                className="p-1 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
-                title="Back to Workspaces"
-              >
-                <ArrowLeft size={14} />
-              </button>
-              <Cpu size={14} className="text-indigo-400 shrink-0" />
-              <span className="text-xs font-bold text-white">Cortex Agent</span>
-            </div>
-
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono shrink-0 transition-all tracking-tight ${isThinking ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/5 text-gray-500'}`}>
-              {isThinking && <Loader2 className="animate-spin text-emerald-400" size={10} />}
-              <span>{isThinking ? 'Thinking…' : 'Idle'}</span>
-            </div>
-          </div>
-
-          {/* Multi-Model Telemetry Badges */}
-          <div className="flex flex-col gap-1.5 p-2 rounded-lg bg-indigo-950/30 border border-indigo-500/20 text-[10px] font-mono text-indigo-300 tracking-tight">
-            <div className="flex items-center justify-between font-semibold">
-              <span>Subagent Pipeline Telemetry</span>
-              <span className="flex items-center gap-1 text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
-                Active
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[9px] text-gray-400 pt-1 border-t border-indigo-500/10 font-mono">
-              <div className="flex items-center gap-1">
-                <Brain size={9} className="text-purple-400 shrink-0" />
-                <span className="truncate">
-                  PLAN:{' '}
-                  <span className={`font-semibold ${activeTelemetry.planner?.wasFallback ? 'text-amber-400' : 'text-purple-300'}`}>
-                    {formatAgentModelName(activeTelemetry.planner?.modelUsed || 'nemotron-3-550b')}
-                  </span>
-                  {activeTelemetry.planner?.wasFallback && (
-                    <span className="ml-1 px-1 rounded bg-amber-500/30 text-amber-300 text-[8px] font-bold">FALLBACK</span>
-                  )}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <GitCompare size={9} className="text-emerald-400 shrink-0" />
-                <span className="truncate">
-                  PATCH:{' '}
-                  <span className={`font-semibold ${activeTelemetry.patch?.wasFallback ? 'text-amber-400' : 'text-emerald-300'}`}>
-                    {formatAgentModelName(activeTelemetry.patch?.modelUsed || 'kimi-k3')}
-                  </span>
-                  {activeTelemetry.patch?.wasFallback && (
-                    <span className="ml-1 px-1 rounded bg-amber-500/30 text-amber-300 text-[8px] font-bold">FALLBACK</span>
-                  )}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Layers size={9} className="text-sky-400 shrink-0" />
-                <span>INGEST: <span className="text-sky-300 font-semibold">GLM 5.2</span></span>
-              </div>
-              <div className="flex items-center gap-1">
-                <CheckCircle2 size={9} className="text-amber-400 shrink-0" />
-                <span>GUARD: <span className="text-amber-300 font-semibold">Gemini Flash</span></span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Task Checklist Stream */}
-        <AnimatePresence initial={false}>
-          {plan && (
-            <motion.div
-              key="plan-checklist"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="overflow-hidden border-b border-white/5 bg-emerald-500/[0.02] shrink-0"
-            >
-              <div className="p-2.5">
-                <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 uppercase tracking-widest font-semibold mb-1">
-                  <CheckSquare size={11} />
-                  <span>Task Checklist</span>
-                </div>
-                <pre className="text-[11px] text-gray-400 font-mono whitespace-pre-wrap max-h-20 overflow-y-auto leading-relaxed">
-                  {plan}
-                </pre>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Conversation Stream */}
-        <div
-          ref={chatScrollRef}
-          className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 font-sans text-xs chat-scroll-area scroll-smooth"
-        >
-          {messages.length === 0 && !isThinking && (
-            <div className="text-center py-10 px-3">
-              <Sparkles className="mx-auto text-indigo-400/40 mb-2 animate-pulse" size={20} />
-              <p className="text-[11px] text-gray-400 leading-relaxed font-sans">
-                Describe code edits or features to build. The multi-model pipeline plans, generates diff patches, and applies fixes live.
-              </p>
-            </div>
-          )}
-
-          {messages.map((msg, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25 }}
-              className={`flex flex-col max-w-[92%] rounded-xl text-[11px] leading-relaxed overflow-hidden ${
-                msg.role === 'user'
-                  ? 'bg-purple-500/15 border border-purple-500/30 text-purple-200 self-end ml-auto p-2.5'
-                  : 'bg-white/[0.04] border border-white/5 text-gray-300 self-start'
-              }`}
-            >
-              {msg.role === 'assistant' ? (
-                <>
-                  {/* Thinking steps accordion */}
-                  {msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
-                    <div className="border-b border-white/5 p-2 bg-black/20">
-                      <button
-                        onClick={() =>
-                          setExpandedThinking(prev => ({ ...prev, [i]: !prev[i] }))
-                        }
-                        className="flex items-center gap-1.5 text-[10px] font-sans text-gray-500 hover:text-emerald-400 transition-colors w-full text-left tracking-tight"
-                      >
-                        <Brain size={10} className="text-emerald-500/60 shrink-0" />
-                        <span className="uppercase tracking-widest font-semibold">
-                          Pipeline thought for {msg.thinkingSteps.length} step{msg.thinkingSteps.length !== 1 ? 's' : ''}
-                        </span>
-                        {expandedThinking[i] ? <ChevronDown size={10} className="ml-auto" /> : <ChevronRight size={10} className="ml-auto" />}
-                      </button>
-                      {expandedThinking[i] && (
-                        <div className="mt-2 space-y-1 max-h-40 overflow-y-auto pr-1 font-mono">
-                          {msg.thinkingSteps.map((step, si) => (
-                            <div key={si} className="text-[10px] text-gray-400 leading-relaxed border-l-2 border-emerald-500/20 pl-2 py-0.5">
-                              {step}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="p-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5 font-mono text-[9px]">
-                      <span className="uppercase tracking-wider text-emerald-400/80 font-semibold">
-                        Subagents · Verified
-                      </span>
-
-                      {/* Active Subagent Model Badges */}
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span
-                          className={`px-1.5 py-0.5 rounded border ${
-                            msg.telemetry?.planner?.wasFallback
-                              ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
-                              : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
-                          }`}
-                        >
-                          PLAN: {formatAgentModelName(msg.telemetry?.planner?.modelUsed || 'nemotron-3-550b')}
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded border bg-sky-500/15 border-sky-500/30 text-sky-300">
-                          INGEST: GLM 5.2
-                        </span>
-                        <span
-                          className={`px-1.5 py-0.5 rounded border ${
-                            msg.telemetry?.patches?.[0]?.wasFallback
-                              ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
-                              : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                          }`}
-                        >
-                          PATCH: {formatAgentModelName(msg.telemetry?.patches?.[0]?.modelUsed || 'kimi-k3')}
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded border bg-amber-500/15 border-amber-500/30 text-amber-300">
-                          GUARD: Gemini 3.5 Flash
-                        </span>
-                      </div>
-                    </div>
-                    <div className="whitespace-pre-wrap font-sans text-xs">{msg.content}</div>
-                  </div>
-                </>
-              ) : (
-                <div className="whitespace-pre-wrap font-sans text-xs">{msg.content}</div>
-              )}
-            </motion.div>
-          ))}
-
-          {isThinking && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="self-start flex flex-col w-full max-w-[96%] bg-[#0f0f17] border border-white/10 rounded-2xl p-3.5 shadow-2xl backdrop-blur-xl relative overflow-hidden"
-            >
-              {/* Top ambient glow */}
-              <div className="absolute top-0 right-0 w-48 h-20 bg-indigo-500/10 blur-2xl rounded-full pointer-events-none" />
-
-              {/* Header: Title & Live Stopwatch */}
-              <div className="flex items-center justify-between pb-3 mb-3 border-b border-white/[0.08] relative z-10">
-                <div className="flex items-center gap-2">
-                  <div className="relative flex items-center justify-center">
-                    <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                  </div>
-                  <span className="text-xs font-bold text-white font-sans tracking-tight flex items-center gap-1.5">
-                    <Activity size={13} className="text-emerald-400" />
-                    Autonomous Multi-Model Pipeline
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/10 text-emerald-400 font-mono text-[11px]">
-                  <Clock size={12} className="animate-pulse" />
-                  <span className="font-semibold">{formatElapsed(pipelineHeartbeat?.elapsedMs || 0)}</span>
-                </div>
-              </div>
-
-              {/* 4-Stage Live Subagent Stepper */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3 relative z-10">
-                {(
-                  [
-                    {
-                      id: 'INGESTION',
-                      num: '1',
-                      title: 'Context & Ingestion',
-                      model: 'GLM 5.2',
-                      provider: 'OpenRouter',
-                      color: 'sky',
-                      icon: <Layers size={12} />,
-                    },
-                    {
-                      id: 'PLANNING',
-                      num: '2',
-                      title: 'Neural Task Planner',
-                      model: 'Gemini 3.5 Flash',
-                      provider: 'Google AI Studio',
-                      color: 'purple',
-                      icon: <Brain size={12} />,
-                    },
-                    {
-                      id: 'DIFF_GENERATION',
-                      num: '3',
-                      title: 'AST Patch Synthesizer',
-                      model: 'Gemini 3.5 Flash',
-                      provider: 'Google AI Studio',
-                      color: 'emerald',
-                      icon: <GitCompare size={12} />,
-                    },
-                    {
-                      id: 'SCHEMA_VERIFIER',
-                      num: '4',
-                      title: 'AST & Safety Verifier',
-                      model: 'Gemini 3.5 Flash',
-                      provider: 'Google AI Studio',
-                      color: 'amber',
-                      icon: <CheckCircle2 size={12} />,
-                    },
-                  ] as const
-                ).map(stageItem => {
-                  const stageOrder = ['INGESTION', 'PLANNING', 'DIFF_GENERATION', 'SCHEMA_VERIFIER'];
-                  const currentIndex = stageOrder.indexOf(activePipelineStage || 'INGESTION');
-                  const thisIndex = stageOrder.indexOf(stageItem.id);
-                  const isCurrent = activePipelineStage === stageItem.id || (currentIndex === thisIndex);
-                  const isDone = currentIndex > thisIndex;
-
-                  return (
-                    <motion.div
-                      key={stageItem.id}
-                      animate={isCurrent ? { scale: [1, 1.015, 1], transition: { repeat: Infinity, duration: 2.5 } } : {}}
-                      className={`p-2 rounded-xl border transition-all text-[10px] font-sans flex flex-col justify-between ${
-                        isCurrent
-                          ? 'bg-indigo-950/40 border-indigo-500/50 shadow-lg shadow-indigo-500/10'
-                          : isDone
-                          ? 'bg-emerald-950/20 border-emerald-500/20 opacity-85'
-                          : 'bg-white/[0.02] border-white/5 opacity-50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5 font-semibold">
-                          <span
-                            className={`p-1 rounded-md ${
-                              isCurrent
-                                ? 'bg-indigo-500/20 text-indigo-300'
-                                : isDone
-                                ? 'bg-emerald-500/20 text-emerald-300'
-                                : 'bg-white/5 text-gray-400'
-                            }`}
-                          >
-                            {stageItem.icon}
-                          </span>
-                          <span className={isCurrent ? 'text-white' : isDone ? 'text-emerald-300' : 'text-gray-400'}>
-                            {stageItem.title}
-                          </span>
-                        </div>
-
-                        {isCurrent ? (
-                          <Loader2 size={11} className="animate-spin text-indigo-400 shrink-0" />
-                        ) : isDone ? (
-                          <Check size={11} className="text-emerald-400 shrink-0" />
-                        ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between mt-1 text-[9px]">
-                        <span className="text-gray-400 font-sans">{stageItem.provider}</span>
-                        <span
-                          className={`px-1.5 py-0.5 rounded font-sans font-bold ${
-                            isCurrent
-                              ? 'bg-indigo-500/30 text-indigo-200 border border-indigo-500/40'
-                              : isDone
-                              ? 'bg-emerald-500/20 text-emerald-300'
-                              : 'bg-white/5 text-gray-500'
-                          }`}
-                        >
-                          {stageItem.model}
-                        </span>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-
-              {/* Streaming Thought Stream Log */}
-              {liveThinkingSteps.length > 0 && (
-                <div className="mt-1 bg-black/40 rounded-xl p-2.5 border border-white/5 max-h-36 overflow-y-auto space-y-1.5 font-mono text-[10px]">
-                  <div className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold mb-1 flex items-center gap-1">
-                    <Brain size={10} className="text-indigo-400" />
-                    <span>Agent Internal Monologue</span>
-                  </div>
-                  {liveThinkingSteps.map((step, idx) => (
-                    <motion.div
-                      key={idx}
-                      initial={{ opacity: 0, x: -4 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="text-gray-300 border-l-2 border-indigo-500/40 pl-2 py-0.5 leading-relaxed"
-                    >
-                      {step}
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          )}
-
+        <div className="agent-chat-header"><div><Cpu size={15} /><strong>Project agent</strong></div><span>{isThinking ? 'Working' : 'Ready'}</span></div>
+        <div ref={chatScrollRef} className="agent-conversation" onScroll={(event) => { const el = event.currentTarget; followConversation.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64; }} aria-label="Conversation">
+          {messages.length === 0 && !isThinking && <div className="agent-chat-empty"><span><Cpu size={22} /></span><h2>Build on your idea.</h2><p>Ask for a feature, a fix, or a second look at your code.</p></div>}
+          {messages.map((message, index) => <AgentMessage key={index} message={message} />)}
+          {isThinking && <AgentRunStatus stage={activePipelineStage} elapsedMs={pipelineHeartbeat?.elapsedMs} model={pipelineHeartbeat?.activeModel} steps={liveThinkingSteps} plan={plan} />}
+          {!isThinking && plan && <details className="agent-run-details agent-latest-plan"><summary><ChevronRight size={12} /> Latest plan</summary><pre>{plan}</pre></details>}
           <div ref={messagesEndRef} />
         </div>
-
-        {/* Pinned Bottom Chat Input */}
-        <form onSubmit={handleSend} className="p-2.5 border-t border-white/5 bg-white/[0.02] flex items-center gap-2 shrink-0">
-          <input
-            type="text"
-            value={prompt}
-            onChange={e => setPrompt(e.target.value)}
-            placeholder={isThinking ? 'Pipeline running…' : 'Ask Agent to refine code…'}
-            disabled={isThinking}
-            className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none focus:border-indigo-500/50 font-sans"
-          />
-          <button
-            type="submit"
-            disabled={!prompt.trim() || isThinking}
-            className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-30 transition-all shrink-0"
-          >
-            <Send size={14} />
-          </button>
+        <form onSubmit={handleSend} className="agent-chat-compose">
+          <div className="agent-chat-input">
+            <textarea rows={2} value={prompt} onChange={event => setPrompt(event.target.value)} aria-label="Message the project agent" placeholder={isThinking ? 'Working on your request…' : 'Ask for a change…'} disabled={isThinking}
+              onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void handleSend(event); } }} />
+            <button type="submit" aria-label="Send message" disabled={!prompt.trim() || isThinking}><Send size={15} /></button>
+          </div>
+          <div className="agent-compose-hint"><span>Enter to send · Shift + Enter for a new line</span></div>
         </form>
+
       </aside>
 
       </div>

@@ -1,446 +1,231 @@
-import React, { useEffect, useRef, useState } from 'react';
-import type { PartialBlueprint, PipelineStage, PipelineStageEvent } from '../lib/types';
-import type { AgentEvent } from '../hooks/useStreamBlueprint';
-import { FileText, Database, Webhook, Palette, Code, ShieldCheck, ChevronUp, Cpu, Wrench, Brain, Zap, GitCompare } from 'lucide-react';
-import { SpotlightCard } from './SpotlightCard';
-import { StreamingSections } from './StreamingSections';
-import { motion, AnimatePresence } from 'framer-motion';
-
+import { GENERATION_STAGES, agentState } from "../lib/generationStages";
+import { useEffect, useState } from "react";
+import { Check, Database, FileCode2, Layers, Loader2 } from "./ui/icons";
+import type {
+  PartialBlueprint,
+  PipelineStage,
+  PipelineStageEvent,
+  AgentEvent,
+} from "../lib/types";
+import { StreamingSections } from "./StreamingSections";
+import { Button } from "./ui/Button";
 interface StreamingViewProps {
   progress: number;
   partialBlueprint: PartialBlueprint;
   agentEvents?: AgentEvent[];
   activeStage?: PipelineStage | null;
   pipelineEvents?: PipelineStageEvent[];
+  onCancel?: () => void;
 }
-
-const AGENTS_LIST = [
-  { key: 'pm' as const, label: 'Product Manager', icon: FileText, color: 'text-purple-400', desc: 'Specs & Features', stage: 'PLANNING' as PipelineStage },
-  { key: 'architect' as const, label: 'Database Architect', icon: Database, color: 'text-purple-400', desc: 'SQL Relations', stage: 'PLANNING' as PipelineStage },
-  { key: 'api_dev' as const, label: 'API Developer', icon: Webhook, color: 'text-sky-400', desc: 'REST Endpoints', stage: 'INGESTION' as PipelineStage },
-  { key: 'designer' as const, label: 'UI/UX Designer', icon: Palette, color: 'text-sky-400', desc: 'Screen Layouts', stage: 'INGESTION' as PipelineStage },
-  { key: 'coder' as const, label: 'Developer', icon: Code, color: 'text-emerald-400', desc: 'Workspace Code', stage: 'DIFF_GENERATION' as PipelineStage },
-  { key: 'qa' as const, label: 'QA Evaluator', icon: ShieldCheck, color: 'text-amber-400', desc: 'Integrity Check', stage: 'AUTO_FIX' as PipelineStage },
-] as const;
-
-const PIPELINE_STAGE_BADGES: Record<
-  PipelineStage,
-  { label: string; Icon: React.ElementType; models: string; color: string; border: string; bg: string; glow: string }
-> = {
-  PLANNING: {
-    label: 'PLANNING',
-    Icon: Brain,
-    models: 'Gemini 3.5 Flash / Nemotron Ultra',
-    color: 'text-purple-400',
-    border: 'border-purple-500/40',
-    bg: 'bg-purple-500/10',
-    glow: 'shadow-purple-500/20',
-  },
-  INGESTION: {
-    label: 'INGESTION',
-    Icon: Zap,
-    models: 'GLM 5.2 / Gemini 3.5 Flash',
-    color: 'text-sky-400',
-    border: 'border-sky-500/40',
-    bg: 'bg-sky-500/10',
-    glow: 'shadow-sky-500/20',
-  },
-  DIFF_GENERATION: {
-    label: 'DIFF GENERATION',
-    Icon: GitCompare,
-    models: 'Gemini 3.5 Flash / Kimi K2.6',
-    color: 'text-emerald-400',
-    border: 'border-emerald-500/40',
-    bg: 'bg-emerald-500/10',
-    glow: 'shadow-emerald-500/20',
-  },
-  AUTO_FIX: {
-    label: 'AUTO-FIX & QA',
-    Icon: Wrench,
-    models: 'Gemini 3.5 Flash / Kimi K2.6',
-    color: 'text-amber-400',
-    border: 'border-amber-500/40',
-    bg: 'bg-amber-500/10',
-    glow: 'shadow-amber-500/20',
-  },
-  SCHEMA_VERIFIER: {
-    label: 'SCHEMA VERIFIER',
-    Icon: ShieldCheck,
-    models: 'Gemini 3.5 Flash / Qwen 3.6',
-    color: 'text-orange-400',
-    border: 'border-orange-500/40',
-    bg: 'bg-orange-500/10',
-    glow: 'shadow-orange-500/20',
-  },
-  CODE_GENERATION: {
-    label: 'CODE GENERATION',
-    Icon: Code,
-    models: 'Gemini 3.5 Flash / Kimi K2.6',
-    color: 'text-cyan-400',
-    border: 'border-cyan-500/40',
-    bg: 'bg-cyan-500/10',
-    glow: 'shadow-cyan-500/20',
-  },
-  REFINEMENT: {
-    label: 'REFINEMENT',
-    Icon: Brain,
-    models: 'Gemini 3.5 Flash / Kimi K2.6',
-    color: 'text-violet-400',
-    border: 'border-violet-500/40',
-    bg: 'bg-violet-500/10',
-    glow: 'shadow-violet-500/20',
-  },
-  PREVIEW_GENERATION: {
-    label: 'PREVIEW GENERATION',
-    Icon: Palette,
-    models: 'Gemini 3.5 Flash / Kimi K2.6',
-    color: 'text-fuchsia-400',
-    border: 'border-fuchsia-500/40',
-    bg: 'bg-fuchsia-500/10',
-    glow: 'shadow-fuchsia-500/20',
-  },
-};
-
-// Stage ordering for isDone logic
-const STAGE_ORDER: PipelineStage[] = ['PLANNING', 'INGESTION', 'DIFF_GENERATION', 'AUTO_FIX', 'SCHEMA_VERIFIER', 'CODE_GENERATION', 'REFINEMENT', 'PREVIEW_GENERATION'];
-
 export function StreamingView({
   progress,
   partialBlueprint,
   agentEvents = [],
-  activeStage = 'PLANNING',
+  activeStage,
   pipelineEvents = [],
+  onCancel,
 }: StreamingViewProps) {
-  const terminalEndRef = useRef<HTMLDivElement>(null);
-  const [showReasoning, setShowReasoning] = useState(true);
-
+  const [seconds, setSeconds] = useState(0);
   useEffect(() => {
-    terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [agentEvents, pipelineEvents]);
-
-  const getAgentStatus = (agentKey: string) => {
-    const events = agentEvents.filter((e) => e.agent === agentKey);
-    if (events.length === 0) return 'idle';
-    return events[events.length - 1].status;
-  };
-
-  const isAutoFixActive = activeStage === 'AUTO_FIX' || agentEvents.some(e => e.status === 'correcting');
-
-  const activeStageIndex = STAGE_ORDER.indexOf(activeStage ?? 'PLANNING');
-
+    const started = Date.now();
+    const timer = setInterval(
+      () => setSeconds(Math.floor((Date.now() - started) / 1000)),
+      1000,
+    );
+    return () => clearInterval(timer);
+  }, []);
+  const latest = agentEvents[agentEvents.length - 1];
+  const stage = activeStage || latest?.stage;
+  const currentAgent = GENERATION_STAGES.find(
+    (item) => item.agent === latest?.agent,
+  );
+  const label = currentAgent
+    ? latest?.status === "completed"
+      ? `${currentAgent.label} complete`
+      : currentAgent.title
+    : stage
+      ? stage.toLowerCase().replace(/_/g, " ")
+      : "Planning your project";
+  const percent = Math.max(0, Math.min(100, Math.round(progress)));
   return (
-    <section
-      className="flex-1 flex flex-col items-center justify-start px-4 sm:px-6 py-10 max-w-5xl mx-auto w-full"
-      aria-live="polite"
-      aria-busy="true"
-      aria-label="Generating blueprint"
-    >
-      {/* Header & Main Stage Status Badges */}
-      <motion.div
-        className="text-center mb-6 max-w-2xl w-full"
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border font-sans text-xs mb-4 tracking-tight"
-          style={{
-            borderColor: 'rgba(124, 124, 244, 0.3)',
-            background: 'rgba(124, 124, 244, 0.1)',
-            color: '#B8B8FA',
-          }}
-        >
-          <span className="w-2 h-2 rounded-full animate-pulse bg-indigo-400" />
-          Strict Dedicated Multi-Model Pipeline
-        </div>
-
-        <h2 className="font-display font-bold text-2xl sm:text-3xl text-white mb-3">
-          {partialBlueprint.appName
-            ? `Architecting ${partialBlueprint.appName}`
-            : 'Compiling Workspace Specifications…'}
-        </h2>
-
-        {/* 4 Pipeline Stages Badges — layoutId morphing transitions */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-3 mb-2">
-          {(Object.keys(PIPELINE_STAGE_BADGES) as PipelineStage[]).map((stageKey, stageIdx) => {
-            const badge = PIPELINE_STAGE_BADGES[stageKey];
-            const isActive = activeStage === stageKey;
-            const isDone = progress === 100 || stageIdx < activeStageIndex;
-
-            return (
-              <motion.div
-                key={stageKey}
-                layoutId={`pipeline-badge-${stageKey}`}
-                layout
-                animate={
-                  isActive
-                    ? { scale: 1.08, opacity: 1 }
-                    : isDone
-                    ? { scale: 1, opacity: 0.8 }
-                    : { scale: 1, opacity: 0.45 }
-                }
-                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-sans ${
-                  isActive
-                    ? `${badge.bg} ${badge.border} ${badge.color} ring-1 ring-white/10 shadow-lg ${badge.glow}`
-                    : isDone
-                    ? 'bg-emerald-950/20 border-emerald-500/20 text-emerald-400'
-                    : 'bg-neutral-900/40 border-neutral-800 text-neutral-500'
-                }`}
-              >
-                <badge.Icon size={10} />
-                <span className="font-bold">{badge.label}</span>
-                <span className="text-[9px] opacity-75 hidden sm:inline">({badge.models})</span>
-                <AnimatePresence>
-                  {isActive && (
-                    <motion.span
-                      key="ping"
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      className="w-1.5 h-1.5 rounded-full bg-current animate-ping ml-0.5"
-                    />
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
-        </div>
-      </motion.div>
-
-      {/* Automated Testing & Self-Correction Banner — animated entrance */}
-      <AnimatePresence>
-        {isAutoFixActive && (
-          <motion.div
-            key="autofix-banner"
-            initial={{ opacity: 0, y: -10, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: 'auto' }}
-            exit={{ opacity: 0, y: -10, height: 0 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-            className="w-full max-w-4xl mb-6 p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 flex items-center justify-between text-amber-300 text-xs font-sans shadow-lg shadow-amber-500/5 overflow-hidden"
-          >
-            <div className="flex items-center gap-2.5">
-              <Wrench className="w-4 h-4 text-amber-400 animate-spin" />
-              <div>
-                <span className="font-bold text-amber-200">Automated Self-Correction Active:</span>
-                <span className="ml-1.5 text-amber-300/90">Moonshot Kimi K2.6 auditing VFS constraints & index optimizations (Fallback: GLM-5.2)</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded bg-amber-400/20 text-[10px] uppercase font-bold border border-amber-400/30 shrink-0">
-              AUTO_FIX MODE
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Progress Bar — spring-animated width */}
-      <div className="w-full max-w-3xl mb-6">
-        <div className="flex justify-between items-end mb-2 font-mono text-xs tracking-tight" style={{ color: 'var(--text3)' }}>
-          <span>Multi-Model Pipeline progress</span>
-          <motion.span
-            key={progress}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            style={{ color: 'var(--text)' }}
-          >
-            {progress}%
-          </motion.span>
-        </div>
-        <div
-          className="w-full h-2.5 rounded-full overflow-hidden"
-          style={{ background: 'var(--surface3)', border: '1px solid var(--border)' }}
-          role="progressbar"
-          aria-valuenow={progress}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <motion.div
-            className="h-full rounded-full progress-bar-glow"
-            style={{ background: '#7C7CF4' }}
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ type: 'spring', stiffness: 60, damping: 18 }}
-          />
-        </div>
+    <section className="generation-view" aria-label="Generating blueprint">
+      <div className="generation-heading">
+        <span className="feature-icon">
+          <Loader2 size={22} className="animate-spin" />
+        </span>
+        <p className="eyebrow">YOUR IDEA IS TAKING SHAPE</p>
+        <h1>{partialBlueprint.appName || "Building your blueprint"}</h1>
+        <p>
+          We’re connecting the data, features, and screens for your project.
+        </p>
       </div>
-
-      <StreamingSections partial={partialBlueprint} />
-
-      {/* Agents Grid — staggered entrance */}
-      <motion.div
-        className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-6 gap-3 mb-6"
-        initial="hidden"
-        animate="show"
-        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05 } } }}
-      >
-        {AGENTS_LIST.map((agent) => {
-          const status = getAgentStatus(agent.key);
-          const isActive = status === 'thinking' || status === 'writing' || status === 'correcting';
-          const isCompleted = status === 'completed';
-          const Icon = agent.icon;
-
+      <div className="generation-progress">
+        <div>
+          <span role="status" className="capitalize">
+            {label}
+          </span>
+          <span>
+            {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}{" "}
+            elapsed
+          </span>
+        </div>
+        <progress
+          max={100}
+          value={percent}
+          aria-label="Blueprint generation progress"
+        />
+        <p>
+          {seconds > 45
+            ? "Still working. Complex projects can take a few minutes."
+            : "Progress updates as your project’s artifacts arrive."}
+        </p>
+      </div>
+      <div className="generation-timeline" aria-label="Agent progress">
+        {GENERATION_STAGES.map((item, index) => {
+          const state = agentState(agentEvents, item.agent);
           return (
-            <motion.div
-              key={agent.key}
-              variants={{
-                hidden: { opacity: 0, scale: 0.88, y: 10 },
-                show: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } },
-              }}
-              animate={isActive ? { scale: [1, 1.03, 1] } : {}}
-              transition={isActive ? { repeat: Infinity, duration: 1.5, ease: 'easeInOut' } : {}}
+            <div
+              className="generation-stage"
+              key={item.agent}
+              data-state={state}
+              aria-current={state === "active" ? "step" : undefined}
             >
-              <SpotlightCard
-                spotlightColor={
-                  isCompleted
-                    ? 'rgba(34, 197, 94, 0.08)'
-                    : isActive
-                      ? 'rgba(124, 124, 244, 0.12)'
-                      : 'rgba(255, 255, 255, 0.03)'
-                }
-                className="p-4 rounded-xl text-center relative overflow-hidden transition-all duration-300"
-                style={{
-                  borderColor: isCompleted
-                    ? 'rgba(34, 197, 94, 0.25)'
-                    : isActive
-                      ? 'rgba(124, 124, 244, 0.4)'
-                      : 'var(--border)',
-                  background: isCompleted
-                    ? 'var(--green-dim)'
-                    : isActive
-                      ? 'rgba(124, 124, 244, 0.08)'
-                      : 'var(--surface)',
-                }}
-              >
-                {isActive && (
-                  <span className="absolute top-2 right-2 flex h-2 w-2" aria-hidden>
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-indigo-400" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
-                  </span>
+              <span>
+                {state === "complete" ? (
+                  <Check size={14} />
+                ) : (
+                  String(index + 1).padStart(2, "0")
                 )}
-                {isCompleted && (
-                  <motion.span
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                    className="absolute top-2 right-2 text-[10px]"
-                    style={{ color: 'var(--green)' }}
-                    aria-hidden
-                  >
-                    ✓
-                  </motion.span>
-                )}
-
-                <div className={`flex justify-center mb-2 transition-all ${!isActive && !isCompleted ? 'opacity-40 grayscale' : ''}`}>
-                  <Icon size={24} className={agent.color} />
-                </div>
-                <div className="font-sans font-semibold text-xs mb-0.5 truncate" style={{ color: 'var(--text)' }}>
-                  {agent.label}
-                </div>
-                <div className="font-mono text-[9px] truncate text-indigo-300/80 tracking-tight">
-                  {status === 'correcting' ? 'Fixing' : status === 'idle' ? agent.stage : status}
-                </div>
-              </SpotlightCard>
-            </motion.div>
+              </span>
+              <strong>{item.label}</strong>
+              <small>
+                {state === "complete"
+                  ? "Complete"
+                  : state === "active"
+                    ? "Working"
+                    : "Waiting"}
+              </small>
+            </div>
           );
         })}
-      </motion.div>
-
-      {/* Reasoning Process — Framer Motion height-auto accordion */}
-      <div
-        className="w-full max-w-4xl rounded-xl overflow-hidden flex flex-col"
-        style={{
-          border: '1px solid var(--border2)',
-          background: 'rgba(0, 0, 0, 0.92)',
-          boxShadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
-        }}
-      >
-        <motion.div
-          onClick={() => setShowReasoning(!showReasoning)}
-          className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-white/[0.03] transition-colors select-none"
-          style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}
-          whileHover={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
-          whileTap={{ scale: 0.99 }}
-        >
-          <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-indigo-400" />
-            <span className="font-sans text-[11px] font-semibold uppercase tracking-wider text-indigo-300">
-              Reasoning Process & Multi-Model Execution Stream
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] text-neutral-400">
-              {agentEvents.length} log events
-            </span>
-            <motion.div
-              animate={{ rotate: showReasoning ? 0 : -90 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            >
-              <ChevronUp size={16} className="text-neutral-400" />
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* Height-auto animated accordion body */}
-        <AnimatePresence initial={false}>
-          {showReasoning && (
-            <motion.div
-              key="reasoning-body"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 280, damping: 28 }}
-              style={{ overflow: 'hidden' }}
-            >
-              <div
-                className="p-4 overflow-y-auto font-mono text-xs space-y-2.5 max-h-[300px] leading-relaxed"
-                style={{ color: 'var(--green)' }}
-              >
-                <div style={{ color: 'var(--text3)' }}>
-                  [SYS] Multi-Model Router connected · Pipeline stages active (PLANNING ➔ INGESTION ➔ DIFF_GENERATION ➔ AUTO_FIX)
-                </div>
-
-                {agentEvents.map((evt, idx) => {
-                  const agentLabel = evt.agent.toUpperCase();
-                  let color = 'var(--accent2)';
-                  if (evt.status === 'completed') color = 'var(--green)';
-                  if (evt.status === 'correcting') color = 'var(--amber)';
-
-                  return (
-                    <motion.div
-                      key={idx}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="flex items-start gap-2 leading-relaxed"
-                    >
-                      <span className="shrink-0 select-none text-neutral-500">
-                        [{evt.timestamp}]
-                      </span>
-                      {evt.stage && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/5 border border-white/10 shrink-0 text-indigo-300">
-                          {evt.stage}
-                        </span>
-                      )}
-                      <span className="font-semibold shrink-0 select-none" style={{ color }}>
-                        [{agentLabel}]
-                      </span>
-                      <span style={{ color: 'var(--text)' }}>{evt.log || evt.message}</span>
-                    </motion.div>
-                  );
-                })}
-
-                <div className="flex items-center gap-2">
-                  <span style={{ color: 'var(--text3)' }}>{new Date().toLocaleTimeString()}</span>
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-sans font-semibold text-emerald-400">PIPELINE</span>
-                  <span style={{ color: 'var(--text)' }}>Executing {activeStage || 'stages'}…</span>
-                  <span className="terminal-cursor" aria-hidden />
-                </div>
-
-                <div ref={terminalEndRef} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
+      {latest && (
+        <p className="generation-live-note" role="status">
+          {latest.log ||
+            latest.message ||
+            GENERATION_STAGES.find((item) => item.agent === latest.agent)
+              ?.title}
+        </p>
+      )}
+      <div className="generation-artifacts">
+        {[
+          {
+            label: "Tables",
+            count: partialBlueprint.schema?.length || 0,
+            Icon: Database,
+          },
+          {
+            label: "Endpoints",
+            count: partialBlueprint.endpoints?.length || 0,
+            Icon: FileCode2,
+          },
+          {
+            label: "Screens",
+            count: partialBlueprint.screens?.length || 0,
+            Icon: Layers,
+          },
+        ].map(({ label, count, Icon }) => (
+          <div key={label}>
+            <Icon size={17} />
+            <strong>{count}</strong>
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
+      <div
+        className="generation-preview-grid"
+        aria-label="Received blueprint artifacts"
+      >
+        <div>
+          <h2>
+            <Database size={15} /> Data model
+          </h2>
+          {partialBlueprint.schema?.length ? (
+            partialBlueprint.schema.slice(0, 3).map((table) => (
+              <div key={table.table} className="generation-received">
+                <strong>{table.table}</strong>
+                <small>{table.columns.length} fields</small>
+              </div>
+            ))
+          ) : (
+            <p>Tables appear as the model takes shape.</p>
+          )}
+        </div>
+        <div>
+          <h2>
+            <FileCode2 size={15} /> API routes
+          </h2>
+          {partialBlueprint.endpoints?.length ? (
+            partialBlueprint.endpoints.slice(0, 3).map((endpoint) => (
+              <div
+                key={endpoint.method + endpoint.path}
+                className="generation-received"
+              >
+                <small>{endpoint.method}</small>
+                <code>{endpoint.path}</code>
+              </div>
+            ))
+          ) : (
+            <p>Routes appear as the API is defined.</p>
+          )}
+        </div>
+        <div>
+          <h2>
+            <Layers size={15} /> Screen definitions
+          </h2>
+          {partialBlueprint.screens?.length ? (
+            partialBlueprint.screens.slice(0, 3).map((screen) => (
+              <div key={screen.name} className="generation-received">
+                <strong>{screen.name}</strong>
+              </div>
+            ))
+          ) : (
+            <p>Screens appear as the interface is planned.</p>
+          )}
+        </div>
+      </div>
+      <StreamingSections partial={partialBlueprint} />
+      <details className="generation-details">
+        <summary>
+          Technical activity{" "}
+          <span>{agentEvents.length + pipelineEvents.length} events</span>
+        </summary>
+        <div>
+          {agentEvents.map((event, i) => (
+            <p key={i}>
+              {event.status === "completed" ? (
+                <Check size={12} />
+              ) : (
+                <span className="demo-signal" aria-hidden="true" />
+              )}
+              <span>{event.log || event.message || event.status}</span>
+            </p>
+          ))}
+          {pipelineEvents.map((event, i) => (
+            <p key={`stage-${i}`}>
+              {event.stage}: {event.state}
+            </p>
+          ))}
+          {!agentEvents.length && !pipelineEvents.length && (
+            <p>Waiting for the first activity update…</p>
+          )}
+        </div>
+      </details>
+      {onCancel && (
+        <Button onClick={onCancel} variant="ghost">
+          Cancel generation
+        </Button>
+      )}
     </section>
   );
 }
