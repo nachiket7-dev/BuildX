@@ -1,8 +1,111 @@
-import { clsx, type ClassValue } from 'clsx';
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import type { HttpMethod } from './types';
 
-export function cn(...inputs: ClassValue[]): string {
-  return clsx(inputs);
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+/**
+ * Creates a new object omitting specified keys with proper TypeScript typing
+ */
+export function omit<T extends Record<string, unknown>, K extends keyof T>(
+  obj: T,
+  keys: K[]
+): Omit<T, K> {
+  const result = { ...obj };
+  for (const key of keys) {
+    delete result[key];
+  }
+  return result;
+}
+
+/**
+ * Creates a new object omitting specified keys with proper TypeScript typing
+ */
+export function omitKeys<T extends Record<string, unknown>, K extends string>(
+  obj: T,
+  keys: K[]
+): Omit<typeof obj, K> {
+  const result = { ...obj };
+  for (const key of keys) {
+    delete result[key];
+  }
+  return result;
+}
+
+/**
+ * Formats a number as a compact string (e.g., 1.2k, 1.5M)
+ */
+export function formatCompactNumber(num: number): string {
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}k`;
+  return num.toString();
+}
+
+/**
+ * Formats a date as a relative time string (e.g., "2h ago", "3d ago")
+ */
+export function formatRelativeTime(date: Date | string): string {
+  const now = new Date();
+  const then = new Date(date);
+  const diffMs = now.getTime() - then.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return `${diffHour}h ago`;
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return then.toLocaleDateString();
+}
+
+/**
+ * Truncates a string to a maximum length with ellipsis
+ */
+export function truncate(str: string, maxLength: number): string {
+  if (str.length <= maxLength) return str;
+  return str.slice(0, maxLength - 3) + '...';
+}
+
+/**
+ * Generates a unique ID
+ */
+export function generateId(): string {
+  return Math.random().toString(36).substring(2, 9);
+}
+
+/**
+ * Debounces a function
+ */
+export function debounce<T extends (...args: unknown[]) => unknown>(
+  fn: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+}
+
+/**
+ * Throttles a function
+ */
+export function throttle<T extends (...args: unknown[]) => unknown>(
+  fn: T,
+  limit: number
+): (...args: Parameters<T>) => void {
+  let inThrottle = false;
+  return (...args: Parameters<T>) => {
+    if (!inThrottle) {
+      fn(...args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
 }
 
 export function methodClass(method: HttpMethod): string {

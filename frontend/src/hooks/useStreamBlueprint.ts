@@ -199,8 +199,10 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
       setRetryable(true);
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
-      setIsStreaming(false);
-      abortRef.current = null;
+      if (abortRef.current === controller || !abortRef.current) {
+        setIsStreaming(false);
+        if (abortRef.current === controller) abortRef.current = null;
+      }
     }
   }, [cancel]);
 

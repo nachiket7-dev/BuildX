@@ -6,14 +6,16 @@ import {
   setBlueprintVisibility,
   deleteBlueprint,
 } from '../lib/api';
+import { useAuth } from './useAuth';
 import { queryKeys } from '../lib/queryKeys';
 import type { SavedBlueprint } from '../lib/types';
 
 export function useBlueprintList(scope: 'public' | 'mine', enabled = true) {
+  const {user,authReady}=useAuth();
   return useQuery({
-    queryKey: queryKeys.blueprints.list(scope),
+    queryKey: [...queryKeys.blueprints.list(scope), scope==='mine'?user?.id:'public'],
     queryFn: () => (scope === 'mine' ? fetchMyBlueprints() : fetchPublicBlueprints()),
-    enabled,
+    enabled: enabled && (scope==='public' || (authReady && Boolean(user))),
     staleTime: 60_000,
   });
 }

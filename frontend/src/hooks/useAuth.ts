@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
 
 export interface User {
@@ -11,6 +12,8 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  sessionError: string | null;
+  retrySession: () => void;
   authReady: boolean;  // true after /me verification completes
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
@@ -33,6 +36,10 @@ export function useAuth(): AuthState {
 }
 
 export function useAuthProvider(): AuthState {
+  const queryClient = useQueryClient();
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [verificationAttempt, setVerificationAttempt] = useState(0);
+  const retrySession = useCallback(() => setVerificationAttempt(n => n + 1), []);
   const [user, setUser] = useState<User | null>(() => {
     try {
       const stored = localStorage.getItem(USER_KEY);
@@ -51,40 +58,30 @@ export function useAuthProvider(): AuthState {
 
   const clearError = useCallback(() => setError(null), []);
 
-  // Verify token on mount
+  // An unavailable API is not evidence that a stored session is invalid.
   useEffect(() => {
-    if (!token) {
-      setAuthReady(true);
-      return;
-    }
+    if (!token) { setAuthReady(true); setSessionError(null); return; }
+    const controller = new AbortController();
+    setAuthReady(false); setSessionError(null);
     const BASE_URL = import.meta.env.VITE_API_URL ?? '';
-    fetch(`${BASE_URL}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error('Invalid token');
-        return res.json();
-      })
-      .then((data) => {
-        const u = (data as { user: User }).user;
-        setUser((prev) => {
-          const githubLinked = u.githubLinked || Boolean(prev?.githubLinked);
-          const merged = { ...u, githubLinked };
-          localStorage.setItem(USER_KEY, JSON.stringify(merged));
-          return merged;
-        });
-      })
-      .catch(() => {
-        // Token expired or invalid
-        setUser(null);
-        setToken(null);
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-      })
-      .finally(() => {
-        setAuthReady(true);
+    fetch(`${BASE_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      .then(async res => {
+        if (controller.signal.aborted) return;
+        if (res.status === 401 || res.status === 403) {
+          setUser(null); setToken(null);
+          localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY);
+          queryClient.removeQueries({ queryKey: ['blueprints'] });
+          setAuthReady(true); return;
+        }
+        if (!res.ok) throw new Error('Session verification is temporarily unavailable.');
+        const data = await res.json();
+        if (controller.signal.aborted) return;
+        setUser(data.user); localStorage.setItem(USER_KEY, JSON.stringify(data.user)); setAuthReady(true);
+      }).catch(err => {
+        if (!controller.signal.aborted) setSessionError(err instanceof Error ? err.message : 'Could not verify your session.');
       });
-  }, [token]);
+    return () => controller.abort();
+  }, [token, verificationAttempt, queryClient]);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
@@ -204,11 +201,13 @@ export function useAuthProvider(): AuthState {
   }, []);
 
   const logout = useCallback(() => {
+    queryClient.removeQueries({ queryKey: ['blueprints'] });
+    sessionStorage.removeItem('buildx_create_draft');
     setUser(null);
     setToken(null);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-  }, []);
+  }, [queryClient]);
 
-  return { user, token, isLoading, authReady, login, signup, loginWithGithub, linkGithub, logout, error, clearError };
+  return { sessionError, retrySession, user, token, isLoading, authReady, login, signup, loginWithGithub, linkGithub, logout, error, clearError };
 }
