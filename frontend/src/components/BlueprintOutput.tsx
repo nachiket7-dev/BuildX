@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from "react";
+import { Link } from "react-router-dom";
 import {
   Check,
+  ChevronDown,
   Download,
   Globe,
   Github,
@@ -8,9 +10,10 @@ import {
   Lock,
   Plus,
   RefreshCw,
-} from 'lucide-react';
-import type { Blueprint, TabId, PartialBlueprint } from '../lib/types';
-import { TabBar } from './TabBar';
+} from "./ui/icons";
+import type { Blueprint, TabId, PartialBlueprint } from "../lib/types";
+import { TabBar } from "./TabBar";
+import { Dropdown, type DropdownItem } from "./ui/Dropdown";
 import {
   FeaturesPanel,
   SchemaPanel,
@@ -18,18 +21,20 @@ import {
   UiPanel,
   ArchPanel,
   EffortPanel,
-} from './BlueprintPanels';
-import { DiagramsPanel } from './DiagramsPanel';
-import { getAuthHeaders, regenerateBlueprintStream } from '../lib/api';
-import { useAuth } from '../hooks/useAuth';
-import { useVisibilityMutation } from '../hooks/useBlueprints';
-import { useToast } from '../hooks/useToast';
-import { AVAILABLE_MODELS, useModel } from '../hooks/useModel';
-import { RefinementChat } from './RefinementChat';
-import { StreamingView } from './StreamingView';
-import type { AgentEvent } from '../hooks/useStreamBlueprint';
-import type { ChatMessage } from '../hooks/useRefinement';
-import { useCodeGeneration } from '../hooks/useCodeGeneration';
+} from "./BlueprintPanels";
+const DiagramsPanel = lazy(() =>
+  import("./DiagramsPanel").then((m) => ({ default: m.DiagramsPanel })),
+);
+import { getAuthHeaders, regenerateBlueprintStream } from "../lib/api";
+import { useAuth } from "../hooks/useAuth";
+import { useVisibilityMutation } from "../hooks/useBlueprints";
+import { useToast } from "../hooks/useToast";
+import { AVAILABLE_MODELS, useModel } from "../hooks/useModel";
+import { RefinementChat } from "./RefinementChat";
+import { StreamingView } from "./StreamingView";
+import type { AgentEvent } from "../hooks/useStreamBlueprint";
+import type { ChatMessage } from "../hooks/useRefinement";
+import { useCodeGeneration } from "../hooks/useCodeGeneration";
 
 interface BlueprintOutputProps {
   blueprint: Blueprint;
@@ -61,7 +66,20 @@ export function BlueprintOutput({
   onBlueprintUpdate,
   refinement,
 }: BlueprintOutputProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('features');
+  const [activeTab, setActiveTab] = useState<TabId>("features");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const tabsAnchorRef = useRef<HTMLDivElement>(null);
+  const previousTab = useRef(activeTab);
+  useLayoutEffect(() => {
+    if (previousTab.current === activeTab) return;
+    previousTab.current = activeTab;
+    const scroll = scrollRef.current;
+    const anchor = tabsAnchorRef.current;
+    if (!scroll || !anchor) return;
+    // Keep the new section heading below its sticky navigation after a deep scroll.
+    const offset = anchor.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
+    scroll.scrollTop = Math.max(0, scroll.scrollTop + offset);
+  }, [activeTab]);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -97,31 +115,38 @@ export function BlueprintOutput({
     async function checkRepo() {
       setCheckingRepo(true);
       try {
-        const BASE_URL = import.meta.env.VITE_API_URL ?? '';
-        const response = await fetch(`${BASE_URL}/api/blueprint/check-github-repo`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeaders(),
+        const BASE_URL = import.meta.env.VITE_API_URL ?? "";
+        const response = await fetch(
+          `${BASE_URL}/api/blueprint/check-github-repo`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...getAuthHeaders(),
+            },
+            body: JSON.stringify({
+              githubUrl: blueprint.githubUrl,
+              appName: blueprint.appName,
+              id: blueprintId,
+            }),
           },
-          body: JSON.stringify({
-            githubUrl: blueprint.githubUrl,
-            appName: blueprint.appName,
-            id: blueprintId,
-          }),
-        });
-        if (!response.ok) throw new Error('Check failed');
+        );
+        if (!response.ok) throw new Error("Check failed");
         const data = await response.json();
         if (isMounted) {
           setRepoExists(data.exists);
-          if (data.exists && data.repoUrl && blueprint.githubUrl !== data.repoUrl) {
+          if (
+            data.exists &&
+            data.repoUrl &&
+            blueprint.githubUrl !== data.repoUrl
+          ) {
             if (onBlueprintUpdate) {
               onBlueprintUpdate({ ...blueprint, githubUrl: data.repoUrl });
             }
           }
         }
       } catch (err) {
-        console.error('Error checking github repo existence:', err);
+        console.error("Error checking github repo existence:", err);
         if (isMounted) {
           setRepoExists(null);
         }
@@ -136,7 +161,7 @@ export function BlueprintOutput({
     return () => {
       isMounted = false;
     };
-  }, [blueprintId, blueprint, user]);
+  }, [blueprintId, blueprint, user, onBlueprintUpdate]);
 
   const hasRepo = blueprint.githubUrl && repoExists !== false;
 
@@ -144,32 +169,32 @@ export function BlueprintOutput({
     setDownloading(true);
     setDownloadError(null);
     try {
-      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+      const BASE_URL = import.meta.env.VITE_API_URL ?? "";
       const url = blueprintId
         ? `${BASE_URL}/api/blueprint/export?id=${blueprintId}`
         : `${BASE_URL}/api/blueprint/export`;
 
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: getAuthHeaders(),
         body: blueprintId ? undefined : JSON.stringify(blueprint),
       });
 
-      if (!response.ok) throw new Error('Export failed');
+      if (!response.ok) throw new Error("Export failed");
 
       const blob = await response.blob();
       const downloadUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = downloadUrl;
-      a.download = `${blueprint.appName.toLowerCase().replace(/\s+/g, '-')}-scaffold.zip`;
+      a.download = `${blueprint.appName.toLowerCase().replace(/\s+/g, "-")}-scaffold.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(downloadUrl);
-      toast('Scaffold ZIP downloaded', 'success');
+      toast("Scaffold ZIP downloaded", "success");
     } catch {
-      setDownloadError('Download failed. Try again.');
-      toast('Export failed — try again', 'error');
+      setDownloadError("Download failed. Try again.");
+      toast("Export failed — try again", "error");
     } finally {
       setDownloading(false);
     }
@@ -177,20 +202,26 @@ export function BlueprintOutput({
 
   async function handleGithubExport() {
     if (!user) {
-      toast('Please log in and connect your GitHub account to export repositories.', 'error');
+      toast(
+        "Please log in and connect your GitHub account to export repositories.",
+        "error",
+      );
       return;
     }
     if (!user.githubLinked) {
-      toast('Please connect your GitHub account before exporting repositories.', 'error');
+      toast(
+        "Please connect your GitHub account before exporting repositories.",
+        "error",
+      );
       return;
     }
     setExportingGithub(true);
     try {
-      const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+      const BASE_URL = import.meta.env.VITE_API_URL ?? "";
       const response = await fetch(`${BASE_URL}/api/blueprint/export-github`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...getAuthHeaders(),
         },
         body: JSON.stringify({ blueprint, id: blueprintId }),
@@ -204,21 +235,29 @@ export function BlueprintOutput({
       }
 
       if (!response.ok) {
-        throw new Error(data.error || `GitHub export failed (Status: ${response.status})`);
+        throw new Error(
+          data.error || `GitHub export failed (Status: ${response.status})`,
+        );
       }
 
       if (data.success && data.repoUrl) {
-        toast(data.message || 'Successfully exported blueprint to GitHub!', 'success');
-        window.open(data.repoUrl, '_blank');
+        toast(
+          data.message || "Successfully exported blueprint to GitHub!",
+          "success",
+        );
+        window.open(data.repoUrl, "_blank");
         if (onBlueprintUpdate) {
           onBlueprintUpdate({ ...blueprint, githubUrl: data.repoUrl });
         }
         setRepoExists(true);
       } else {
-        throw new Error('Invalid response');
+        throw new Error("Invalid response");
       }
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'GitHub export failed — try again', 'error');
+      toast(
+        err instanceof Error ? err.message : "GitHub export failed — try again",
+        "error",
+      );
     } finally {
       setExportingGithub(false);
     }
@@ -241,18 +280,22 @@ export function BlueprintOutput({
     let resultBlueprint: Blueprint | null = null;
 
     try {
-      const stream = regenerateBlueprintStream(blueprintId, effectiveModel, controller.signal);
+      const stream = regenerateBlueprintStream(
+        blueprintId,
+        effectiveModel,
+        controller.signal,
+      );
 
       for await (const event of stream) {
         if (controller.signal.aborted) break;
 
         switch (event.event) {
-          case 'progress': {
+          case "progress": {
             const data = event.data as { percent?: number };
             if (data.percent !== undefined) setRegenProgress(data.percent);
             break;
           }
-          case 'agent_event': {
+          case "agent_event": {
             const data = event.data as AgentEvent;
             setRegenAgentEvents((prev) => [
               ...prev,
@@ -260,22 +303,22 @@ export function BlueprintOutput({
             ]);
             break;
           }
-          case 'section': {
+          case "section": {
             const data = event.data as { key: string; value: unknown };
             setRegenPartial((prev) => ({ ...prev, [data.key]: data.value }));
             break;
           }
-          case 'complete': {
+          case "complete": {
             resultBlueprint = event.data as Blueprint;
             gotComplete = true;
             setRegenProgress(95);
             break;
           }
-          case 'saved': {
+          case "saved": {
             setRegenProgress(100);
             break;
           }
-          case 'error': {
+          case "error": {
             const data = event.data as { message: string };
             throw new Error(data.message);
           }
@@ -290,15 +333,18 @@ export function BlueprintOutput({
           modelUsed: effectiveModel,
           ...(blueprint.githubUrl ? { githubUrl: blueprint.githubUrl } : {}),
         };
-        toast('Blueprint regenerated successfully!', 'success');
+        toast("Blueprint regenerated successfully!", "success");
         codegen.clearFiles();
         if (onBlueprintUpdate) {
           onBlueprintUpdate(withModel);
         }
       }
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      toast((err as Error).message || 'Regeneration failed — try again', 'error');
+      if (err instanceof Error && err.name === "AbortError") return;
+      toast(
+        (err as Error).message || "Regeneration failed — try again",
+        "error",
+      );
     } finally {
       setRegenerating(false);
       setRegenStreaming(false);
@@ -315,13 +361,16 @@ export function BlueprintOutput({
   function handleShare() {
     if (!blueprintId) return;
     const url = `${window.location.origin}/blueprint/${blueprintId}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true);
-      toast('Share link copied to clipboard', 'success');
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {
-      window.prompt('Copy this link:', url);
-    });
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        setCopied(true);
+        toast("Share link copied to clipboard", "success");
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {
+        window.prompt("Copy this link:", url);
+      });
   }
 
   function handleToggleVisibility() {
@@ -330,14 +379,20 @@ export function BlueprintOutput({
     visibility.mutate(next, {
       onSuccess: () => {
         setPublicState(next);
-        toast(next ? 'Blueprint is now public in Gallery' : 'Blueprint is now private', 'success');
+        toast(
+          next
+            ? "Blueprint is now public in Gallery"
+            : "Blueprint is now private",
+          "success",
+        );
       },
-      onError: () => toast('Could not update visibility', 'error'),
+      onError: () => toast("Could not update visibility", "error"),
     });
   }
 
   const modelLabel = effectiveModel
-    ? AVAILABLE_MODELS.find((m) => m.id === effectiveModel)?.label || effectiveModel
+    ? AVAILABLE_MODELS.find((m) => m.id === effectiveModel)?.label ||
+      effectiveModel
     : null;
 
   if (regenStreaming) {
@@ -351,213 +406,222 @@ export function BlueprintOutput({
   }
 
   return (
-    <section
-      ref={sectionRef}
-      className="flex-1 min-h-0 overflow-y-auto pb-44 px-4 sm:px-6 max-w-5xl mx-auto animate-fade-slide-up custom-scrollbar"
-      style={{ paddingBottom: '11rem' }}
-      aria-labelledby="blueprint-title"
-    >
-      <div className="flex flex-col gap-4 sm:gap-6 py-5 sm:py-8">
-        <div className="flex-1 min-w-0 border border-white/10 rounded-xl bg-black/45 p-5 font-sans text-xs relative overflow-hidden">
-          <div className="absolute right-4 top-4 text-[10px] text-white/20 select-none font-bold">
-            COMMIT: {blueprintId ? blueprintId.substring(0, 7) : 'draft'}
-          </div>
-          
-          <div className="flex items-start gap-3 mb-4">
-            <div className="w-5 h-5 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0 text-purple-300 font-bold select-none text-[10px]">
-              λ
+    <div ref={scrollRef} className="blueprint-scroll flex-1 min-h-0 overflow-y-auto custom-scrollbar relative">
+      {/* Studio stage — blueprint grid + top accent glow, quiet */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden>
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(124,124,244,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(124,124,244,0.04) 1px, transparent 1px)",
+            backgroundSize: "44px 44px",
+            maskImage:
+              "radial-gradient(ellipse 85% 55% at 50% 0%, black 15%, transparent 80%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 85% 55% at 50% 0%, black 15%, transparent 80%)",
+          }}
+        />
+        <div
+          className="absolute top-[-220px] left-1/2 -translate-x-1/2 w-[720px] h-[420px]"
+          style={{
+            background:
+              "radial-gradient(closest-side, rgba(124,124,244,0.10), transparent 72%)",
+            filter: "blur(18px)",
+          }}
+        />
+      </div>
+      <section
+        ref={sectionRef}
+        className="blueprint-stage px-4 sm:px-6 mx-auto relative"
+        aria-labelledby="blueprint-title"
+      >
+        <div className="flex flex-col gap-4 sm:gap-6 py-5 sm:py-8">
+          <header className="blueprint-heading">
+            <p className="eyebrow">PROJECT BLUEPRINT</p>
+            <h1 id="blueprint-title">{blueprint.appName}</h1>
+            <p>{blueprint.description}</p>
+            <div className="blueprint-facts">
+              <span>{blueprint.schema?.length ?? 0} tables</span>
+              <span>{blueprint.endpoints?.length ?? 0} endpoints</span>
+              <span>{blueprint.screens?.length ?? 0} screens</span>
+              <span>{blueprint.complexity} complexity</span>
             </div>
-            <div>
-              <h2
-                id="blueprint-title"
-                className="text-sm font-semibold text-purple-300 leading-tight"
-              >
-                feat({blueprint.appName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}): initialize project architecture specification
-              </h2>
-              <div className="text-white/40 text-[10px] mt-1 select-none">
-                committed by <span className="text-white/60 font-semibold">BuildX Agentic Pipeline</span> via <span className="text-purple-400 font-semibold">{modelLabel || 'AI Studio'}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="border-t border-white/5 pt-4 text-white/70 leading-relaxed mb-4 whitespace-pre-wrap">
-            {blueprint.description}
-          </div>
+            <p className="blueprint-audience">
+              For {blueprint.targetUsers}
+              {modelLabel && <span> · Generated with {modelLabel}</span>}
+            </p>
+          </header>
 
-          <div className="flex flex-wrap items-center gap-2 text-[10px] border-t border-white/5 pt-4">
-            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-emerald-400 font-mono font-bold">
-              + {blueprint.schema?.length ?? 0} {(blueprint.architecture?.database || '').toLowerCase().includes('mongo') ? 'collections' : 'tables'}
-            </span>
-            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-sky-400 font-mono font-bold">
-              + {blueprint.endpoints?.length ?? 0} endpoints
-            </span>
-            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-purple-400 font-mono font-bold">
-              + {blueprint.screens?.length ?? 0} screens
-            </span>
-            <span className="flex items-center gap-1 bg-white/[0.04] px-2 py-1 rounded border border-white/[0.06] text-amber-400 font-mono font-bold">
-              # {blueprint.complexity} complexity
-            </span>
-            <span className="flex items-center gap-1 bg-zinc-900/90 px-2.5 py-1 rounded border border-white/15 ml-auto text-zinc-200 font-sans text-[10px] font-medium shadow-sm">
-              Audience: <span className="text-white font-semibold">{blueprint.targetUsers}</span>
-            </span>
+          <div
+            className="bp-actions"
+            role="toolbar"
+            aria-label="Blueprint actions"
+          >
+            {blueprintId && isOwner && (
+              <Link
+                className="ui-button ui-button--primary"
+                to={`/agent/${blueprintId}`}
+              >
+                Open workspace
+              </Link>
+            )}
+            {blueprintId && (
+              <button
+                type="button"
+                onClick={handleShare}
+                className="bp-action"
+                aria-label={copied ? "Link copied" : "Copy share link"}
+              >
+                {copied ? <Check size={15} /> : <Link2 size={15} />}{" "}
+                {copied ? "Copied" : "Share link"}
+              </button>
+            )}
+            {blueprintId && isOwner && (
+              <button
+                type="button"
+                className="bp-action"
+                onClick={handleToggleVisibility}
+                disabled={visibility.isPending}
+                aria-pressed={publicState}
+                aria-label={
+                  publicState
+                    ? "Make blueprint private"
+                    : "Make blueprint public"
+                }
+              >
+                {publicState ? <Globe size={15} /> : <Lock size={15} />}{" "}
+                {publicState ? "Public" : "Private"}
+              </button>
+            )}
+            <Dropdown
+              trigger={
+                <button type="button" className="bp-action">
+                  Project actions
+                  <ChevronDown size={16} aria-hidden="true" />
+                </button>
+              }
+              items={
+                [
+                  {
+                    label: downloading
+                      ? "Preparing download…"
+                      : "Download project",
+                    icon: <Download size={15} />,
+                    onClick: handleDownload,
+                    disabled: downloading,
+                  },
+                  ...(isOwner
+                    ? [
+                        {
+                          label: exportingGithub
+                            ? "Exporting…"
+                            : checkingRepo
+                              ? "Checking repository…"
+                              : hasRepo
+                                ? "Update on GitHub"
+                                : "Export to GitHub",
+                          icon: <Github size={15} />,
+                          onClick: handleGithubExport,
+                          disabled: exportingGithub || checkingRepo,
+                        },
+                        ...(hasRepo
+                          ? [
+                              {
+                                label: "View on GitHub",
+                                icon: <Github size={15} />,
+                                onClick: () =>
+                                  window.open(
+                                    blueprint.githubUrl,
+                                    "_blank",
+                                    "noopener,noreferrer",
+                                  ),
+                              },
+                            ]
+                          : []),
+                        ...(blueprintId
+                          ? [
+                              {
+                                label: regenerating
+                                  ? "Regenerating…"
+                                  : "Regenerate blueprint",
+                                icon: <RefreshCw size={15} />,
+                                onClick: handleRegenerate,
+                                disabled: regenerating,
+                              },
+                            ]
+                          : []),
+                      ]
+                    : []),
+                  {
+                    label: "New project",
+                    icon: <Plus size={15} />,
+                    onClick: onReset,
+                  },
+                ] satisfies DropdownItem[]
+              }
+            />
           </div>
+        </div>
+
+        {downloadError && (
+          <p
+            className="text-xs mb-4 font-sans"
+            style={{ color: "var(--coral)" }}
+            role="alert"
+          >
+            {downloadError}
+          </p>
+        )}
+
+        {visibility.isError && (
+          <p
+            className="text-xs mb-4 font-sans"
+            style={{ color: "var(--coral)" }}
+            role="alert"
+          >
+            Could not update visibility. Try again.
+          </p>
+        )}
+
+        <div ref={tabsAnchorRef} aria-hidden="true" />
+        <div className="tab-bar-sticky">
+          <TabBar activeTab={activeTab} onChange={setActiveTab} />
         </div>
 
         <div
-          className="bp-actions"
-          role="toolbar"
-          aria-label="Blueprint actions"
+          id="blueprint-content"
+          role="tabpanel"
+          aria-labelledby={`blueprint-tab-${activeTab}`}
+          className="blueprint-content"
+          key={activeTab}
         >
-          {blueprintId && (
-            <button
-              type="button"
-              onClick={handleShare}
-              aria-label={copied ? 'Link copied' : 'Copy share link'}
-              className={`bp-action ${
-                copied
-                  ? 'bg-emerald-900/40 border-emerald-500/30 text-emerald-300'
-                  : 'bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white'
-              }`}
+          {activeTab === "features" && <FeaturesPanel blueprint={blueprint} />}
+          {activeTab === "schema" && <SchemaPanel blueprint={blueprint} />}
+          {activeTab === "api" && <ApiPanel blueprint={blueprint} />}
+          {activeTab === "ui" && <UiPanel blueprint={blueprint} />}
+          {activeTab === "architecture" && <ArchPanel blueprint={blueprint} />}
+          {activeTab === "diagrams" && (
+            <Suspense
+              fallback={<p className="p-8 text-zinc-400">Loading diagrams…</p>}
             >
-              {copied ? (
-                <>
-                  <Check size={15} strokeWidth={2} aria-hidden />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Link2 size={15} strokeWidth={2} aria-hidden />
-                  <span className="hidden sm:inline">Share</span>
-                </>
-              )}
-            </button>
+              <DiagramsPanel blueprint={blueprint} />
+            </Suspense>
           )}
 
-          {blueprintId && isOwner && (
-            <button
-              type="button"
-              onClick={handleToggleVisibility}
-              disabled={visibility.isPending}
-              aria-pressed={publicState}
-              aria-label={publicState ? 'Make blueprint private' : 'Make blueprint public'}
-              className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white"
-            >
-              {publicState ? (
-                <>
-                  <Globe size={15} strokeWidth={2} aria-hidden />
-                  <span className="hidden sm:inline">Public</span>
-                </>
-              ) : (
-                <>
-                  <Lock size={15} strokeWidth={2} aria-hidden />
-                  <span className="hidden sm:inline">Private</span>
-                </>
-              )}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={downloading}
-            aria-busy={downloading}
-            className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white"
-          >
-            <Download size={15} strokeWidth={2} aria-hidden />
-            <span className="hidden sm:inline">{downloading ? 'Exporting…' : 'Download'}</span>
-            <span className="sm:hidden">{downloading ? '…' : ''}</span>
-          </button>
-
-          {isOwner && (
-            <>
-              <button
-                type="button"
-                onClick={handleGithubExport}
-                disabled={exportingGithub || checkingRepo}
-                aria-busy={exportingGithub}
-                className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white"
-                title={hasRepo ? 'Push updated scaffold files to your existing GitHub repository' : 'Export this project scaffold to a new repository on your GitHub account'}
-              >
-                <Github size={15} strokeWidth={2} aria-hidden />
-                <span className="hidden sm:inline">
-                  {exportingGithub ? 'Pushing…' : checkingRepo ? 'Checking…' : hasRepo ? 'Update on GitHub' : 'Export to GitHub'}
-                </span>
-                <span className="sm:hidden">{exportingGithub || checkingRepo ? '…' : ''}</span>
-              </button>
-
-              {hasRepo && (
-                <a
-                  href={blueprint.githubUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white animate-fade-in"
-                  title="Visit the generated repository on GitHub"
-                >
-                  <Github size={15} strokeWidth={2} aria-hidden />
-                  <span className="hidden sm:inline">View on GitHub</span>
-                  <span className="sm:hidden">View</span>
-                </a>
-              )}
-
-              {blueprintId && (
-                <button
-                  type="button"
-                  onClick={handleRegenerate}
-                  disabled={regenerating}
-                  aria-busy={regenerating}
-                  className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white"
-                  title="Re-generate this blueprint from scratch using its original idea"
-                >
-                  <RefreshCw size={15} strokeWidth={2} aria-hidden className={regenerating ? 'animate-spin' : ''} />
-                  <span className="hidden sm:inline">{regenerating ? 'Regenerating…' : 'Regenerate'}</span>
-                </button>
-              )}
-            </>
-          )}
-
-          <button type="button" onClick={onReset} className="bp-action bg-zinc-900/80 border-white/10 hover:border-white/25 text-zinc-300 hover:text-white">
-            <Plus size={15} strokeWidth={2} aria-hidden />
-            <span className="hidden sm:inline">New</span>
-          </button>
+          {activeTab === "effort" && <EffortPanel blueprint={blueprint} />}
         </div>
-      </div>
-
-      {downloadError && (
-        <p className="text-xs mb-4 font-sans" style={{ color: 'var(--coral)' }} role="alert">
-          {downloadError}
-        </p>
-      )}
-
-      {visibility.isError && (
-        <p className="text-xs mb-4 font-sans" style={{ color: 'var(--coral)' }} role="alert">
-          Could not update visibility. Try again.
-        </p>
-      )}
-
-      <div className="tab-bar-sticky">
-        <TabBar activeTab={activeTab} onChange={setActiveTab} />
-      </div>
-
-      {activeTab === 'features' && <FeaturesPanel blueprint={blueprint} />}
-      {activeTab === 'schema' && <SchemaPanel blueprint={blueprint} />}
-      {activeTab === 'api' && <ApiPanel blueprint={blueprint} />}
-      {activeTab === 'ui' && <UiPanel blueprint={blueprint} />}
-      {activeTab === 'architecture' && <ArchPanel blueprint={blueprint} />}
-      {activeTab === 'diagrams' && <DiagramsPanel blueprint={blueprint} />}
-
-      {activeTab === 'effort' && <EffortPanel blueprint={blueprint} />}
-
-      {refinement && (
-        <RefinementChat
-          anchorRef={sectionRef}
-          blueprint={blueprint}
-          layoutSyncKey={refinement.sidebarOpen}
-          messages={refinement.messages}
-          isRefining={refinement.isRefining}
-          onSend={refinement.onSend}
-          onClear={refinement.onClear}
-        />
-      )}
-    </section>
+        {refinement && isOwner && (
+          <RefinementChat
+            anchorRef={sectionRef}
+            blueprint={blueprint}
+            layoutSyncKey={refinement.sidebarOpen}
+            messages={refinement.messages}
+            isRefining={refinement.isRefining}
+            onSend={refinement.onSend}
+            onClear={refinement.onClear}
+          />
+        )}
+      </section>
+    </div>
   );
 }

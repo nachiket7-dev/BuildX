@@ -1,50 +1,56 @@
-import { useEffect, useRef, useState } from 'react';
-import mermaid from 'mermaid';
-import type { Blueprint } from '../lib/types';
-import { generateERDiagram, generateArchDiagram, generateAPIFlow } from '../lib/diagrams';
-import { SpotlightCard } from './SpotlightCard';
+import { useEffect, useRef, useState } from "react";
+import mermaid from "mermaid";
+import type { Blueprint } from "../lib/types";
+import {
+  generateERDiagram,
+  generateArchDiagram,
+  generateAPIFlow,
+} from "../lib/diagrams";
+import { SpotlightCard } from "./SpotlightCard";
 
 // Initialize mermaid with dark theme
 mermaid.initialize({
   startOnLoad: false,
-  theme: 'dark',
+  theme: "dark",
   themeVariables: {
-    primaryColor: '#14b8a6',
-    primaryTextColor: '#f0fdfa',
-    primaryBorderColor: '#14b8a6',
-    lineColor: '#475569',
-    secondaryColor: '#111113',
-    tertiaryColor: '#111113',
-    background: '#080b0f',
-    mainBkg: '#111113',
-    nodeBorder: '#14b8a6',
-    clusterBkg: '#111113',
-    titleColor: '#f0fdfa',
-    edgeLabelBackground: '#111113',
+    primaryColor: "#9292db",
+    primaryTextColor: "#e4e4ef",
+    primaryBorderColor: "#9292db",
+    lineColor: "#475569",
+    secondaryColor: "#111113",
+    tertiaryColor: "#111113",
+    background: "#080b0f",
+    mainBkg: "#111113",
+    nodeBorder: "#9292db",
+    clusterBkg: "#111113",
+    titleColor: "#e4e4ef",
+    edgeLabelBackground: "#111113",
   },
-  fontFamily: '"DM Mono", monospace',
+  fontFamily: '"Inter", sans-serif',
   fontSize: 13,
 });
 
-import { Database, Network, GitMerge } from 'lucide-react';
+import { Database, Network, GitMerge } from "./ui/icons";
 
-type DiagramTab = 'er' | 'arch' | 'api';
+type DiagramTab = "er" | "arch" | "api";
 
 const DIAGRAM_TABS = [
-  { id: 'er', label: 'ER Diagram', icon: Database },
-  { id: 'arch', label: 'Architecture', icon: Network },
-  { id: 'api', label: 'API Flow', icon: GitMerge },
+  { id: "er", label: "ER Diagram", icon: Database },
+  { id: "arch", label: "Architecture", icon: Network },
+  { id: "api", label: "API Flow", icon: GitMerge },
 ] as const;
 
 function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [svg, setSvg] = useState<string>('');
+  const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function render() {
+      setSvg("");
+      setError(null);
       try {
         const uniqueId = `mermaid-${id}-${Date.now()}`;
         const { svg: renderedSvg } = await mermaid.render(uniqueId, chart);
@@ -54,8 +60,8 @@ function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('[Mermaid] Render error:', err);
-          setError('Failed to render diagram');
+          console.error("[Mermaid] Render error:", err);
+          setError("Failed to render diagram");
         }
       }
     }
@@ -70,21 +76,24 @@ function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
     return (
       <div
         className="rounded-xl p-6 text-center"
-        style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}
+        style={{
+          background: "var(--surface2)",
+          border: "1px solid var(--border)",
+        }}
       >
-        <p className="text-sm" style={{ color: 'var(--coral)' }}>
+        <p className="text-sm" style={{ color: "var(--coral)" }}>
           {error}
         </p>
         <details className="mt-3 text-left">
           <summary
             className="font-sans text-xs cursor-pointer tracking-tight"
-            style={{ color: 'var(--text3)' }}
+            style={{ color: "var(--text3)" }}
           >
             View source
           </summary>
           <pre
             className="mt-2 p-3 rounded-lg text-xs font-mono overflow-x-auto"
-            style={{ background: 'var(--surface3)', color: 'var(--text2)' }}
+            style={{ background: "var(--surface3)", color: "var(--text2)" }}
           >
             {chart}
           </pre>
@@ -93,10 +102,17 @@ function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
     );
   }
 
+  if (!svg)
+    return (
+      <div className="panel-empty" role="status">
+        Rendering diagram…
+      </div>
+    );
+
   return (
     <SpotlightCard
-      className="mermaid-container p-6 overflow-x-auto"
-      spotlightColor="rgba(20, 184, 166, 0.08)"
+      className="mermaid-container diagram-surface overflow-x-auto"
+      spotlightColor="rgba(124, 124, 244, 0.08)"
     >
       <div
         ref={containerRef}
@@ -108,77 +124,85 @@ function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
 }
 
 function cleanMermaidChart(chart: string): string {
-  if (!chart) return '';
+  if (!chart) return "";
   return chart
-    .replace(/^```mermaid\s*/i, '')
-    .replace(/^```\s*/, '')
-    .replace(/```\s*$/, '')
+    .replace(/^```mermaid\s*/i, "")
+    .replace(/^```\s*/, "")
+    .replace(/```\s*$/, "")
     .trim();
 }
 
 export function DiagramsPanel({ blueprint }: { blueprint: Blueprint }) {
-  const [activeTab, setActiveTab] = useState<DiagramTab>('er');
+  const [activeTab, setActiveTab] = useState<DiagramTab>("er");
 
   const erDiagram = cleanMermaidChart(
-    blueprint.diagrams?.er || generateERDiagram(blueprint.schema || [])
+    blueprint.diagrams?.er || generateERDiagram(blueprint.schema || []),
   );
   const archDiagram = cleanMermaidChart(
-    blueprint.diagrams?.arch || generateArchDiagram(blueprint.architecture || {} as any)
+    blueprint.diagrams?.arch ||
+      generateArchDiagram(blueprint.architecture || ({} as any)),
   );
   const apiDiagram = cleanMermaidChart(
-    blueprint.diagrams?.apiFlow || generateAPIFlow(blueprint.endpoints || [])
+    blueprint.diagrams?.apiFlow || generateAPIFlow(blueprint.endpoints || []),
   );
 
+  const hasData =
+    activeTab === "er"
+      ? Boolean(blueprint.diagrams?.er || blueprint.schema?.length)
+      : activeTab === "api"
+        ? Boolean(blueprint.diagrams?.apiFlow || blueprint.endpoints?.length)
+        : Boolean(
+            blueprint.diagrams?.arch ||
+            Object.values(blueprint.architecture || {}).some(Boolean),
+          );
   return (
     <div>
-      <div
-        className="font-sans text-xs uppercase tracking-widest mb-4"
-        style={{ color: 'var(--text3)' }}
-      >
-        // visual diagrams
-      </div>
-
-      {/* Sub-tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-        {DIAGRAM_TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className="font-sans text-xs px-4 py-2 rounded-lg border transition-all duration-150 flex items-center gap-1.5"
-            style={{
-              background: activeTab === id ? 'var(--accent-glow)' : 'var(--surface2)',
-              borderColor: activeTab === id ? 'rgba(20,184,166,0.3)' : 'var(--border)',
-              color: activeTab === id ? 'var(--accent2)' : 'var(--text3)',
-            }}
-          >
-            <Icon size={13} />
-            <span>{label}</span>
-          </button>
-        ))}
+      <div className="diagram-panel-heading">
+        <div className="panel-section-label">
+          <span aria-hidden="true">06</span>
+          <h2>visual diagrams</h2>
+        </div>
+        <div className="diagram-controls" aria-label="Diagram views">
+          {DIAGRAM_TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              aria-pressed={activeTab === id}
+              className="diagram-view-button"
+            >
+              <Icon size={13} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Diagram content */}
-      {activeTab === 'er' && (
+      {!hasData && (
+        <p className="panel-empty">No data available for this diagram yet.</p>
+      )}
+      {hasData && activeTab === "er" && (
         <div>
-          <p className="text-xs mb-4" style={{ color: 'var(--text3)' }}>
-            Entity-Relationship diagram showing {(blueprint.schema || []).length} tables and their relationships
+          <p className="text-xs mb-4" style={{ color: "var(--text3)" }}>
+            Entity-Relationship diagram showing{" "}
+            {(blueprint.schema || []).length} tables and their relationships
           </p>
           <MermaidRenderer chart={erDiagram} id="er" />
         </div>
       )}
 
-      {activeTab === 'arch' && (
+      {hasData && activeTab === "arch" && (
         <div>
-          <p className="text-xs mb-4" style={{ color: 'var(--text3)' }}>
+          <p className="text-xs mb-4" style={{ color: "var(--text3)" }}>
             System architecture and technology stack
           </p>
           <MermaidRenderer chart={archDiagram} id="arch" />
         </div>
       )}
 
-      {activeTab === 'api' && (
+      {hasData && activeTab === "api" && (
         <div>
-          <p className="text-xs mb-4" style={{ color: 'var(--text3)' }}>
+          <p className="text-xs mb-4" style={{ color: "var(--text3)" }}>
             API request flow sequence diagram
           </p>
           <MermaidRenderer chart={apiDiagram} id="api" />
