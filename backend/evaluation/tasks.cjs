@@ -1,0 +1,32 @@
+// Synthetic tasks and independent acceptance tests. Never use customer projects.
+const cases = [
+  ['feature-deduplicate','feature','Return unique values in first-seen order.','deduplicate','values => values','[1,2,1,3]','[1,2,3]'],
+  ['feature-clamp','feature','Clamp a number to the inclusive range 0 through 100.','clamp','value => value','120','100'],
+  ['feature-slug','feature','Trim, lowercase and replace whitespace runs with hyphens.','slug','value => value','" Hello   World "','"hello-world"'],
+  ['feature-pagination','feature','Return the second page of three items per page.','page','items => items','[1,2,3,4,5,6,7]','[4,5,6]'],
+  ['feature-parse-port','feature','Parse a valid integer port; return 3001 for invalid or out-of-range input.','port','value => value','"99999"','3001'],
+  ['feature-empty-average','feature','Return the arithmetic mean; empty arrays return zero.','average','items => items.length','[]','0'],
+  ['bug-inclusive-range','bug','Fix the upper boundary: 18 is eligible.','eligible','age => age > 18','18','true'],
+  ['bug-immutable-sort','bug','Return numbers sorted numerically without modifying the input.','sorted','values => values.sort()','[10,2,1]','[1,2,10]'],
+  ['bug-nullish-default','bug','Preserve false and zero; only null/undefined use the fallback.','defaultValue','value => value || "fallback"','0','0'],
+  ['bug-zero-total','bug','Count zero-valued entries as present.','present','items => items.filter(Boolean).length','[0,1,null]','2'],
+  ['bug-url-encoding','bug','Encode an identifier as one URL path segment.','path','id => "/items/" + id','"a/b?c"','"/items/a%2Fb%3Fc"'],
+  ['bug-money-rounding','bug','Round a dollar amount to the nearest cent integer.','cents','value => value * 100','1.005','101'],
+  ['build-export-contract','build','Export convert as a named function returning a number.','convert','value => String(value)','"42"','42'],
+  ['build-json-parser','build','Parse serialized JSON input rather than returning the string.','parse','value => value','"{\\"ok\\":true}"','({ok:true})'],
+  ['build-buffer-browser','build','Return the UTF-8 byte length using TextEncoder, without Buffer.','size','value => value.length','"é"','2'],
+  ['build-esm-extension','build','The consumer contract expects a boolean result.','enabled','value => value','"true"','true'],
+  ['auth-exact-role','auth','Grant access only for the exact role admin.','isAdmin','role => role.includes("admin")','"not-admin"','false'],
+  ['auth-deny-missing','auth','Deny a missing or false session; only an object with a nonempty userId authenticates.','authenticated','session => session !== false','null','false'],
+  ['data-owner-scope','data','Filter records to the current owner alice.','visible','rows => rows','[{owner:"alice"},{owner:"bob"}]','[{owner:"alice"}]'],
+  ['data-preserve-id','data','Apply mutable fields without allowing request data to replace the record id.','patch','input => ({id:"original",...input})','{id:"spoofed",title:"new"}','({id:"original",title:"new"})'],
+  ['context-config-port','context','Use config.port in the consumer, never a hard-coded default.','configured','config => 3001','{port:8080}','8080'],
+  ['context-frozen-input','context','Copy input before reversing; do not mutate frozen arrays.','reverse','values => values.reverse()','Object.freeze([1,2,3])','[3,2,1]'],
+  ['recovery-idempotent-merge','recovery','Merge a repeated event only once by id.','merge','events => events','[{id:1},{id:1}]','[{id:1}]'],
+  ['recovery-revision-match','recovery','Accept only an exact expected revision match.','matches','pair => true','["old","new"]','false'],
+];
+module.exports = cases.map(([id,category,prompt,name,implementation,input,expected]) => ({
+  id, category, prompt,
+  files: { 'package.json':'{"type":"module","scripts":{"test":"node --test acceptance.test.mjs"}}', 'src.mjs':`export const ${name} = ${implementation};\n`, 'consumer.mjs':`export { ${name} } from './src.mjs';\n` },
+  acceptance: `import assert from 'node:assert/strict';\nimport { ${name} } from './consumer.mjs';\nassert.deepEqual(${name}(${input}),${expected});\n`,
+}));

@@ -1,0 +1,56 @@
+// Must point at the explicitly provisioned disposable database, never backend/.env.
+const assert = require('node:assert/strict');
+const { randomUUID } = require('node:crypto');
+process.env.DATABASE_URL = 'postgresql://postgres:buildx-test-only@127.0.0.1:55439/buildx_test';
+process.env.ALLOW_DB_FALLBACK = 'false';
+const db = require('../dist/lib/db');
+const store = require('../dist/lib/agent/store');
+(async () => {
+  const userId = await db.createUser('Test', randomUUID() + '@example.test', 'not-a-real-hash');
+  const fixture = require('../../audit/backend-2026-09-20/fixture.json');
+  const id = await db.saveBlueprint('isolated', fixture, userId);
+  await db.saveBlueprintFilesAtomically(id, [{ path:'main.ts',content:'original',language:'typescript' }]);
+  const results = await Promise.allSettled(['first','second'].map(content => db.saveBlueprintFilesAtomically(id, [{path:'main.ts',content,language:'typescript'}], {expected:{'main.ts':'original'}})));
+  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+  const release = await store.acquireWorkspace(id);
+  await assert.rejects(store.acquireWorkspace(id), /active/);
+  await release();
+  const run = store.newRun(userId,id,'fixture'); await store.saveRun(run);
+  await store.requestCancellation(run.id); await store.saveRun(run);
+  assert.equal((await store.readRun(run.id)).cancelRequested,true);
+  assert.equal((await store.listRuns(userId,id))[0].id,run.id);
+  const {generateMonorepoFiles} = require('../dist/lib/scaffold');
+  const files = generateMonorepoFiles(fixture);
+  const ts = require('typescript'); const Module = require('node:module'); const path = require('node:path');
+  function compile(name, dependencies={}) {
+    const mod = new Module(path.resolve('backend/generated-test-'+name+'.cjs'), module);
+    mod.filename = path.resolve('backend/generated-test-' + name + '.cjs');
+    mod.paths = module.paths;
+    const original = mod.require.bind(mod);
+    mod.require = key => dependencies[key] || original(key);
+    mod._compile(ts.transpileModule(files['backend/src/runtime/'+name+'.ts'],{compilerOptions:{module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText,mod.filename);
+    return mod.exports;
+  }
+  const repo = compile('repository');
+  const auth = compile('auth', {'./repository':repo});
+  const handler = compile('handler', {'./repository':repo,'./auth':auth});
+  process.env.JWT_SECRET = 'isolated-jwt-secret-at-least-thirty-two-characters';
+  const signup = await auth.identity('/signup', {email: randomUUID()+'@example.test',password:'a-strong-test-password'});
+  assert.equal(signup.status,201);
+  const login = await auth.identity('/login',{email:signup.body.user.email,password:'a-strong-test-password'});
+  assert.equal(login.status,200);
+  assert.equal(await auth.authenticate('Bearer '+login.body.token),signup.body.user.id);
+  assert.equal((await auth.identity('/login',{email:signup.body.user.email,password:'wrong-password-long'})).status,401);
+  const jwt = require('jsonwebtoken');
+  const token = subject => 'Bearer ' + jwt.sign({},process.env.JWT_SECRET,{subject,expiresIn:'5m',issuer:'buildx-app',audience:'buildx-api'});
+  assert.equal((await handler.handle('items','post',true,'Bearer garbage',undefined,{})).status,401);
+  const resource = 'items-' + randomUUID();
+  const created = await handler.handle(resource,'post',true,token('alice'),undefined,{title:'Persisted',id:'spoofed'});
+  assert.equal(created.status,201); assert.notEqual(created.body.data.id,'spoofed');
+  const fresh = compile('repository');
+  assert.equal((await fresh.list(resource,'alice'))[0].title,'Persisted');
+  const denied = await handler.handle(resource,'patch',true,token('bob'),created.body.data.id,{title:'stolen'});
+  assert.equal(denied.status,404);
+  assert.equal((await fresh.list(resource,'alice'))[0].title,'Persisted');
+  console.log('PostgreSQL passed: CAS conflicts, advisory locks, durable cancellation/history, invalid JWT rejection, durable generated CRUD and cross-user isolation.');
+})().then(()=>process.exit(0),error=>{console.error(error);process.exit(1);});

@@ -11,9 +11,17 @@ import {
   resetAllCooldowns,
   streamWithPipelineFallback,
   SUBAGENT_TIERS,
+  resolveModelId,
+  getFriendlyModelName,
 } from '../lib/llm/router';
 import type { LLMProvider } from '../lib/llm/types';
 import type { Blueprint } from '../lib/types';
+
+test('NVIDIA trial model keys resolve to the published endpoints', () => {
+  assert.equal(resolveModelId('glm-5.3'), 'z-ai/glm-5.3');
+  assert.equal(resolveModelId('kimi-k3'), 'moonshotai/kimi-k3');
+  assert.equal(getFriendlyModelName('glm-5.3'), 'GLM 5.3');
+});
 
 test('diff parser applies a complete search/replace block', () => {
   const source = 'const value = 1;\n';
@@ -53,7 +61,9 @@ test('generated scaffold contains executable route and page implementations', ()
   } as Blueprint;
 
   const files = generateMonorepoFiles(blueprint);
-  assert.match(files['backend/src/routes/items.ts'], /records\.push/);
+  assert.match(files['backend/src/routes/items.ts'], /handle/);
+  assert.match(files['backend/src/runtime/repository.ts'], /INSERT INTO buildx_records/);
+  assert.match(files['backend/src/runtime/auth.ts'], /jwt.verify/);
   assert.doesNotMatch(files['backend/src/routes/items.ts'], /TODO/);
   assert.doesNotMatch(files['frontend/src/pages/ItemsPage.tsx'], /TODO/);
 });
@@ -99,7 +109,7 @@ test('generated scaffold keeps Express, Fastify, and Next.js variants coherent',
   assert.ok(next['frontend/src/app/page.tsx']);
   assert.ok(next['frontend/src/app/layout.tsx']);
   assert.equal(next['frontend/index.html'], undefined);
-  assert.equal(JSON.parse(next['frontend/package.json']).dependencies.next, '^14.1.0');
+  assert.equal(JSON.parse(next['frontend/package.json']).dependencies.next, require('../lib/generatedDependencyVersions.json').next);
 });
 
 test('unified router fails over immediately on a rate-limited preferred model', async () => {
@@ -108,7 +118,7 @@ test('unified router fails over immediately on a rate-limited preferred model', 
   const providerFactory = (modelKey: string): LLMProvider => ({
     complete: async () => {
       calls.push(modelKey);
-      if (modelKey === 'gemini-3.5-flash') {
+      if (modelKey === 'gemini-3.8-flash') {
         const error: any = new Error('rate limit exceeded');
         error.status = 429;
         throw error;
@@ -130,8 +140,8 @@ test('unified router fails over immediately on a rate-limited preferred model', 
 
   assert.equal(result.text, 'fallback response');
   assert.equal(result.usedFallback, true);
-  assert.deepEqual(calls, ['gemini-3.5-flash', 'kimi-k3']);
-  assert.equal(await isModelCoolingDown('gemini-3.5-flash'), true);
+  assert.deepEqual(calls, ['gemini-3.8-flash', 'gemini-3.5-flash']);
+  assert.equal(await isModelCoolingDown('gemini-3.8-flash'), true);
   await resetAllCooldowns();
 });
 
@@ -152,13 +162,13 @@ test('unified router honors an explicitly selected model before stage defaults',
     'REFINEMENT',
     [{ role: 'user', content: 'test' }],
     undefined,
-    'qwen-3-32b',
+    'gpt-oss-120b',
     providerFactory
   );
 
-  assert.equal(result.model, 'qwen-3-32b');
+  assert.equal(result.model, 'gpt-oss-120b');
   assert.equal(result.text, 'selected response');
-  assert.deepEqual(calls, ['qwen-3-32b']);
+  assert.deepEqual(calls, ['gpt-oss-120b']);
 });
 
 test('subagent compatibility tiers derive from unified pipeline routes', () => {
@@ -199,6 +209,6 @@ test('partial streams fail explicitly instead of switching to a second response'
   );
 
   assert.equal(received, 'partial output');
-  assert.deepEqual(providersCreated, ['gemini-3.5-flash']);
+  assert.deepEqual(providersCreated, ['gemini-3.8-flash']);
   await resetAllCooldowns();
 });
