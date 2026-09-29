@@ -1,0 +1,66 @@
+name: Release checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Reject private or generated files in Git
+        shell: bash
+        run: |
+          if git ls-files | grep -E '(^|/)(\.env(\.[^/]*)?|node_modules|dist)(/|$)|\.(pem|key)$' | grep -v -E '\.env\.example$'; then
+            echo 'Private or generated files are tracked; remove them from Git before release.' >&2
+            exit 1
+          fi
+          if git grep -IlE '(AIza[0-9A-Za-z_-]{25,}|gsk_[0-9A-Za-z]{20,}|ghp_[0-9A-Za-z]{20,}|github_pat_[0-9A-Za-z_]{20,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----)' -- .; then
+            echo 'A file contains a credential-shaped value; review it before release.' >&2
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: npm test --workspace=backend
+      - run: npm test --workspace=frontend
+      - run: git diff --check
+
+  durable-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix backend/sandbox
+      - run: docker build -t buildx-checks:local backend/sandbox
+      - name: Start disposable PostgreSQL
+        run: |
+          docker run --rm -d --name buildx-queue-test-db \
+            -e POSTGRES_PASSWORD=buildx-test-only -e POSTGRES_DB=buildx_test \
+            -p 127.0.0.1:55439:5432 postgres:16-alpine
+          for attempt in {1..30}; do
+            if docker exec buildx-queue-test-db pg_isready -U postgres; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - run: npm run test:queue --workspace=backend
+      - run: npm run test:queue-engine --workspace=backend
+      - run: npm run test:release-drill --workspace=backend
+      - run: npm run test:identity-login --workspace=backend
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: docker stop buildx-queue-test-db || true
