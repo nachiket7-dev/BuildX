@@ -1,6 +1,9 @@
 // Disposable manual QA server. Every /api request is handled here, never proxied.
 import { createServer } from "vite";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+const queuedQA = process.argv.includes("--queue");
+const queueJobs = new Map();
 const frontendRoot = path.resolve(import.meta.dirname, "..");
 process.chdir(frontendRoot);
 
@@ -134,7 +137,8 @@ let failNextSave = true;
 const server = await createServer({
   root: frontendRoot,
   configFile: path.join(frontendRoot, "vite.config.ts"),
-  server: { port: 5190, strictPort: true },
+  define: queuedQA ? {"import.meta.env.VITE_AGENT_QUEUE_ENABLED": JSON.stringify("true")} : {},
+  server: { port: queuedQA ? 5192 : 5190, strictPort: true },
   plugins: [
     {
       name: "isolated-qa-api",
@@ -143,8 +147,38 @@ const server = await createServer({
           if (!req.url.startsWith("/api/")) return next();
           res.setHeader("Content-Type", "application/json");
           let result = { success: true, data: [] };
+          if (req.url.startsWith('/api/agent/') && req.url.endsWith('/runs')) {
+            res.end(JSON.stringify({runs:[]}));return;
+          }
+          if (queuedQA && req.url.startsWith('/api/agent/')) {
+            const path=req.url.split('?')[0];
+            if ((path.endsWith('/blueprint-jobs') || path.endsWith('/jobs') || path.endsWith('/spec-jobs')) && req.method==='POST') {
+              let raw='';for await(const chunk of req)raw+=chunk;
+              const body=JSON.parse(raw);let job=[...queueJobs.values()].find(item=>item.key===body.key);
+              if(!job){
+                job={id:randomUUID(),key:body.key,prompt:body.prompt||body.idea,status:'running',attempt:1,updatedAt:new Date().toISOString(),endpoint:path};
+                queueJobs.set(job.id,job);
+                setTimeout(()=>{
+                  if(job.status!=='running')return;
+                  job.status='completed';
+                  job.result=(path.endsWith('/blueprint-jobs') || path.endsWith('/spec-jobs'))?{id:'qa-workspace',data:{...project,appName:'Queue QA'}}:
+                    {message:'Prepared a synthetic change for review.',stagedDiffs:{[files[0].path]:{original:files[0].content,modified:files[0].content+'\n// Queued QA change'}},modifiedFiles:[{path:files[0].path,content:files[0].content+'\n// Queued QA change'}]};
+                },20000);
+              }
+              res.statusCode=202;res.end(JSON.stringify({jobId:job.id,status:job.status}));return;
+            }
+            if(path.endsWith('/jobs') && req.method==='GET') {res.end(JSON.stringify({runs:[...queueJobs.values()].filter(job=>job.endpoint===path)}));return;}
+            const match=path.match(/\/(?:jobs|blueprint-jobs|spec-jobs)\/([\da-f-]+)(\/cancel)?$/);
+            if(match){
+              const job=queueJobs.get(match[1]);
+              if(!job){res.statusCode=404;res.end(JSON.stringify({error:'Unknown QA job'}));return;}
+              if(match[2]){const cancelled=['running','queued'].includes(job.status);if(cancelled)job.status='cancelled';res.end(JSON.stringify({cancelled}));return;}
+              res.end(JSON.stringify(job));return;
+            }
+          }
+
           if (req.url === "/api/auth/login")
-            result = { token: "local-qa-fixture-token", user };
+            result = { token: 'qa.' + Buffer.from(JSON.stringify({userId:user.id})).toString('base64url') + '.fixture', user };
           else if (req.url === "/api/auth/me") result = { user };
           else if (req.url === "/api/auth/chat/qa-workspace")
             result = { success: true, data: chatHistory };
@@ -187,7 +221,15 @@ const server = await createServer({
                 error:
                   "Simulated connection failure. Your files are unchanged.",
               });
-            else
+            else if (prompt.toLowerCase().includes("simulate staged preview")) {
+              const original = files[0].content;
+              const modified = original.replace("A local test workspace.", "A staged preview change.");
+              emit("staged_diff", { path: files[0].path, original, modified });
+              emit("done", {
+                message: "A synthetic change is staged for preview and review.",
+                modifiedFiles: [{ path: files[0].path, content: modified }],
+              });
+            } else
               emit("done", {
                 message: "Review complete. This local test changed no files.",
                 modifiedFiles: [],
@@ -236,5 +278,5 @@ const server = await createServer({
 });
 await server.listen();
 console.log(
-  "Isolated QA workspace at http://localhost:5190/agent/qa-workspace",
+  `Isolated QA workspace at http://localhost:${queuedQA ? 5192 : 5190}/agent/qa-workspace`,
 );
