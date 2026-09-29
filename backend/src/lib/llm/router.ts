@@ -4,22 +4,24 @@ import { NvidiaProvider } from './nvidia';
 import { GeminiProvider } from './gemini';
 import { OpenRouterProvider } from './openrouter';
 import { CooldownStore, createDefaultCooldownStore } from './cooldownStore';
+import { isTransientProviderFailure, ProviderCapacityError, retryAfterMs } from './providerFailure';
+import { SPECIALIST_MODELS, prototypeModelsEnabled } from './specialists';
 
 // ─── Default Model IDs ──────────────────────────────────────────────────────
-export const DEFAULT_MODEL_KEY = 'gemini-3.5-flash';
+export const DEFAULT_MODEL_KEY = 'gemini-3.8-flash';
 const DEFAULT_MODEL = DEFAULT_MODEL_KEY;
 
 export const GPT_OSS_FRONTEND_ID = 'gpt-oss-120b';
 export const GPT_OSS_MODEL_ID = 'openai/gpt-oss-120b';
 
-/** Primary models exposed in the UI (7 total) */
+/** Supported model keys, including experimental backend-only routes. */
 export const PRIMARY_MODEL_KEYS = [
+  'gemini-3.8-flash',
   'gemini-3.5-flash',
-  'gemini-3.1-pro',
   'kimi-k3',
+  'glm-5.3',
   'glm-5.2',
   'nemotron-3-550b',
-  'qwen-3-32b',
   'gpt-oss-120b',
 ] as const;
 
@@ -34,29 +36,27 @@ export const LEGACY_MODEL_ALIASES: Record<string, string> = {
   'llama3-70b-8192':       'gemini-3.5-flash',
   'llama3-8b-8192':        'gemini-3.5-flash',
   'gemini-2.5-flash':      'gemini-3.5-flash',
-  'gemini-2.5-pro':        'gemini-3.1-pro',
   'gemini-3.0-flash':      'gemini-3.5-flash',
-  'gemini-3.0-pro':        'gemini-3.1-pro',
   'gemini-3-flash-preview':'gemini-3.5-flash',
   'nemotron-4-340b':       'nemotron-3-super-120b',
 };
 
 // ─── Subagent Specialized Model Constants ───────────────────────────────────
-export const PLANNER_MODEL = 'nemotron-3-550b';
-export const PATCH_MODEL = 'kimi-k3';
-export const INGEST_MODEL = 'glm-5.2';
+export const PLANNER_MODEL = 'gemini-3.8-flash';
+export const PATCH_MODEL = 'gemini-3.8-flash';
+export const INGEST_MODEL = 'gemini-3.8-flash';
 export const VERIFIER_MODEL = 'gemini-3.5-flash';
 
 // ─── Model Map ──────────────────────────────────────────────────────────────
 /** Maps external model key strings to internal provider configurations. */
 export const MODEL_MAP: Record<string, { provider: string; modelId: string }> = {
+  ...SPECIALIST_MODELS,
   // Groq (Fast & Free)
-  'qwen-3-32b':           { provider: 'groq',       modelId: 'qwen/qwen3.6-27b' },
   'gpt-oss-120b':         { provider: 'groq',       modelId: GPT_OSS_MODEL_ID },
 
   // Google AI Studio (Primary & Ultra Fast)
+  'gemini-3.8-flash':     { provider: 'gemini',     modelId: 'gemini-3.8-flash' },
   'gemini-3.5-flash':     { provider: 'gemini',     modelId: 'gemini-3.5-flash' },
-  'gemini-3.1-pro':       { provider: 'gemini',     modelId: 'gemini-3.1-pro-preview' },
 
   // NVIDIA NIM — Nemotron 3 Ultra 550B
   'nemotron-3-550b':      { provider: 'nvidia',     modelId: 'nvidia/nemotron-3-ultra-550b-a55b' },
@@ -68,6 +68,9 @@ export const MODEL_MAP: Record<string, { provider: string; modelId: string }> = 
   // Moonshot Kimi K3 (NVIDIA NIM / OpenRouter)
   'kimi-k3':              { provider: 'nvidia',     modelId: 'moonshotai/kimi-k3' },
   'kimi-k2.6':            { provider: 'openrouter', modelId: 'moonshotai/kimi-k2.6' },
+
+  // NVIDIA free trial endpoint. Keep opt-in until tool and latency evaluation passes.
+  'glm-5.3':              { provider: 'nvidia',     modelId: 'z-ai/glm-5.3' },
 
   // OpenRouter — GLM 5.2 (Deep context & Ingestion)
   'glm-5.2':              { provider: 'openrouter', modelId: 'z-ai/glm-5.2' },
@@ -94,28 +97,15 @@ export async function resetAllCooldowns(): Promise<void> {
 }
 
 // ─── Pipeline Routes ─────────────────────────────────────────────────────────
-/**
- * Defines primary + fallback + emergency model assignments per pipeline stage.
- *
- * Routing strategy (primary → fallback → emergency):
- *   PLANNING        → Gemini 3.5 Flash → Nemotron 3 Ultra 550B → Gemini 3.1 Pro
- *   INGESTION       → GLM 5.2 → Gemini 3.5 Flash → GPT-OSS 120B
- *   DIFF_GENERATION → Gemini 3.5 Flash → Kimi K2.6 → Qwen 3-32B
- *   AUTO_FIX        → Gemini 3.5 Flash → Kimi K2.6 → Qwen 3-32B
- *   CODE_GENERATION → Gemini 3.5 Flash → Kimi K2.6 → Qwen 3-32B
- *   REFINEMENT      → Gemini 3.5 Flash → Kimi K2.6 → Qwen 3-32B
- *   PREVIEW_GENERATION → Gemini 3.5 Flash → Kimi K2.6 → Qwen 3-32B
- *   SCHEMA_VERIFIER  → Gemini 3.5 Flash → Qwen 3-32B → Nemotron Super 120B
- */
 export const PIPELINE_ROUTES: Record<PipelineStage, PipelineRoute> = {
-  PLANNING:        { primary: 'gemini-3.5-flash', fallback: PLANNER_MODEL,     emergency: 'gemini-3.1-pro' },
-  INGESTION:       { primary: INGEST_MODEL,      fallback: 'gemini-3.5-flash', emergency: 'gpt-oss-120b' },
-  DIFF_GENERATION: { primary: 'gemini-3.5-flash', fallback: PATCH_MODEL,       emergency: 'qwen-3-32b' },
-  AUTO_FIX:        { primary: 'gemini-3.5-flash', fallback: PATCH_MODEL,       emergency: 'qwen-3-32b' },
-  CODE_GENERATION: { primary: 'gemini-3.5-flash', fallback: PATCH_MODEL,       emergency: 'qwen-3-32b' },
-  REFINEMENT:      { primary: 'gemini-3.5-flash', fallback: PATCH_MODEL,       emergency: 'qwen-3-32b' },
-  PREVIEW_GENERATION: { primary: 'gemini-3.5-flash', fallback: PATCH_MODEL,    emergency: 'qwen-3-32b' },
-  SCHEMA_VERIFIER:  { primary: VERIFIER_MODEL,       fallback: 'qwen-3-32b',    emergency: 'nemotron-3-super-120b' },
+  PLANNING: { primary: 'gemini-3.8-flash', fallback: 'gemini-3.5-flash' },
+  INGESTION: { primary: 'gemini-3.8-flash', fallback: 'gemini-3.5-flash' },
+  DIFF_GENERATION: { primary: 'gemini-3.8-flash', fallback: 'gemini-3.5-flash' },
+  AUTO_FIX: { primary: 'gemini-3.8-flash', fallback: 'gemini-3.5-flash' },
+  CODE_GENERATION: { primary: 'gemini-3.8-flash', fallback: 'gemini-3.5-flash' },
+  REFINEMENT: { primary: 'gemini-3.8-flash', fallback: 'gemini-3.5-flash' },
+  PREVIEW_GENERATION: { primary: 'gemini-3.8-flash', fallback: 'gemini-3.5-flash' },
+  SCHEMA_VERIFIER: { primary: 'gemini-3.5-flash', fallback: 'gemini-3.8-flash' },
 };
 
 // ─── Subagent Model Tiers ───────────────────────────────────────────────────
@@ -140,6 +130,13 @@ export const SUBAGENT_TIERS: Record<SubagentRole, SubagentTierRoute> = Object.fr
 export function getFriendlyModelName(modelKey?: string): string {
   if (!modelKey) return 'Gemini 3.5 Flash';
   switch (modelKey) {
+    case 'north-mini-code-free': return 'North Mini Code (free)';
+    case 'laguna-s-free': return 'Laguna S 2.1 (free)';
+    case 'laguna-xs-free': return 'Laguna XS 2.1 (free)';
+    case 'nemotron-super-free': return 'Nemotron Super (free prototype)';
+    case 'nemotron-ultra-free': return 'Nemotron Ultra (free prototype)';
+    case 'gemini-3.8-flash':
+      return 'Gemini 3.8 Flash';
     case 'nemotron-3-550b':
     case 'nemotron-3-ultra-550b':
     case 'nvidia/nemotron-3-ultra-550b-a55b':
@@ -156,17 +153,16 @@ export function getFriendlyModelName(modelKey?: string): string {
     case 'glm-5.2':
     case 'z-ai/glm-5.2':
       return 'GLM 5.2';
+    case 'glm-5.3':
+    case 'z-ai/glm-5.3':
+      return 'GLM 5.3';
     case 'gpt-oss-120b':
     case 'openai/gpt-oss-120b':
       return 'GPT-OSS 120B';
-    case 'qwen-3-32b':
-    case 'qwen/qwen3.6-27b':
-      return 'Qwen 3.6 27B';
+
     case 'gemini-3.5-flash':
       return 'Gemini 3.5 Flash';
-    case 'gemini-3.1-pro':
-    case 'gemini-3.1-pro-preview':
-      return 'Gemini 3.1 Pro';
+
     default:
       return modelKey;
   }
@@ -176,18 +172,13 @@ export function getFriendlyModelName(modelKey?: string): string {
 
 /** Resolve legacy aliases and validate model keys */
 export function resolveModelKey(requestedModel?: string): string {
-  const raw = (requestedModel || DEFAULT_MODEL).trim();
+  const raw = (!requestedModel || requestedModel === 'pipeline' ? DEFAULT_MODEL : requestedModel).trim();
+  if (/qwen|gemini.*pro/i.test(raw)) throw new Error('This model has been excluded from BuildX');
   const aliased = LEGACY_MODEL_ALIASES[raw] ?? raw;
 
   if (MODEL_MAP[aliased]) return aliased;
 
-  if (aliased.includes(':')) {
-    const [provider] = aliased.split(':');
-    if (['groq', 'gemini', 'nvidia', 'openrouter'].includes(provider)) return aliased;
-  }
-
-  console.warn(`[LLM Router] Unknown model key "${raw}". Falling back to ${DEFAULT_MODEL_KEY}.`);
-  return DEFAULT_MODEL_KEY;
+  throw new Error(`Unsupported model key: ${raw}`);
 }
 
 function resolveProviderKey(requestedModel?: string): string {
@@ -238,7 +229,9 @@ export function getLLMProvider(requestedModel?: string): LLMProvider {
 
   switch (provider) {
     case 'groq':       return new GroqProvider(modelId);
-    case 'nvidia':     return new NvidiaProvider(modelId);
+    case 'nvidia':
+      if (!prototypeModelsEnabled()) throw new Error('NVIDIA free endpoints require development prototype opt-in');
+      return new NvidiaProvider(modelId);
     case 'gemini':     return new GeminiProvider(modelId);
     case 'openrouter': return new OpenRouterProvider(modelId);
     default:
@@ -282,6 +275,8 @@ function isFatalProviderError(err: any): boolean {
 }
 
 function getRetryAfterMs(err: any, defaultMs: number): number {
+  const parsed = retryAfterMs(err);
+  if (parsed !== null) return parsed;
   const headerValue = err?.headers?.['retry-after'] ?? err?.response?.headers?.['retry-after'];
   const headerSeconds = Number.parseFloat(String(headerValue ?? ''));
   if (Number.isFinite(headerSeconds) && headerSeconds >= 0) {
@@ -311,7 +306,7 @@ function candidateModels(stage: PipelineStage, preferredModel?: string): string[
     : undefined;
 
   const standardList = [preferred, route.primary, route.fallback, route.emergency];
-  const universalSafety = ['gemini-3.5-flash', 'qwen-3-32b', 'nemotron-3-super-120b', 'gpt-oss-120b'];
+  const universalSafety: string[] = []; // No hidden premium or unqualified fallback models.
 
   return Array.from(new Set([...standardList, ...universalSafety].filter(Boolean) as string[]));
 }
@@ -326,12 +321,17 @@ export async function completeWithPipelineFallback(
   providerFactory: ProviderFactory = getLLMProvider
 ): Promise<{ text: string; usedFallback: boolean; model: string }> {
   const candidates = candidateModels(stage, preferredModel);
+  const failures: unknown[] = [];
+  const cooldowns: number[] = [];
 
   for (let i = 0; i < candidates.length; i++) {
+    options?.signal?.throwIfAborted();
     const modelKey = candidates[i];
     const isPrimary = i === 0;
 
-    if (await isModelCoolingDown(modelKey)) {
+    const coolingUntil = await cooldownStore.getExpiry(modelKey);
+    if (coolingUntil) {
+      cooldowns.push(Math.max(0,coolingUntil-Date.now()));
       console.warn(`[Pipeline:${stage}] Model "${modelKey}" is in cooldown. Skipping to next candidate.`);
       continue;
     }
@@ -340,10 +340,16 @@ export async function completeWithPipelineFallback(
       console.log(`[Pipeline:${stage}] Attempting ${isPrimary ? 'preferred/primary' : 'fallback'} model: ${modelKey}`);
       const provider = providerFactory(modelKey);
       const text = await executeWithRetry(() => provider.complete(messages, options), modelKey, 1, 1000);
+      if (!text.trim()) throw new Error('Model returned empty output');
+      options?.signal?.throwIfAborted();
       console.log(`[Pipeline:${stage}] ${isPrimary ? 'Primary' : 'Fallback'} (${modelKey}) succeeded.`);
       return { text, usedFallback: !isPrimary, model: modelKey };
     } catch (err: any) {
+      failures.push(err);
+      options?.signal?.throwIfAborted();
       await updateModelCooldown(modelKey, err);
+      const coolingUntil = await cooldownStore.getExpiry(modelKey);
+      if (coolingUntil) cooldowns.push(Math.max(0,coolingUntil-Date.now()));
       const errLabel = err?.status ?? err?.statusCode ?? err?.message ?? String(err);
       console.warn(
         `[Pipeline:${stage}] Model (${modelKey}) failed [${isTimeoutError(err) ? 'TIMEOUT' : errLabel}]. ` +
@@ -352,6 +358,8 @@ export async function completeWithPipelineFallback(
     }
   }
 
+  if ((failures.length || cooldowns.length) && failures.every(isTransientProviderFailure))
+    throw new ProviderCapacityError('AI models are temporarily unavailable',Math.max(0,...cooldowns,...failures.map(error=>retryAfterMs(error)??0))||null);
   throw new Error(`[Pipeline:${stage}] All models exhausted (${candidates.join(' -> ')}).`);
 }
 
@@ -433,12 +441,17 @@ export async function completeForSubagent(
   const candidates = candidateModels(stage, preferred);
   const startTime = Date.now();
   const errorHistory: Array<{ model: string; error: string }> = [];
+  const failures: unknown[] = [];
+  const cooldowns: number[] = [];
 
   for (let i = 0; i < candidates.length; i++) {
+    options?.signal?.throwIfAborted();
     const modelKey = candidates[i];
     const isPrimary = i === 0;
 
-    if (await isModelCoolingDown(modelKey)) {
+    const coolingUntil = await cooldownStore.getExpiry(modelKey);
+    if (coolingUntil) {
+      cooldowns.push(Math.max(0,coolingUntil-Date.now()));
       console.warn(`[Subagent:${role}] Model "${modelKey}" is in cooldown. Skipping to next candidate.`);
       continue;
     }
@@ -453,6 +466,7 @@ export async function completeForSubagent(
         1000
       );
 
+      if (!text.trim()) throw new Error('Model returned empty output');
       const executionTimeMs = Date.now() - startTime;
       return {
         text,
@@ -462,10 +476,14 @@ export async function completeForSubagent(
         errorHistory: errorHistory.length > 0 ? errorHistory : undefined,
       };
     } catch (err: any) {
+      failures.push(err);
       const errMsg = err?.message || String(err);
       errorHistory.push({ model: modelKey, error: errMsg });
 
+      options?.signal?.throwIfAborted();
       await updateModelCooldown(modelKey, err);
+      const coolingUntil = await cooldownStore.getExpiry(modelKey);
+      if (coolingUntil) cooldowns.push(Math.max(0,coolingUntil-Date.now()));
 
       const nextModel = candidates[i + 1];
       if (nextModel) {
@@ -481,6 +499,8 @@ export async function completeForSubagent(
     }
   }
 
+  if ((failures.length || cooldowns.length) && failures.every(isTransientProviderFailure))
+    throw new ProviderCapacityError('AI models are temporarily unavailable',Math.max(0,...cooldowns,...failures.map(error=>retryAfterMs(error)??0))||null);
   throw new Error(
     `[Subagent:${role}] All candidate models failed: ${candidates.join(' -> ')}. Errors: ${JSON.stringify(errorHistory)}`
   );
@@ -519,6 +539,7 @@ export async function* streamWithPipelineFallback(
       return;
     } catch (err: any) {
       lastError = err;
+      options?.signal?.throwIfAborted();
       await updateModelCooldown(modelKey, err);
       if (emittedChunk) {
         throw new PartialPipelineStreamError(stage, modelKey, emittedChunks, err);
@@ -559,15 +580,15 @@ export function getProviderHealth(): Record<string, { configured: boolean; label
   return {
     groq: {
       configured: Boolean(process.env.GROQ_API_KEY),
-      label: 'Groq (Qwen 3-32B + GPT-OSS 120B)',
+      label: 'Groq (GPT-OSS 120B)',
     },
     gemini: {
       configured: Boolean(process.env.GEMINI_API_KEY),
-      label: 'Google AI Studio (Gemini 3.5 Flash + 3.1 Pro)',
+      label: 'Google AI Studio (Gemini 3.8 / 3.5 Flash)',
     },
     nvidia: {
       configured: Boolean(process.env.NVIDIA_API_KEY),
-      label: 'NVIDIA NIM (Nemotron 3 Ultra 550B + Nemotron Super)',
+      label: 'NVIDIA NIM (Kimi K3, GLM 5.3, Nemotron)',
     },
     openrouter: {
       configured: Boolean(process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY),

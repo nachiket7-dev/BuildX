@@ -1,91 +1,23 @@
-import OpenAI from 'openai';
-import { LLMProvider, LLMMessage, CompletionOptions } from './types';
+import { ChatProvider } from './chatProvider';
+import { CompletionOptions, LLMMessage } from './types';
+import { verifyFreeOpenRouter } from './freeEligibility';
+import { prototypeModelsEnabled } from './specialists';
 
-export class OpenRouterProvider implements LLMProvider {
-  private client: OpenAI | null = null;
-  private model: string;
+export class OpenRouterProvider extends ChatProvider {
+  protected retryRequests = false;
+  constructor(model: string) { super(model, ['OPENROUTER_API_KEY', 'OPEN_ROUTER_API_KEY'], 'https://openrouter.ai/api/v1', 45000); }
 
-  constructor(model: string) {
-    this.model = model;
+  protected async prepare(options?: CompletionOptions): Promise<void> {
+    if (this.model.startsWith('nvidia/') && !prototypeModelsEnabled())
+      throw new Error('NVIDIA free endpoints require development prototype opt-in');
+    const key = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY;
+    if (!key) throw new Error('OpenRouter is not configured');
+    await verifyFreeOpenRouter(this.model, key, options);
   }
 
-  private getClient(): OpenAI {
-    if (!this.client) {
-      const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY;
-      if (!apiKey) {
-        throw new Error(
-          'OPENROUTER_API_KEY environment variable is not set. ' +
-            'Please add OPENROUTER_API_KEY or OPEN_ROUTER_API_KEY to your backend/.env file.'
-        );
-      }
-      this.client = new OpenAI({
-        apiKey,
-        baseURL: 'https://openrouter.ai/api/v1',
-        timeout: 90 * 1000, // 90s timeout for deep reasoning and code generation
-        maxRetries: 0,
-        defaultHeaders: {
-          'HTTP-Referer': 'https://buildx.dev',
-          'X-Title': 'BuildX IDE Studio',
-        },
-      });
-    }
-    return this.client;
-  }
-
-  async complete(messages: LLMMessage[], options?: CompletionOptions): Promise<string> {
-    const client = this.getClient();
-    const completion = await client.chat.completions.create({
-      model: this.model,
-      messages: messages as any,
-      temperature: options?.temperature ?? 0.2,
-      max_tokens: options?.maxTokens || 4000,
-      response_format: options?.responseFormat as any,
-    });
-
-    const choice = completion.choices[0];
-    if (!choice) return '';
-
-    // If message.content exists, use it
-    if (choice.message?.content) {
-      return choice.message.content;
-    }
-
-    // For reasoning models where content might be embedded in reasoning field
-    const msgAny = choice.message as any;
-    if (msgAny?.reasoning) {
-      console.warn(`[OpenRouter] Model ${this.model} provided response in reasoning field.`);
-      return msgAny.reasoning;
-    }
-
-    if (Array.isArray(msgAny?.reasoning_details) && msgAny.reasoning_details.length > 0) {
-      const combined = msgAny.reasoning_details.map((d: any) => d.text || '').filter(Boolean).join('\n');
-      if (combined) {
-        console.warn(`[OpenRouter] Model ${this.model} provided response in reasoning_details array.`);
-        return combined;
-      }
-    }
-
-    return '';
-  }
-
-  async *stream(messages: LLMMessage[], options?: CompletionOptions): AsyncIterable<string> {
-    const client = this.getClient();
-    const responseStream = await client.chat.completions.create({
-      model: this.model,
-      messages: messages as any,
-      temperature: options?.temperature ?? 0.2,
-      max_tokens: options?.maxTokens || 4000,
-      stream: true,
-    });
-
-    for await (const chunk of responseStream) {
-      const delta = chunk.choices[0]?.delta as any;
-      if (delta?.content) {
-        yield delta.content;
-      } else if (delta?.reasoning) {
-        // Yield reasoning as think tags if streamed
-        yield `<think>${delta.reasoning}</think>`;
-      }
-    }
+  protected payload(messages: LLMMessage[], options?: CompletionOptions): any {
+    return { ...super.payload(messages, options),
+      provider: { require_parameters: true, max_price: { prompt: 0, completion: 0 } },
+    };
   }
 }

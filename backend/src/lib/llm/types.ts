@@ -1,19 +1,36 @@
 // ─── Base message / completion types ────────────────────────────────────────
 
 export interface LLMMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_call_id?: string;
+  tool_calls?: ToolCall[];
+  [key: string]: unknown;
+}
+
+export interface ToolCall { id: string; type: 'function'; function: { name: string; arguments: string } }
+export interface ToolDefinition { type: 'function'; function: { name: string; description: string; parameters: Record<string, unknown> } }
+export interface ModelTurn {
+  message: LLMMessage;
+  text: string;
+  toolCalls: ToolCall[];
+  finishReason: string;
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 }
 
 export interface CompletionOptions {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: { type: 'json_object' };
+  tools?: ToolDefinition[];
+  signal?: AbortSignal;
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 export interface LLMProvider {
   complete(messages: LLMMessage[], options?: CompletionOptions): Promise<string>;
   stream(messages: LLMMessage[], options?: CompletionOptions): AsyncIterable<string>;
+  turn?(messages: LLMMessage[], options?: CompletionOptions): Promise<ModelTurn>;
 }
 
 // ─── Multi-Model Pipeline types ─────────────────────────────────────────────
