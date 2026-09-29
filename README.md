@@ -1,187 +1,221 @@
-# ⚡ BuildX — AI App Architect
+# BuildX — AI App Architect
 
-> Turn any app idea into a complete full-stack blueprint and running VFS codebase in seconds.
+Turn an app idea into a structured blueprint, an editable full-stack workspace, and reviewable code changes.
 
-BuildX is a high-performance full-stack application that turns plain-English app ideas into complete product blueprints and working codebases: database schemas, REST API endpoints, UI screens, architecture decisions, live previews, and exportable project scaffolds driven by an autonomous multi-model pipeline.
+BuildX combines product planning with a tool-using engineering agent. Describe an application, choose its stack, inspect the generated specification, and continue working in a browser-based editor with previews and agent-assisted changes.
 
-**AI providers:** Groq, Google AI Studio (Gemini), Moonshot (Kimi), Z-AI (GLM), and NVIDIA NIM.
+**Current status:** active development. Builds and local regression tests pass. Live free-tier model reliability and staging integration checks remain release gates; generated output is a candidate to validate, not a guarantee of a working application.
 
----
+## Features
 
-## 🏗️ Tech Stack
+- **Blueprint Studio:** generate and refine features, database schemas, API endpoints, UI screens, architecture, diagrams, and effort estimates.
+- **Stack selection:** Next.js, Express, or Fastify; PostgreSQL, Supabase, or MongoDB; JWT, Clerk, or NextAuth scaffolding.
+- **Engineering workspace:** file explorer, CodeMirror editor, inline diffs, responsive previews, and project-agent chat backed by a persisted virtual file system.
+- **Checked agent changes:** repository inspection, acceptance criteria, scoped patches, sandbox checks, bounded repair, and separate-model review before presenting candidate changes.
+- **Progress and recovery:** streamed status and tool activity, model-attempt telemetry, cancellation, and optional durable jobs that retain checkpoints across interruptions.
+- **Project management:** saved blueprints, gallery, sharing controls, ZIP export, and GitHub OAuth repository export.
+- **Product experience:** dark interface, BX interlock identity, animated loading sequence, and a landing-page product demonstration separate from the real Studio prompt flow.
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 + TypeScript + Vite + Tailwind CSS + Framer Motion |
-| UI Design | Studio Obsidian Dark Theme (`#08080a`), Glassmorphism, Lucide Icons |
-| State | TanStack React Query v5 |
-| Backend | Node.js + Express + TypeScript |
-| Database | PostgreSQL (JSON fallback for local dev) |
-| Validation | Zod (backend input + AI output) |
-| AI Pipeline | Autonomous Multi-Model Router (Kimi K2.6, GLM-5.2, Nemotron, Gemini, Qwen) |
-| Auth | JWT + bcrypt + GitHub OAuth |
-| Deploy FE | Vercel |
-| Deploy BE | Render |
+## Technology
 
----
+| Layer | Implementation |
+| --- | --- |
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, Framer Motion |
+| UI and editor | Carbon icons, Radix primitives, CodeMirror 6, Mermaid |
+| Client data | TanStack React Query, workspace context, SSE/job clients |
+| Backend | Node.js 22, Express, TypeScript, Zod |
+| Persistence | PostgreSQL; explicit development-only JSON fallback |
+| Authentication | JWT, bcrypt, GitHub OAuth |
+| AI providers | Google AI Studio, Groq, OpenRouter, prototype-only NVIDIA NIM |
+| Agent execution | Tool loop, versioned skills, checkpoint storage, independent review |
+| Code verification | Restricted Docker runner with a prebuilt toolchain |
+| CI | GitHub Actions builds, lint, tests, queue/recovery checks, and tracked-file guards |
 
-## 🤖 Autonomous Multi-Model Pipeline Architecture
+## How the agent works
 
-BuildX uses specialized, stage-optimal LLMs for each step of blueprint generation, code generation, and automated self-correction:
+The default runtime uses one engineering loop for blueprint creation, refinement, code generation, and workspace editing. The older stage orchestrator remains available through `AGENT_RUNTIME=legacy`; it is not the default execution architecture.
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌────────────────────┐    ┌──────────────────────┐
-│    PLANNING     │ ➔ │    INGESTION    │ ➔ │  DIFF GENERATION   │ ➔ │    AUTO-FIX & QA     │
-│ Nemotron 3 550B │    │ Gemini 3.5 Flash│    │    Z-AI GLM-5.2    │    │ Moonshot Kimi K2.6   │
-└─────────────────┘    └─────────────────┘    └────────────────────┘    └──────────────────────┘
-```
-
-| Stage | Primary Model | Fallback Model | Description |
-|-------|---------------|----------------|-------------|
-| **1. PLANNING** | Nemotron 3 Ultra 550B | Moonshot Kimi K2.6 / GLM-5.2 | High-level system architecture, spec decomposition, and schema modeling |
-| **2. INGESTION** | Gemini 3.5 Flash | Z-AI GLM-5.2 | Context gathering, component layout synthesis, and endpoint contract drafting |
-| **3. DIFF GENERATION** | Z-AI GLM-5.2 | Gemini 3.5 Flash | AST-safe patch generation and file tree scaffolding |
-| **4. AUTO-FIX & QA** | Moonshot Kimi K2.6 | Z-AI GLM-5.2 | Autonomous VFS self-correction, index optimizations, and syntax auditing |
-
----
-
-## ✨ Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **Autonomous Multi-Model Router** | Multi-stage pipeline routing requests across Kimi K2.6, GLM-5.2, Nemotron, Gemini, and Qwen |
-| **Studio 3-Column Layout** | Linear/Vercel-grade studio workspace featuring File Tree, Code Editor, and Cortex Agent Chat |
-| **Real-time SSE Streaming** | Live progress indicators, agent reasoning accordions, and stage telemetry badges |
-| **AST-Safe Diff Patching** | Dynamic incremental patch application in Code Studio with emerald glow visual feedback |
-| **Refinement Chat** | Natural language blueprint modification with stage-by-stage multi-model telemetry |
-| **Live Interactive Preview** | Transpiled HTML/JS sandbox with responsive viewport controls and instant state updates |
-| **Virtual File System (VFS)** | Stateful in-memory/DB workspace initializer (`/api/blueprints/:id/vfs`) for Monaco editor sync |
-| **Framer Motion Animations** | Scale-crossfade route transitions, spring physics sidebar collapsing, and morphing badges |
-| **GitHub & ZIP Export** | One-click authentic GitHub OAuth repository push or downloadable monorepo ZIP scaffold |
-
----
-
-## 📁 Project Structure
-
-```
-buildx/
-├── backend/
-│   ├── src/
-│   │   ├── app.ts
-│   │   ├── index.ts
-│   │   ├── lib/
-│   │   │   ├── auth.ts
-│   │   │   ├── db.ts
-│   │   │   ├── generator.ts
-│   │   │   ├── orchestrator.ts      # Multi-model SSE stage orchestration
-│   │   │   ├── refine.ts            # Natural language blueprint refinement
-│   │   │   ├── scaffold.ts
-│   │   │   ├── stream.ts
-│   │   │   ├── types.ts
-│   │   │   ├── llm/                 # Router (Kimi K2.6, GLM-5.2, Nemotron, Gemini, Groq)
-│   │   │   └── codegen/             # Diff parser + preview transpiler
-│   │   ├── services/
-│   │   │   └── vfsService.ts        # Virtual File System generator & language detector
-│   │   └── routes/
-│   │       ├── agent.ts
-│   │       ├── auth.ts              # Signup, login, GitHub OAuth
-│   │       ├── blueprint.ts         # Spec generation, export-github, preview
-│   │       └── vfs.ts               # VFS init, workspace fetch & file sync
-│   └── .env.example
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── AgentPage.tsx        # 3-Column Studio Workspace
-│   │   │   ├── BlueprintDetailPage.tsx # Architecture Specification & Detail View
-│   │   │   ├── CodeStudio.tsx       # Monaco-style Editor + Diff Patching
-│   │   │   ├── DeployModal.tsx      # GitHub OAuth export & Scaffold ZIP modal
-│   │   │   ├── RefinementChat.tsx   # Live chat + multi-model stage badges
-│   │   │   ├── StreamingView.tsx    # Pipeline stage badges & progress stream
-│   │   │   ├── WorkspaceFileTree.tsx # VFS Tree File Explorer
-│   │   │   ├── MarketingHeader.tsx  # Studio top navigation header
-│   │   │   └── ...
-│   │   ├── context/
-│   │   │   └── VFSContext.tsx       # Virtual File System state provider
-│   │   └── hooks/
-│   │       ├── useStreamBlueprint.ts
-│   │       ├── useCodeGeneration.ts
-│   │       └── useModel.tsx
-│   └── .env.example
-│
-└── package.json
+```text
+Idea or change request
+        ↓
+Inspect context → Define acceptance criteria → Plan and edit
+        ↑                                           ↓
+        └──────────── Bounded repair ← Run checks ──┘
+                                            ↓
+                                  Independent review
+                                            ↓
+                               Reviewable candidate output
 ```
 
----
+The host controls tools and execution limits. Models can inspect files, search, apply checked edits, request validation, and consult a read-only architect. Predefined skills cover repository inspection, safe changes, dependency verification, and independent review.
 
-## 🚀 Getting Started
+Key safeguards:
 
-### 1. Get API Keys (at least one required)
+- Maximum 24 model attempts and an 80,000-token budget per run, with up to two review repair cycles.
+- Source/path validation, protected files, revision-aware changes, and staged output rather than unchecked workspace replacement.
+- Fresh review context; successful implementation models cannot review their own work. Reviewer failover stays bounded.
+- One author fallback switch; authentication/configuration errors and cancellation do not trigger indiscriminate provider retries.
+- Blueprint checks validate the specification contract and starter-code syntax. They do **not** claim an application build or runtime has passed.
+- Code checks run inside the configured Docker sandbox. Missing Docker or toolchain configuration reports **unavailable**, never passed.
 
-| Provider | URL | Required |
-|----------|-----|----------|
-| NVIDIA NIM | https://build.nvidia.com | Recommended |
-| Google AI Studio | https://aistudio.google.com/app/apikey | Recommended |
-| Groq | https://console.groq.com | Optional |
+When enabled, PostgreSQL-backed jobs add admission limits, workspace locking, checkpoints, cancellation, scheduled retries for provider-capacity failures, and recoverable candidate results.
 
-### 2. Clone & Install
+## Model routing
 
-```bash
+The default configuration is `AGENT_MODEL_PROFILE=baseline`.
+
+| Role | Default route |
+| --- | --- |
+| Automatic author | Gemini 3.8 Flash |
+| Author fallback | Gemini 3.5 Flash |
+| Independent review | A different eligible model, normally the other Gemini Flash model |
+| Additional independent-review option | Groq GPT-OSS 120B when earlier author participation excludes the Gemini choices |
+| Explicit model selection | Preserved; does not automatically become a specialist task route |
+
+Configure Google AI Studio for the default route and Groq for the optional GPT-OSS route. Verify that the provider accounts remain on their intended free plans. Free quotas can produce rate limits and outages; the harness handles failure without treating it as a successful result.
+
+### Experimental free specialists
+
+`AGENT_MODEL_PROFILE=free-specialists` is an **opt-in evaluation profile**, not the release default:
+
+| Task | Candidate |
+| --- | --- |
+| Edits in workspaces with at most three files | North Mini Code free |
+| Larger edits and code generation | Laguna S 2.1 free |
+| Explicit comparison runs | Laguna XS 2.1 free |
+| Blueprint author / coding reviewer, with development prototype opt-in | Nemotron Super free |
+| Read-only architect, with development prototype opt-in | Nemotron Ultra free |
+
+Without prototype opt-in, blueprint authorship and review retain eligible baseline routes. NVIDIA hosted routes require `AGENT_ALLOW_PROTOTYPE_MODELS=true` and are blocked when `NODE_ENV=production`, including NVIDIA free variants on OpenRouter.
+
+OpenRouter calls require explicit `:free` models, current zero pricing, supported capabilities, and available free quota. Requests enforce zero-price provider limits; there is no implicit paid OpenRouter fallback. A run allows at most six specialist attempts, including failures and review, with the consumed budget persisted before dispatch.
+
+These candidates have not passed the application-quality gate. In the latest bounded screening, North returned valid tool calls but did not edit before exhausting its budget; Laguna returned HTTP 429. Poolside free endpoints may use submitted data for training, so evaluate them with public or synthetic projects. See `backend/src/lib/llm/specialists.ts` for routing policies.
+
+## Local setup
+
+### Prerequisites
+
+- Node.js 22 and npm.
+- PostgreSQL for normal persistence and durable jobs.
+- A Google AI Studio API key for the default model route; a Groq key for optional selection/review fallback.
+- Docker for generated-code verification. Blueprint contract checks do not require Docker.
+
+### Install
+
+```sh
 git clone https://github.com/nachiket7-dev/BuildX.git
-cd buildx
-npm run install:all
-```
-
-### 3. Configure Environment Variables
-
-```bash
+cd BuildX
+npm ci
 cp backend/.env.example backend/.env
-# Set at minimum:
-#   NVIDIA_API_KEY=nvapi-...
-#   GEMINI_API_KEY=AIzaSy...
-#   DATABASE_URL=postgresql://user:password@localhost:5432/buildx
-#   JWT_SECRET=<random 64-char hex>
-# Optional for horizontally scaled backends:
-#   LLM_SHARED_COOLDOWNS=true
-
 cp frontend/.env.example frontend/.env
-# Local dev: leave VITE_API_URL empty (Vite proxies /api → :3001)
 ```
 
-### 4. Run Locally
+Set these values in `backend/.env` using your own credentials:
 
-```bash
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | Strong randomly generated signing secret |
+| `GEMINI_API_KEY` | Default Gemini author/reviewer routes |
+| `GROQ_API_KEY` | Optional GPT-OSS selection and review route |
+| `ALLOWED_ORIGINS` | Frontend origins; locally `http://localhost:5173` |
+| `AGENT_MODEL_PROFILE` | Keep `baseline` for the current default behavior |
+| `AGENT_ALLOW_PROTOTYPE_MODELS` | Keep `false` unless evaluating prototype endpoints locally |
+
+For specialist evaluation, add `OPENROUTER_API_KEY`; `OPEN_ROUTER_API_KEY` is also accepted. `NVIDIA_API_KEY` is needed only for direct NIM prototype evaluation. GitHub login/export additionally requires `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and matching `VITE_GITHUB_CLIENT_ID` in the frontend configuration.
+
+Keep `VITE_API_URL` empty locally so Vite proxies `/api` to port 3001. For a separately hosted frontend, set it to the deployed backend URL. Never place provider keys in `VITE_*` variables or commit `.env` files.
+
+The optional `ALLOW_DB_FALLBACK=true` JSON store is for local development only; durable jobs require PostgreSQL.
+
+### Start the application
+
+```sh
 npm run dev
-# Backend → http://localhost:3001
-# Frontend → http://localhost:5173
 ```
 
----
+Frontend: `http://localhost:5173` · API: `http://localhost:3001` · Health: `http://localhost:3001/health`
 
-## 🤖 Integrated Model Suite
+### Enable code verification
 
-| Provider | Model ID | Stage Specialization |
-|----------|----------|----------------------|
-| **Moonshot AI** | `moonshotai/kimi-k2.6` | Auto-Fix & QA, Automated Self-Correction |
-| **Z-AI** | `z-ai/glm-5.2` | Diff Generation, Code Patch Synthesis |
-| **NVIDIA NIM** | `nvidia/nemotron-3-ultra-550b-a55b` | Architectural Planning & Spec Decomposition |
-| **Google AI Studio** | `gemini-3.5-flash` | Ingestion, Component Layout & REST API Contracts |
-| **Groq** | `qwen-3-32b` | Fast Single-Shot Fallbacks |
+```sh
+docker build -t buildx-checks:local backend/sandbox
+```
 
----
+Set `AGENT_SANDBOX_IMAGE=buildx-checks:local` in `backend/.env`, keep Docker running, and restart the backend. The runner uses an ephemeral workspace, restricted resources, and a prebuilt dependency set; the running agent cannot install arbitrary packages or access the network. Custom dependencies require a matching provisioned image. See `backend/sandbox/Dockerfile` for the verification toolchain.
 
-## 🛡️ Security
+### Optional durable worker
 
-- Helmet.js secure header defaults
-- Strict CORS allowlist (`ALLOWED_ORIGINS`)
-- Rate limiting (200 req/min global, 10 req/min on AI endpoints)
-- Zod schema validation on backend inputs and AI outputs
-- JWT authentication + bcrypt password hashing
-- Secure API key proxying (keys never exposed to client)
-- Parameterised SQL query execution
+For local queue testing, set `AGENT_QUEUE_ENABLED=true` in the API/worker environment and `VITE_AGENT_QUEUE_ENABLED=true` in the frontend environment. Both backend processes must use the same PostgreSQL database and provider/sandbox configuration.
 
----
+Start the worker before submitting queued jobs, then restart the API and frontend with their queue flags:
 
-## 📝 License
+```sh
+npm run build --workspace=backend
+npm run worker --workspace=backend
+```
 
-MIT
+The worker runs in a separate terminal/process. Keep queue flags disabled in deployed environments until staging verification has been completed.
+
+## Validation
+
+From the repository root:
+
+```sh
+npm run build
+npm run lint
+npm test --workspace=backend
+npm test --workspace=frontend
+```
+
+Latest local check, **29 September 2026**: backend and frontend builds passed; **72 backend tests** and **18 frontend tests** passed. The frontend build reports large-chunk warnings. Test counts are a dated snapshot, not a live CI status.
+
+Additional suites cover HTTP behavior, Docker checks, generated stack combinations, database persistence, identity flows, durable queues, and recovery drills (see `backend/test/`). Do not point disposable integration tests at a real application database.
+
+Model evaluation lists tasks without making API calls by default:
+
+```sh
+npm run evaluate --workspace=backend -- --suite screening --limit 1
+```
+
+Live evaluation requires `--live`, verified prices, and an explicit free-only or spending policy. Protocol/tool-call success alone does not establish end-to-end task quality.
+
+GitHub's **Release checks** workflow runs application checks and a separate disposable PostgreSQL/Docker recovery suite. Pushing source for review is separate from promoting a deployment.
+
+## Repository layout
+
+```text
+backend/
+  src/
+    app.ts                  Express middleware and routes
+    agent-worker.ts         Durable-job worker entry point
+    agent-maintenance.ts    Retention and worker-health commands
+    lib/agent/              Tool loop, skills, validation, sandbox, queue, checkpoints
+    lib/llm/                Provider adapters, routing, eligibility and retry policy
+    lib/codegen/            Generated-code workflows
+    routes/                 Auth, blueprints, workspace and job endpoints
+  evaluation/               Synthetic tasks and bounded live evaluation
+  sandbox/                  Pinned Docker verification toolchain
+  test/                     Integration and operational tests
+frontend/
+  src/
+    brand/                  Shared BX identity assets
+    components/             Landing, Studio, blueprint inspector, editor and agent UI
+    context/                Virtual-file-system state
+    hooks/                  Blueprint, generation, refinement and model flows
+    lib/                    API and durable-job clients
+  test/                     Frontend regression and workspace checks
+.github/workflows/          Release checks
+```
+
+## Release scope and limitations
+
+The current source is suitable for a reviewable GitHub checkpoint. It is not yet a verified replacement for a live production deployment:
+
+- No tested free-tier route has completed the documented live end-to-end engineering fixture reliably enough for promotion.
+- Deployed browser → API → worker → provider → sandbox validation, quota/load checks, and rollback rehearsal remain staging gates.
+- Real Clerk tenant flows, GitHub OAuth/export, and generated-app external NextAuth sign-in need their account-backed checks; local Credentials tests do not cover external providers.
+- MongoDB 7 persistence was tested locally; MongoDB 8 needs a compatible test host.
+- The local Docker runner is a verification baseline, not a hardened public multi-tenant execution service.
+
