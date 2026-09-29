@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { refineBlueprint } from '../lib/api';
+import { currentJobClient, queuedJobsEnabled } from '../lib/jobClient';
+import { stopSpecJob } from '../lib/specJobs';
+import { jobProgressLabel } from '../lib/durableJobs';
 import { useToast } from './useToast';
 import type { Blueprint } from '../lib/types';
 
@@ -115,9 +118,11 @@ function buildRefineSummary(
 interface UseRefinementResult {
   messages: ChatMessage[];
   isRefining: boolean;
+  progress: string | null;
   error: string | null;
   refine: (message: string, model: string) => void;
   clearHistory: () => void;
+  stop: () => void;
 }
 
 function historyStorageKey(blueprintId?: string | null): string {
@@ -150,6 +155,11 @@ export function useRefinement(
   blueprintId?: string | null
 ): UseRefinementResult {
   const storageKey = historyStorageKey(blueprintId);
+  const hasBlueprint=Boolean(blueprint);
+  const [recovering,setRecovering]=useState(false);
+  const [progress,setProgress]=useState<string|null>(null);
+  const activeId=useRef(blueprintId);activeId.current=blueprintId;
+  const onUpdate=useRef(onBlueprintUpdate);onUpdate.current=onBlueprintUpdate;
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadStoredMessages(storageKey));
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -175,15 +185,11 @@ export function useRefinement(
   }, [storageKey, messages]);
 
   const mutation = useMutation({
-    mutationFn: ({ message, model }: { message: string; model: string }) => {
-      const current = blueprintRef.current;
-      if (!current) throw new Error('No blueprint loaded');
-      // Store in ref — not in useState, and not aborted on component unmount
-      abortControllerRef.current = new AbortController();
-      return refineBlueprint(current, message, model, blueprintId);
-    },
+    mutationFn: ({ message, model, id, original, controller }: { message: string; model: string; id: typeof blueprintId; original: Blueprint; controller: AbortController }) =>
+      refineBlueprint(original, message, model, id, controller.signal, setProgress),
     onMutate: ({ message }) => {
       setError(null);
+      setProgress(null);
       const userMsg: ChatMessage = {
         role: 'user',
         content: message,
@@ -191,9 +197,8 @@ export function useRefinement(
       };
       setMessages((prev) => [...prev, userMsg]);
     },
-    onSuccess: (updatedBlueprint, { message }) => {
-      const original = blueprintRef.current;
-      if (!original) return;
+    onSuccess: (updatedBlueprint, { message, original, id, controller }) => {
+      if (controller.signal.aborted || activeId.current !== id) return;
 
       const assistantMsg: ChatMessage = {
         role: 'assistant',
@@ -204,7 +209,8 @@ export function useRefinement(
       onBlueprintUpdate(updatedBlueprint);
       toast('Blueprint refined successfully', 'success');
     },
-    onError: (err) => {
+    onError: (err, { id, controller }) => {
+      if (controller.signal.aborted || activeId.current !== id) return;
       const errMsg = err instanceof Error ? err.message : 'Refinement failed';
       setError(errMsg);
       setMessages((prev) => [
@@ -216,18 +222,44 @@ export function useRefinement(
         },
       ]);
     },
+    onSettled: () => setProgress(null),
   });
+
+  useEffect(() => {
+    setRecovering(false);
+    if (!blueprintId || !queuedJobsEnabled || !hasBlueprint) return;
+    const controller=new AbortController();
+    try {
+      const client=currentJobClient();const scope=`spec:${blueprintId}`;const record=client.pending(scope);
+      if(record){
+        setRecovering(true);
+        void client.watch<{id:string;data:Blueprint}>(scope,record,controller.signal,job=>setProgress(jobProgressLabel(job)))
+          .then(result=>{if(!controller.signal.aborted && activeId.current===blueprintId){onUpdate.current(result.data);setMessages(previous=>[...previous,{role:'assistant',content:'Recovered the completed blueprint update. Review the updated specification above.',timestamp:Date.now()}]);client.forget(scope,record);}})
+          .catch(err=>{if(!controller.signal.aborted){setError(err.message);toast(err.message,'error');}})
+          .finally(()=>{if(!controller.signal.aborted){setRecovering(false);setProgress(null);}});
+      }
+    }catch(err){setError(err instanceof Error?err.message:'Recovery failed');}
+    return ()=>{controller.abort();abortControllerRef.current?.abort();};
+  },[blueprintId,hasBlueprint,toast]);
+
+  useEffect(()=>()=>{abortControllerRef.current?.abort();},[]);
+
+  const stop=useCallback(()=>{
+    if(!blueprintId)return;
+    if (!queuedJobsEnabled) { abortControllerRef.current?.abort(); return; }
+    void stopSpecJob(blueprintId).catch(err=>{setError(err.message);toast(err.message,'error');});
+  },[blueprintId,toast]);
 
   const refine = useCallback(
     (message: string, model: string) => {
-      if (!blueprintRef.current || mutation.isPending) return;
-      mutation.mutate({ message, model });
+      if (!blueprintRef.current || (mutation.isPending || recovering)) return;
+      const controller=new AbortController();abortControllerRef.current=controller;
+      mutation.mutate({ message, model, id:blueprintId, original:blueprintRef.current, controller });
     },
-    [mutation]
+    [mutation, recovering, blueprintId]
   );
 
   const clearHistory = useCallback(() => {
-    abortControllerRef.current = null;
     setMessages([]);
     setError(null);
     sessionStorage.removeItem(storageKey);
@@ -235,7 +267,9 @@ export function useRefinement(
 
   return {
     messages,
-    isRefining: mutation.isPending,
+    isRefining: mutation.isPending || recovering,
+    progress,
+    stop,
     error,
     refine,
     clearHistory,

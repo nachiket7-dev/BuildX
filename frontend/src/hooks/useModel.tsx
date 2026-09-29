@@ -3,28 +3,29 @@ import { fetchLlmProviderHealth } from '../lib/api';
 
 /** Supported models — must stay in sync with backend MODEL_MAP primary keys */
 export const AVAILABLE_MODELS = [
-  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', badge: 'Ultra Fast',        provider: 'gemini'     as const },
-  { id: 'gemini-3.1-pro',   label: 'Gemini 3.1 Pro',   badge: 'Coding Expert',     provider: 'gemini'     as const },
-  { id: 'kimi-k3',          label: 'Kimi K3',          badge: 'Reasoning & Code',  provider: 'nvidia'     as const },
-  { id: 'glm-5.2',          label: 'GLM 5.2',          badge: 'Ingest & Context',  provider: 'openrouter' as const },
-  { id: 'nemotron-3-550b',  label: 'Nemotron-3 Ultra', badge: '550B · Reasoning', provider: 'nvidia'     as const },
-  { id: 'qwen-3-32b',       label: 'Qwen 3 32B',       badge: 'Coding Pro',        provider: 'groq'       as const },
-  { id: 'gpt-oss-120b',     label: 'GPT-OSS 120B',     badge: 'Premium (5/day)',   provider: 'groq'       as const },
+  { id: 'pipeline', label: 'Auto', badge: 'Task-based routing', provider: 'auto' as const },
+  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', badge: 'Free · Recommended', provider: 'gemini' as const },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', badge: 'Free · Fallback', provider: 'gemini' as const },
+  { id: 'gpt-oss-120b',     label: 'GPT-OSS 120B',     badge: 'Free · 5/day', provider: 'groq' as const },
 ] as const;
 
 export type ModelId = typeof AVAILABLE_MODELS[number]['id'];
 
 export const MODEL_PROVIDER_LABELS: Record<string, string> = {
-  gemini:     'Google AI Studio — Free',
-  nvidia:     'NVIDIA NIM',
+  gemini:     'Google AI Studio — Free tier',
+  nvidia:     'NVIDIA NIM — Prototyping',
   openrouter: 'OpenRouter',
   groq:       'Groq — Fast & Free',
 };
 
 /** Maps old localStorage / saved blueprint keys to current model IDs */
 export const LEGACY_MODEL_ALIASES: Record<string, ModelId> = {
-  'kimi-k2.6':             'kimi-k3',
-  'moonshotai/kimi-k2.6':  'kimi-k3',
+  'kimi-k2.6':             'pipeline',
+  'moonshotai/kimi-k2.6':  'pipeline',
+  'kimi-k3':               'pipeline',
+  'glm-5.2':               'pipeline',
+  'glm-5.3':               'pipeline',
+  'nemotron-3-550b':      'pipeline',
   'llama-3.1-8b':          'gemini-3.5-flash',
   'llama-3.1-8b-instant':  'gemini-3.5-flash',
   'llama-3.3-70b':         'gemini-3.5-flash',
@@ -32,9 +33,9 @@ export const LEGACY_MODEL_ALIASES: Record<string, ModelId> = {
   'llama3-70b-8192':       'gemini-3.5-flash',
   'llama3-8b-8192':        'gemini-3.5-flash',
   'gemini-2.5-flash':      'gemini-3.5-flash',
-  'gemini-2.5-pro':        'gemini-3.1-pro',
+  'gemini-2.5-pro':        'pipeline',
   'gemini-3.0-flash':      'gemini-3.5-flash',
-  'gemini-3.0-pro':        'gemini-3.1-pro',
+  'gemini-3.0-pro':        'pipeline',
   'gemini-3-flash-preview':'gemini-3.5-flash',
 };
 
@@ -49,7 +50,7 @@ const ModelContext = createContext<ModelContextType | undefined>(undefined);
 
 function resolveModelId(saved: string | null): ModelId {
   const resolved = LEGACY_MODEL_ALIASES[saved ?? ''] ?? saved;
-  return (AVAILABLE_MODELS.find((m) => m.id === resolved)?.id as ModelId) || 'gemini-3.5-flash';
+  return (AVAILABLE_MODELS.find((m) => m.id === resolved)?.id as ModelId) || 'pipeline';
 }
 
 export function ModelProvider({ children }: { children: ReactNode }) {
@@ -71,13 +72,14 @@ export function ModelProvider({ children }: { children: ReactNode }) {
   const isModelConfigured = (modelId: ModelId): boolean => {
     const model = AVAILABLE_MODELS.find((m) => m.id === modelId);
     if (!model) return false;
-    if (!providerHealth) return true;
+    if (model.provider === 'auto') return providerHealth?.gemini?.configured ?? false;
+    if (!providerHealth) return false;
     return providerHealth[model.provider]?.configured ?? false;
   };
 
   // If selected model's provider is not configured, fall back to first configured model
   useEffect(() => {
-    if (!providerHealth) return;
+    if (!providerHealth || selectedModel === 'pipeline') return;
     const current = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
     if (current && providerHealth[current.provider]?.configured) return;
     const fallback = AVAILABLE_MODELS.find((m) => providerHealth[m.provider]?.configured);

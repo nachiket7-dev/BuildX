@@ -1,11 +1,16 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { generateBlueprintStream, fetchBlueprint, SSEEvent } from '../lib/api';
 import type { Blueprint, PartialBlueprint, SavedBlueprint, AgentEvent, PipelineStage, PipelineStageEvent, StackSpec } from '../lib/types';
+
+import { jobClient, queuedJobsEnabled } from '../lib/jobClient';
+import { jobProgressLabel, type PendingJob } from '../lib/durableJobs';
 
 export type { AgentEvent };
 
 interface UseStreamBlueprintOptions {
   onSaved?: (id: string) => void;
+  ownerId?: string;
+  recover?: boolean;
 }
 
 interface UseStreamBlueprintResult {
@@ -37,7 +42,9 @@ const SECTION_ORDER = [
 ] as const;
 
 export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): UseStreamBlueprintResult {
-  const { onSaved } = options;
+  const { onSaved, ownerId, recover } = options;
+  const jobs = useMemo(() => queuedJobsEnabled && ownerId ? jobClient(ownerId) : null, [ownerId]);
+  const queuedRef = useRef<PendingJob | null>(null);
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
 
@@ -61,13 +68,24 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
   const lastRequestRef = useRef<{ idea: string; model: string; stack?: StackSpec } | null>(null);
   blueprintRef.current = blueprint;
 
-  const cancel = useCallback(() => {
+  const detach = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
   }, []);
 
+  const cancel = useCallback(() => {
+    if (!jobs) { detach(); return; }
+    const record = queuedRef.current ?? jobs.pending('blueprint');
+    if (!record) { detach(); return; }
+    void jobs.stop('blueprint', record).then(() => {
+      detach(); queuedRef.current = null; setIsStreaming(false); setActiveStage(null);
+    }).catch(err => { if (queuedRef.current === record) setError(err instanceof Error ? err.message : 'Cancellation failed. Try Stop again.'); });
+  }, [jobs, detach]);
+
+  useEffect(() => detach, [jobs, detach]);
+
   const generate = useCallback(async (idea: string, model: string, stack?: StackSpec) => {
-    cancel();
+    detach();
     lastRequestRef.current = { idea, model, stack };
     const controller = new AbortController();
     abortRef.current = controller;
@@ -91,7 +109,23 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     let gotSaved = false;
 
     try {
-      const stream = generateBlueprintStream(idea, model, stack, controller.signal);
+      const queuedStream = async function* (): AsyncGenerator<SSEEvent> {
+        if (!jobs) return;
+        const record = jobs.begin('blueprint', '/api/agent/blueprint-jobs', { idea, model, ...(stack ? { stack } : {}) });
+        queuedRef.current = record;
+        let lastStatus = '';
+        const result = await jobs.watch<{id: string; data: Blueprint}>('blueprint', record, controller.signal, job => {
+          const status = `${job.status}:${job.nextAttemptAt || ''}`;
+          if (status === lastStatus) return;
+          lastStatus = status;
+          setAgentEvents(prev => [...prev, { agent: 'pm', status: 'thinking', log: job.status === 'completed' ? 'Blueprint saved' : jobProgressLabel(job), timestamp: new Date().toLocaleTimeString() }]);
+        });
+        yield { event: 'complete', data: result.data };
+        yield { event: 'saved', data: { id: result.id } };
+        jobs.forget('blueprint', record);
+        queuedRef.current = null;
+      };
+      const stream = jobs ? queuedStream() : generateBlueprintStream(idea, model, stack, controller.signal);
       let sectionsReceived = 0;
 
       for await (const event of stream) {
@@ -195,7 +229,7 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
         setError('Blueprint generated but could not be saved. Check your database connection.');
       }
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
+      if (controller.signal.aborted) return;
       setRetryable(true);
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
@@ -204,7 +238,18 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
         if (abortRef.current === controller) abortRef.current = null;
       }
     }
-  }, [cancel]);
+  }, [detach, jobs]);
+
+  useEffect(() => {
+    if (!jobs || !recover) return;
+    try {
+      const record = jobs.pending('blueprint');
+      if (record && (!abortRef.current || abortRef.current.signal.aborted)) {
+        const request = record.body as {idea: string; model: string; stack?: StackSpec};
+        void generate(request.idea, request.model, request.stack);
+      }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Recovery failed'); }
+  }, [jobs, recover, generate]);
 
   const retry = useCallback(() => {
     const request = lastRequestRef.current;
@@ -264,7 +309,7 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
       return;
     }
 
-    cancel();
+    detach();
     const generation = ++loadGenerationRef.current;
 
     setIsStreaming(true);
@@ -314,10 +359,10 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
         setIsStreaming(false);
       }
     }
-  }, [cancel, blueprintId]);
+  }, [detach, blueprintId]);
 
   const reset = useCallback(() => {
-    cancel();
+    detach();
     loadGenerationRef.current += 1;
     streamSavedForRouteRef.current = null;
     streamBlueprintRef.current = null;
@@ -333,7 +378,7 @@ export function useStreamBlueprint(options: UseStreamBlueprintOptions = {}): Use
     setActiveStage(null);
     setPipelineEvents([]);
     setRetryable(false);
-  }, [cancel]);
+  }, [detach]);
 
   return {
     blueprint,

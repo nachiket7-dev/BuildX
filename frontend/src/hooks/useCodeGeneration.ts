@@ -1,12 +1,15 @@
-import { useState, useCallback, useRef } from 'react';
-import { generateCodeStream, fetchBlueprintFilesWithContent, saveBlueprintFile } from '../lib/api';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { generateCodeStream, fetchBlueprintFilesWithContent, saveBlueprintFile, getAuthHeaders } from '../lib/api';
+import { useVFS } from '../context/VFSContext';
+import { currentJobClient, queuedJobsEnabled } from '../lib/jobClient';
+import type { PendingJob } from '../lib/durableJobs';
 import type { PipelineErrorEvent, PipelineStage, PipelineStageEvent, PatchApplyEvent } from '../lib/types';
 
 export interface CodegenProgress {
   totalFiles: number;
   currentFileIndex: number;
   currentFilePath: string;
-  status: 'idle' | 'generating' | 'loading' | 'completed' | 'error';
+  status: 'idle' | 'generating' | 'loading' | 'completed' | 'review' | 'error';
   error: string | null;
   activeStage?: PipelineStage | null;
   retryable?: boolean;
@@ -15,6 +18,8 @@ export interface CodegenProgress {
 }
 
 export function useCodeGeneration() {
+  const vfs=useVFS();const latestVfs=useRef(vfs);latestVfs.current=vfs;
+  const queued=useRef<{scope:string;record:PendingJob}|null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState<CodegenProgress>({
     totalFiles: 0,
@@ -33,7 +38,7 @@ export function useCodeGeneration() {
   const operationGenRef = useRef(0);
   const lastRequestRef = useRef<{ blueprintId: string; model?: string } | null>(null);
 
-  const cancel = useCallback(() => {
+  const detach = useCallback(() => {
     operationGenRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
@@ -41,12 +46,21 @@ export function useCodeGeneration() {
     setProgress(prev => ({ ...prev, status: 'idle' }));
   }, []);
 
+  useEffect(()=>()=>{abortRef.current?.abort();},[]);
+  const cancel=useCallback(()=>{
+    if(queuedJobsEnabled && queued.current){
+      const {scope,record}=queued.current;
+      void currentJobClient().stop(scope,record).then(()=>{detach();queued.current=null;})
+        .catch(err=>setProgress(prev=>({...prev,error:err.message})));
+    }else detach();
+  },[detach]);
+
   const clearFiles = useCallback(() => {
     setFiles({});
   }, []);
 
   const generateCode = useCallback(async (blueprintId: string, model?: string) => {
-    cancel();
+    detach();
     lastRequestRef.current = { blueprintId, model };
     const generation = ++operationGenRef.current;
     const controller = new AbortController();
@@ -71,6 +85,23 @@ export function useCodeGeneration() {
     let pipelineFailure: PipelineErrorEvent | null = null;
 
     try {
+      if(queuedJobsEnabled){
+        const client=currentJobClient();const scope=`workspace:${blueprintId}`;
+        if(Object.keys(latestVfs.current.stagedDiffs).length)throw new Error('Review or discard the existing candidate first');
+        const record=client.begin(scope,`/api/agent/${blueprintId}/jobs`,{kind:'codegen',prompt:'Implement the complete application described by the saved blueprint. Preserve existing working behavior, validate the application and return reviewed file changes.',...(model?{model}:{})});
+        queued.current={scope,record};
+        const result=await client.watch<{stagedDiffs:Record<string,{original:string;modified:string}>}>(scope,record,controller.signal,job=>setProgress(prev=>({...prev,currentFilePath:`Worker ${job.status} · attempt ${job.attempt}`})));
+        client.forget(scope,record);
+        const current=Object.fromEntries((await fetchBlueprintFilesWithContent(blueprintId)).map(file=>[file.path,file.content]));
+        controller.signal.throwIfAborted();
+        for(const [path,diff] of Object.entries(result.stagedDiffs)){
+          if((current[path]??'')!==diff.original || (path in latestVfs.current.files && latestVfs.current.files[path]!==diff.original))throw new Error('Workspace changed. Recover the candidate from run history after resolving edits.');
+        }
+        for(const [path,diff] of Object.entries(result.stagedDiffs))latestVfs.current.stageFileDiff(path,diff.modified,diff.original);
+        setFiles(Object.fromEntries(Object.entries(result.stagedDiffs).map(([path,diff])=>[path,diff.modified])));
+        setProgress(prev=>({...prev,status:'review',activeStage:null,currentFilePath:'Candidate ready — review changes before accepting',totalFiles:Object.keys(result.stagedDiffs).length}));
+        setIsGenerating(false);queued.current=null;return;
+      }
       const stream = generateCodeStream(blueprintId, model, controller.signal);
 
       for await (const event of stream) {
@@ -176,7 +207,7 @@ export function useCodeGeneration() {
       }));
       setIsGenerating(false);
     }
-  }, [cancel]);
+  }, [detach]);
 
   const retry = useCallback(() => {
     const request = lastRequestRef.current;
@@ -184,7 +215,14 @@ export function useCodeGeneration() {
   }, [generateCode]);
 
   const loadExistingFiles = useCallback(async (blueprintId: string) => {
-    cancel();
+    if (queuedJobsEnabled && getAuthHeaders().Authorization) {
+      const pending = currentJobClient().pending(`workspace:${blueprintId}`);
+      if (pending?.body.kind === 'codegen') {
+        await generateCode(blueprintId, typeof pending.body.model === 'string' ? pending.body.model : undefined);
+        return;
+      }
+    }
+    detach();
     const generation = ++operationGenRef.current;
     setIsGenerating(true);
     setProgress({
@@ -225,7 +263,7 @@ export function useCodeGeneration() {
         setIsGenerating(false);
       }
     }
-  }, [cancel]);
+  }, [detach, generateCode]);
 
   const updateSingleFile = useCallback(async (blueprintId: string, path: string, content: string, language: string) => {
     setFiles(prev => ({ ...prev, [path]: content }));
@@ -239,12 +277,13 @@ export function useCodeGeneration() {
   return {
     isGenerating,
     progress,
-    files,
+    files: queuedJobsEnabled && progress.status==='review' ? Object.fromEntries(Object.entries(files).filter(([path])=>path in vfs.stagedDiffs || path in vfs.files)) : files,
     pipelineEvents,
     patchEvents,
     generateCode,
     retry,
     loadExistingFiles,
+    loadGeneratedFiles: loadExistingFiles,
     updateSingleFile,
     clearFiles,
     cancel

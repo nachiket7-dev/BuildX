@@ -145,6 +145,11 @@ export async function* regenerateBlueprintStream(
   model: string,
   signal?: AbortSignal
 ): AsyncGenerator<SSEEvent> {
+  if (import.meta.env.VITE_AGENT_QUEUE_ENABLED === 'true') {
+    const { runSpecJob } = await import('./specJobs');
+    const data = await runSpecJob(blueprintId,'regenerate','Regenerate the saved blueprint',model,signal);
+    yield {event:'complete',data};yield {event:'saved',data:{id:blueprintId}};return;
+  }
   const url = `${BASE_URL}/api/blueprint/regenerate-stream`;
 
   const response = await fetch(url, {
@@ -227,9 +232,16 @@ export async function refineBlueprint(
   blueprint: Blueprint,
   message: string,
   model?: string,
-  blueprintId?: string | null
+  blueprintId?: string | null,
+  signal?: AbortSignal,
+  onProgress?: (status: string) => void
 ): Promise<Blueprint> {
   try {
+    if (import.meta.env.VITE_AGENT_QUEUE_ENABLED === 'true') {
+      if (!blueprintId) throw new Error('Save the blueprint before refining it');
+      const { runSpecJob } = await import('./specJobs');
+      return await runSpecJob(blueprintId,'refine',message,model,signal,onProgress);
+    }
     const response = await apiClient.post<ApiResponse<Blueprint>>(
       '/api/blueprint/refine',
       { blueprint, message, model, id: blueprintId ?? undefined },
@@ -251,6 +263,10 @@ export async function refineByIdBlueprint(
   model?: string
 ): Promise<Blueprint> {
   try {
+    if (import.meta.env.VITE_AGENT_QUEUE_ENABLED === 'true') {
+      const { runSpecJob } = await import('./specJobs');
+      return await runSpecJob(blueprintId,'refine',prompt,model);
+    }
     const response = await apiClient.post<{ success: boolean; blueprint: Blueprint }>(
       `/api/blueprint/${blueprintId}/refine`,
       { prompt, model },

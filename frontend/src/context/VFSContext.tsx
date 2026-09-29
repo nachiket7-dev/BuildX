@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import axios from 'axios';
+import { useAuth } from '../hooks/useAuth';
+import { jobClient, queuedJobsEnabled } from '../lib/jobClient';
+import { jobProgressLabel, type PendingJob } from '../lib/durableJobs';
 import { getAuthHeaders } from '../lib/api';
 
 export interface VFSFile {
@@ -66,7 +69,8 @@ interface VFSContextType {
     blueprintId: string,
     prompt: string,
     model: string,
-    callbacks?: AgentStreamCallbacks
+    callbacks?: AgentStreamCallbacks,
+    resumeRunId?: string
   ) => Promise<void>;
   cancelAgentStream: () => void;
   isAgentExecuting: boolean;
@@ -89,7 +93,13 @@ const VFSContext = createContext<VFSContextType | undefined>(undefined);
 const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  const jobs = React.useMemo(() => queuedJobsEnabled && user ? jobClient(user.id) : null, [user]);
+  const queuedRef = React.useRef<{ scope: string; record: PendingJob } | null>(null);
+  const onCancelError = React.useRef<((error: string) => void) | undefined>();
   const [files, setFiles] = useState<Record<string, string>>({});
+  const latestFiles = React.useRef(files);
+  latestFiles.current = files;
   const [pendingDiff, setPendingDiff] = useState<PendingDiff | null>(null);
   const [pendingDiffs, setPendingDiffs] = useState<Record<string, PendingDiff>>({});
   const [stagedDiffs, setStagedDiffs] = useState<Record<string, StagedDiff>>({});
@@ -291,7 +301,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (blueprintId) {
         await axios.put(
           `${BASE_URL}/api/blueprints/${blueprintId}/vfs/file`,
-          { path, content: codeToCommit },
+          { path, content: codeToCommit, expectedContent: staged?.originalCode ?? files[path] ?? '' },
           { headers: getAuthHeaders() }
         );
       }
@@ -350,28 +360,6 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPendingDiff(null);
   }, []);
 
-  const enhanceUi = useCallback(async (blueprintId: string): Promise<Record<string, string>> => {
-    setIsEnhancingUi(true);
-    try {
-      const res = await axios.post(
-        `${BASE_URL}/api/blueprints/${blueprintId}/enhance-ui`,
-        {},
-        { headers: getAuthHeaders() }
-      );
-      const data = res.data?.data;
-      if (data && data.files) {
-        syncFilesState(data.files);
-        return data.fileTree || {};
-      }
-      return {};
-    } catch (err) {
-      console.error('[VFSContext] Failed to enhance UI', err);
-      throw err;
-    } finally {
-      setIsEnhancingUi(false);
-    }
-  }, [syncFilesState]);
-
   const handleSetActiveFile = useCallback((file: VFSFile | string | null) => {
     if (!file) {
       setActiveFilePath(null);
@@ -417,15 +405,21 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const agentAbortRef = React.useRef<AbortController | null>(null);
   const [isAgentExecuting, setIsAgentExecuting] = useState(false);
   const agentLockRef = React.useRef(false);
+  const activeRunRef = React.useRef<{ blueprintId: string; runId: string } | null>(null);
 
+  const cancelRequestedRef = React.useRef(false);
   const cancelAgentStream = useCallback(() => {
-    if (agentAbortRef.current) {
-      agentAbortRef.current.abort();
-      agentAbortRef.current = null;
+    cancelRequestedRef.current = true;
+    if (jobs && queuedRef.current) {
+      const { scope, record } = queuedRef.current;
+      void jobs.stop(scope, record).catch(error => onCancelError.current?.(error instanceof Error ? error.message : 'Stop failed. Try again.'));
+      return;
     }
-    agentLockRef.current = false;
-    setIsAgentExecuting(false);
-  }, []);
+    const run = activeRunRef.current;
+    // Keep the connection until acknowledgement so Stop cannot leave a hidden run.
+    if (run) void axios.post(`${BASE_URL}/api/agent/${run.blueprintId}/runs/${run.runId}/cancel`, {}, { headers: getAuthHeaders() })
+      .catch(error => console.error('[VFSContext] Cancellation failed', error));
+  }, [jobs]);
 
   React.useEffect(() => () => { agentAbortRef.current?.abort(); }, []);
 
@@ -434,22 +428,119 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       blueprintId: string,
       prompt: string,
       model: string,
-      callbacks?: AgentStreamCallbacks
+      callbacks?: AgentStreamCallbacks,
+    resumeRunId?: string
     ): Promise<void> => {
       if (agentLockRef.current || isAgentExecuting) {
         console.warn('[VFSContext] Agent pipeline already active; ignoring concurrent trigger');
         return;
       }
+      if (Object.keys(stagedDiffs).length) {
+        callbacks?.onError?.('Review or discard the staged changes before starting another run.');
+        return;
+      }
       agentLockRef.current = true;
       setIsAgentExecuting(true);
 
+      cancelRequestedRef.current = false;
       const controller = new AbortController();
       agentAbortRef.current = controller;
 
       const token = localStorage.getItem('buildx_token');
       let gotDone = false;
 
+      let sequence = 0;
+      const dispatch = (event: string, payload: any) => {
+                if (event === 'run_started') {
+                  activeRunRef.current = { blueprintId, runId: payload.runId };
+                  if (cancelRequestedRef.current) cancelAgentStream();
+                } else if (event === 'thinking') {
+                  callbacks?.onThinking?.(payload.step ?? '');
+                } else if (event === 'pipeline_heartbeat') {
+                  callbacks?.onPipelineHeartbeat?.(payload);
+                } else if (event === 'pipeline_stage') {
+                  callbacks?.onPipelineStage?.(payload);
+                } else if (event === 'agent_telemetry') {
+                  callbacks?.onTelemetry?.(payload);
+                } else if (event === 'agent_plan') {
+                  callbacks?.onPlan?.(payload.plan || []);
+                } else if (event === 'file_patch' || event === 'agent_patch') {
+                  callbacks?.onPatch?.(payload);
+                  if (payload.filePath && payload.content) {
+                    const orig = files[payload.filePath] || '';
+                    if (orig.length > 200 && payload.content.length < 100) {
+                      console.warn(`[VFSContext] Refusing to stage corrupt patch (<100 chars) for ${payload.filePath}`);
+                    } else {
+                      stageFileDiff(payload.filePath, payload.content, orig);
+                    }
+                  }
+                } else if (event === 'staged_diff') {
+                  callbacks?.onStagedDiff?.(payload);
+                  if (payload.path && typeof payload.modified === 'string') {
+                    stageFileDiff(payload.path, payload.modified, payload.original ?? files[payload.path] ?? '');
+                  }
+                } else if (event === 'done' || event === 'agent_complete') {
+                  if (!gotDone) {
+                    gotDone = true;
+                    callbacks?.onDone?.(payload);
+                  }
+                } else if (event === 'error') {
+                  gotDone = true;
+                  callbacks?.onError?.(payload.error || 'Agent encountered an error');
+                }
+      };
+      const recover = async () => {
+        const run = activeRunRef.current;
+        if (!run) throw new Error('Connection interrupted before the run was acknowledged. Check run history.');
+        callbacks?.onThinking?.('Reconnecting to the saved run');
+        const deadline = Date.now() + 9 * 60_000;
+        while (!controller.signal.aborted && Date.now() < deadline) {
+          const response = await fetch(`${BASE_URL}/api/agent/${blueprintId}/runs/${run.runId}?after=${sequence}`, { headers: getAuthHeaders(), signal: controller.signal });
+          if (!response.ok) throw new Error('Could not retrieve saved run');
+          const saved = await response.json();
+          for (const item of saved.events || []) {
+            if (item.sequence <= sequence) continue;
+            dispatch(item.event, item.data);
+            sequence = item.sequence;
+          }
+          if (gotDone) return;
+          if (saved.status === 'completed' && saved.result) {
+            for (const [path, diff] of Object.entries(saved.result.stagedDiffs || {})) dispatch('staged_diff', { path, ...(diff as object) });
+            dispatch('done', saved.result); return;
+          }
+          if (saved.status !== 'running') throw new Error(saved.error || 'Run interrupted. Resume it from run history.');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        if (!controller.signal.aborted) throw new Error('Run is still pending. Check run history.');
+      };
       try {
+        if (jobs && (!resumeRunId || resumeRunId.startsWith('job:'))) {
+          const scope = `workspace:${blueprintId}`;
+          const endpoint = `/api/agent/${blueprintId}/jobs`;
+          const body = { kind: 'chat', prompt, model, ...(activeFilePath ? { activeFilePath } : {}), ...(runtimeError ? { previewErrors: [runtimeError] } : {}) };
+          const record = resumeRunId
+            ? await jobs.attach(scope, { key: crypto.randomUUID(), endpoint, body, jobId: resumeRunId.slice(4) })
+            : jobs.begin(scope, endpoint, body);
+          queuedRef.current = { scope, record };
+          onCancelError.current = callbacks?.onError;
+          if (cancelRequestedRef.current) cancelAgentStream();
+          const result = await jobs.watch<{message: string; stagedDiffs: Record<string, {original: string; modified: string}>}>(scope, record, controller.signal, job => {
+            callbacks?.onThinking?.(jobProgressLabel(job));
+          });
+          // The completed result remains available in server history, even when
+          // current edits prevent staging it. Release the local submission slot.
+          jobs.forget(scope, record);
+          const currentResponse = await fetch(`${BASE_URL}/api/blueprints/${blueprintId}/vfs`, { headers: getAuthHeaders(), signal: controller.signal });
+          if (!currentResponse.ok) throw new Error('Cannot verify current files before staging');
+          const current = (await currentResponse.json()).data.fileTree;
+          for (const [path, diff] of Object.entries(result.stagedDiffs)) {
+            if ((latestFiles.current[path] ?? '') !== diff.original || (current[path] ?? '') !== diff.original)
+              throw new Error('Workspace changed. Review saved changes from history after resolving local edits.');
+          }
+          for (const [path, diff] of Object.entries(result.stagedDiffs)) dispatch('staged_diff', { path, ...diff });
+          dispatch('done', result);
+          return;
+        }
         const response = await fetch(`${BASE_URL}/api/agent/${blueprintId}/chat`, {
           method: 'POST',
           headers: {
@@ -459,6 +550,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           body: JSON.stringify({
             prompt,
             model,
+            resumeRunId,
             activeFilePath,
             activeFileContent: activeFilePath ? files[activeFilePath] : undefined,
             previewErrors: runtimeError ? [runtimeError] : undefined,
@@ -478,6 +570,7 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // line may arrive in different network chunks, so this must NOT be reset
         // per read — only after the blank line that terminates an SSE message.
         let pendingEvent = '';
+        let pendingSequence = sequence;
 
         for (;;) {
           if (controller.signal.aborted) {
@@ -495,51 +588,15 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           buffer = lines.pop() ?? '';
 
           for (const line of lines) {
-            if (line.startsWith('event: ')) {
+            if (line.startsWith('id: ')) {
+              pendingSequence = Number(line.slice(4)) || sequence;
+            } else if (line.startsWith('event: ')) {
               pendingEvent = line.slice(7).trim();
             } else if (line.startsWith('data: ')) {
               const raw = line.slice(6).trim();
               try {
-                const payload = JSON.parse(raw);
-                if (pendingEvent === 'thinking') {
-                  callbacks?.onThinking?.(payload.step ?? '');
-                } else if (pendingEvent === 'pipeline_heartbeat') {
-                  callbacks?.onPipelineHeartbeat?.(payload);
-                } else if (pendingEvent === 'pipeline_stage') {
-                  callbacks?.onPipelineStage?.(payload);
-                } else if (pendingEvent === 'agent_telemetry') {
-                  callbacks?.onTelemetry?.(payload);
-                } else if (pendingEvent === 'agent_plan') {
-                  callbacks?.onPlan?.(payload.plan || []);
-                } else if (pendingEvent === 'file_patch' || pendingEvent === 'agent_patch') {
-                  callbacks?.onPatch?.(payload);
-                  if (payload.filePath && payload.content) {
-                    const orig = files[payload.filePath] || '';
-                    if (orig.length > 200 && payload.content.length < 100) {
-                      console.warn(`[VFSContext] Refusing to stage corrupt patch (<100 chars) for ${payload.filePath}`);
-                    } else {
-                      stageFileDiff(payload.filePath, payload.content, orig);
-                    }
-                  }
-                } else if (pendingEvent === 'staged_diff') {
-                  callbacks?.onStagedDiff?.(payload);
-                  if (payload.path && payload.modified) {
-                    const orig = payload.original || files[payload.path] || '';
-                    if (orig.length > 200 && payload.modified.length < 100) {
-                      console.warn(`[VFSContext] Refusing to stage corrupt diff (<100 chars) for ${payload.path}`);
-                    } else {
-                      stageFileDiff(payload.path, payload.modified, orig);
-                    }
-                  }
-                } else if (pendingEvent === 'done' || pendingEvent === 'agent_complete') {
-                  if (!gotDone) {
-                    gotDone = true;
-                    callbacks?.onDone?.(payload);
-                  }
-                } else if (pendingEvent === 'error') {
-                  gotDone = true;
-                  callbacks?.onError?.(payload.error || 'Agent encountered an error');
-                }
+                dispatch(pendingEvent, JSON.parse(raw));
+                sequence = pendingSequence;
               } catch {
                 // ignore individual SSE parse lines
               }
@@ -549,30 +606,56 @@ export const VFSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
 
-        if (!gotDone && !controller.signal.aborted) {
-          console.error('[VFSContext:DIAG] Stream ended without done event. gotDone=false, aborted=false. This means the server closed the connection prematurely.');
-          callbacks?.onError?.(
-            'Connection closed before the agent finished. Try switching to Gemini 3.5 Flash for faster responses.'
-          );
-        }
+        if (!gotDone && !controller.signal.aborted) await recover();
       } catch (err: any) {
-        if (err.name === 'AbortError' || controller.signal.aborted) {
-          console.log('[VFSContext] Agent stream aborted by user action.');
-        } else {
-          callbacks?.onError?.(err.message || 'Failed to connect to agent');
+        if (!controller.signal.aborted) {
+          try { if (!gotDone && activeRunRef.current) await recover(); else throw err; }
+          catch (recoveryError) { callbacks?.onError?.(recoveryError instanceof Error ? recoveryError.message : 'Failed to recover run'); }
         }
       } finally {
+        activeRunRef.current = null;
+        queuedRef.current = null;
+        onCancelError.current = undefined;
         agentLockRef.current = false;
         setIsAgentExecuting(false);
         if (agentAbortRef.current === controller) {
           agentAbortRef.current = null;
         }
         // Auto-sync files from backend to guarantee fresh workspace state
-        loadVFS(blueprintId).catch(() => {});
+        if (!jobs || (resumeRunId && !resumeRunId.startsWith('job:'))) loadVFS(blueprintId).catch(() => {});
       }
     },
-    [files, stageFileDiff, isAgentExecuting, activeFilePath, runtimeError, loadVFS]
+    [files, stagedDiffs, stageFileDiff, isAgentExecuting, activeFilePath, runtimeError, loadVFS, cancelAgentStream, jobs]
   );
+
+  const enhanceUi = useCallback(async (blueprintId: string): Promise<Record<string, string>> => {
+    if (agentLockRef.current || isAgentExecuting) throw new Error('Another agent request is already running');
+    setIsEnhancingUi(true);
+    try {
+      if (jobs) {
+        let failure: string | undefined;
+        await streamAgentPrompt(blueprintId, 'Improve the interface hierarchy, spacing, accessibility and responsive behavior. Preserve the application identity and working features. Inspect the actual files, validate the changes, and stage them for review.', 'pipeline', {onError:message=>{failure=message;}});
+        if (failure) throw new Error(failure);
+        return {};
+      }
+      const res = await axios.post(
+        `${BASE_URL}/api/blueprints/${blueprintId}/enhance-ui`,
+        {},
+        { headers: getAuthHeaders() }
+      );
+      const data = res.data?.data;
+      if (data && data.files) {
+        syncFilesState(data.files);
+        return data.fileTree || {};
+      }
+      return {};
+    } catch (err) {
+      console.error('[VFSContext] Failed to enhance UI', err);
+      throw err;
+    } finally {
+      setIsEnhancingUi(false);
+    }
+  }, [syncFilesState, jobs, streamAgentPrompt, isAgentExecuting]);
 
   return (
     <VFSContext.Provider
