@@ -12,9 +12,6 @@ import {
   AlertTriangle,
   Wrench,
   X,
-  Brain,
-  Zap,
-  GitCompare,
   Sparkles,
 } from "./ui/icons";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,8 +27,10 @@ import {
 interface RefinementChatProps {
   messages: ChatMessage[];
   isRefining: boolean;
+  progress?: string | null;
   onSend: (message: string) => void;
   onClear: () => void;
+  onStop?: () => void;
   /** Active blueprint for dynamic contextual suggestion chips */
   blueprint?: Blueprint;
   /** Blueprint `<section>` — fixed dock matches this box on scroll / sidebar toggle */
@@ -97,23 +96,6 @@ function resolveSuggestions(blueprint?: Blueprint): string[] {
     "Add automated database audit trail tables",
     "Add OAuth 2.0 social login support",
   ];
-}
-
-function formatModelName(modelKey?: string): string {
-  if (!modelKey) return "Gemini 3.5 Flash";
-  const map: Record<string, string> = {
-    "gemini-3.5-flash": "Gemini 3.5 Flash",
-    "gemini-3.1-pro": "Gemini 3.1 Pro",
-    "nemotron-3-super-120b": "Nemotron 3 Super",
-    "nemotron-3-550b": "Nemotron 3 Ultra",
-    "nemotron-3-ultra-550b": "Nemotron 3 Ultra",
-    "kimi-k3": "Kimi K3",
-    "kimi-k2.6": "Kimi K2.6",
-    "glm-5.2": "GLM 5.2",
-    "gpt-oss-120b": "GPT-OSS 120B",
-    "qwen-3-32b": "Qwen 3 32B",
-  };
-  return map[modelKey] || modelKey.split("/").pop() || modelKey;
 }
 
 const SHELL_TRANSITION_MS = 320;
@@ -207,7 +189,9 @@ function useAnchorBounds(
 export function RefinementChat({
   messages,
   isRefining,
+  progress,
   onSend,
+  onStop,
   onClear,
   blueprint,
   anchorRef,
@@ -426,7 +410,7 @@ export function RefinementChat({
                 className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-sans font-semibold text-xs flex items-center gap-1 transition-all"
               >
                 <Wrench size={11} />
-                <span>Auto-Fix with Kimi K2.6</span>
+                <span>Ask agent to repair</span>
               </button>
               <button
                 type="button"
@@ -526,7 +510,7 @@ export function RefinementChat({
                   >
                     <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400">
                       <span className="font-mono text-[10px] text-indigo-400 font-semibold">
-                        01 / ARCHITECT
+                        You
                       </span>
                       <span className="text-zinc-600">•</span>
                       <span>Request #{turnIndex + 1}</span>
@@ -542,80 +526,7 @@ export function RefinementChat({
                       variants={timelineNodeSlide}
                       className="timeline-node relative"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5 text-[10px] text-zinc-400">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[10px] text-emerald-400 font-semibold">
-                            02 / SUBAGENT PIPELINE
-                          </span>
-                          <span className="text-zinc-600">•</span>
-                          <span>Multi-Model Stream</span>
-                        </div>
-
-                        {/* Active Model Badges with Fallback Highlighting */}
-                        <div className="flex flex-wrap items-center gap-1.5 font-mono text-[9px]">
-                          <span
-                            className={`px-1.5 py-0.5 rounded flex items-center gap-1 border ${
-                              turn.assistant.telemetry?.planner?.wasFallback
-                                ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
-                                : "bg-purple-500/15 border-purple-500/30 text-purple-300"
-                            }`}
-                          >
-                            <Brain size={9} />
-                            <span>
-                              PLAN:{" "}
-                              {formatModelName(
-                                turn.assistant.telemetry?.planner?.modelUsed ||
-                                  "nemotron-3-550b",
-                              )}
-                            </span>
-                            {turn.assistant.telemetry?.planner?.wasFallback && (
-                              <span className="px-0.5 rounded bg-amber-500/30 text-[8px] font-bold">
-                                FALLBACK
-                              </span>
-                            )}
-                          </span>
-
-                          <span className="text-zinc-600">•</span>
-
-                          <span className="px-1.5 py-0.5 rounded flex items-center gap-1 border bg-sky-500/15 border-sky-500/30 text-sky-300">
-                            <Zap size={9} />
-                            <span>INGEST: GLM 5.2</span>
-                          </span>
-
-                          <span className="text-zinc-600">•</span>
-
-                          <span
-                            className={`px-1.5 py-0.5 rounded flex items-center gap-1 border ${
-                              turn.assistant.telemetry?.patches?.[0]
-                                ?.wasFallback
-                                ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
-                                : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                            }`}
-                          >
-                            <GitCompare size={9} />
-                            <span>
-                              PATCH:{" "}
-                              {formatModelName(
-                                turn.assistant.telemetry?.patches?.[0]
-                                  ?.modelUsed || "kimi-k3",
-                              )}
-                            </span>
-                            {turn.assistant.telemetry?.patches?.[0]
-                              ?.wasFallback && (
-                              <span className="px-0.5 rounded bg-amber-500/30 text-[8px] font-bold">
-                                FALLBACK
-                              </span>
-                            )}
-                          </span>
-
-                          <span className="text-zinc-600">•</span>
-
-                          <span className="px-1.5 py-0.5 rounded flex items-center gap-1 border bg-amber-500/15 border-amber-500/30 text-amber-300">
-                            <Wrench size={9} />
-                            <span>GUARD: Gemini 3.5 Flash</span>
-                          </span>
-                        </div>
-                      </div>
+                      <div className="text-xs text-zinc-400 mb-2">BuildX</div>
                       <div className="p-3.5 rounded-xl bg-[#111113] border border-white/10 text-neutral-300 leading-relaxed font-sans text-xs">
                         {turn.assistant.content}
                       </div>
@@ -626,41 +537,8 @@ export function RefinementChat({
                       variants={timelineNodeSlide}
                       className="timeline-node relative"
                     >
-                      <div className="flex items-center gap-2 mb-1.5 text-[10px] text-amber-400">
-                        <span className="font-mono text-[10px] font-semibold">
-                          03 / SUBAGENT_EXECUTION
-                        </span>
-                        <span className="text-zinc-600">•</span>
-                        <span>Cortex Multi-Stage Routing</span>
-                      </div>
-                      <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 space-y-2">
-                        <div className="flex items-center gap-2 text-indigo-300 font-mono text-xs">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span>Refining code via Subagent Pipeline…</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-indigo-300/80 pt-2 border-t border-indigo-500/20 font-mono">
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-300">
-                            <Brain size={10} className="text-purple-400" />{" "}
-                            PLAN: Nemotron 3 Ultra
-                          </span>
-                          <span className="text-neutral-600">›</span>
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-sky-300">
-                            <Zap size={10} className="text-sky-400" /> INGEST:
-                            GLM 5.2
-                          </span>
-                          <span className="text-neutral-600">›</span>
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
-                            <GitCompare
-                              size={10}
-                              className="text-emerald-400"
-                            />{" "}
-                            PATCH: Kimi K2.6
-                          </span>
-                          <span className="text-neutral-600">›</span>
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 font-semibold">
-                            <Wrench size={10} /> GUARD: Gemini 3.5 Flash
-                          </span>
-                        </div>
+                      <div className="p-3 rounded-xl border border-zinc-800 text-zinc-300" role="status">
+                        {progress || 'Refinement in progress. Waiting for the saved result…'}
                       </div>
                     </motion.div>
                   ) : null}
@@ -703,7 +581,7 @@ export function RefinementChat({
           <div className="h-10 flex items-center gap-2">
             <div className="text-xs font-sans px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shrink-0 flex items-center gap-1.5 font-semibold select-none h-full tracking-tight font-sans">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="hidden sm:inline">Engine:</span> Kimi K2.6
+              Blueprint refinement
             </div>
 
             <input
@@ -714,13 +592,14 @@ export function RefinementChat({
               disabled={isRefining}
               placeholder={
                 isRefining
-                  ? "Refining blueprint…"
+                  ? progress || "Refining blueprint…"
                   : 'e.g. "Add Stripe payment webhooks with idempotency"'
               }
               maxLength={500}
               className="bg-black/60 border border-white/10 focus:border-indigo-500/50 text-white font-sans text-xs px-3 py-2 rounded-lg flex-1 h-full focus:outline-none placeholder:text-zinc-600 outline-none transition-all"
             />
 
+            {isRefining && onStop && <button type="button" onClick={onStop}>Stop request</button>}
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}

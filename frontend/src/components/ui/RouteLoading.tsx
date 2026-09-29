@@ -1,12 +1,9 @@
+import { Logo } from "../Logo";
+
 export function RouteLoading({ label = "Opening BuildX" }: { label?: string }) {
   return (
     <div className="route-loading" role="status">
-      <div className="route-wordmark" aria-hidden="true">
-        Build<span>X</span>
-      </div>
-      <div className="entrance-line" aria-hidden="true">
-        <i />
-      </div>
+      <Logo size="lg" />
       <p>{label}…</p>
     </div>
   );

@@ -11,6 +11,7 @@ import { EditorView } from '@codemirror/view';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { unifiedMergeView } from '@codemirror/merge';
 import { buildxEditorTheme, buildxExtensions } from './theme/buildxTheme';
+import { AgentRunHistory } from './AgentRunHistory';
 import { AgentMessage, AgentRunStatus, type AgentChatMessage as ChatMessage } from './AgentConversation';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useEventCallback } from '../hooks/useEventCallback';
@@ -24,6 +25,7 @@ import { LivePreview } from './LivePreview';
 import { WorkspaceFileTree } from './WorkspaceFileTree';
 import { useCodeGeneration } from '../hooks/useCodeGeneration';
 import { useVFS } from '../context/VFSContext';
+import { queuedJobsEnabled } from '../lib/jobClient';
 import { CommandPalette, type PaletteAction } from './CommandPalette';
 import { SegmentedControl, Button } from './ui/primitives';
 import {
@@ -178,6 +180,19 @@ export function AgentPage() {
   const editorViewRef = useRef<EditorView | null>(null);
   const diffContainerRef = useRef<HTMLDivElement>(null);
   const diffEditorViewRef = useRef<EditorView | null>(null);
+  // Recovery stages changes through VFS, without the live stream callbacks.
+  useEffect(() => {
+    const diff = vfs.pendingDiff;
+    if (!diff) return;
+    setPendingDiff({ filePath: diff.filePath, original: diff.originalCode, modified: diff.incomingCode });
+    setSelectedFile(current => current?.path === diff.filePath ? current : {
+      path: diff.filePath, content: diff.originalCode, language: diff.filePath.split('.').pop() || 'typescript',
+    });
+    setActiveTab('editor');
+    setSurface('code');
+    setDiffKey(key => key + 1);
+  }, [vfs.pendingDiff]);
+
   // Mount raw DOM CodeMirror 6 unifiedMergeView when pendingDiff is active for selectedFile
   useEffect(() => {
     if (pendingDiff && selectedFile && (pendingDiff.filePath === selectedFile.path || !pendingDiff.filePath) && diffContainerRef.current) {
@@ -229,7 +244,7 @@ export function AgentPage() {
   const [isThinking, setIsThinking] = useState(false);
   const [liveThinkingSteps, setLiveThinkingSteps] = useState<string[]>([]);
   const [previewKey, setPreviewKey] = useState(0);
-  const [agentModel, setAgentModel] = useState<string>('nemotron-3-550b');
+  const [agentModel, setAgentModel] = useState<string>('pipeline');
   const [pipelineHeartbeat, setPipelineHeartbeat] = useState<{
     elapsedMs: number;
     activeStage: string;
@@ -265,12 +280,16 @@ export function AgentPage() {
       case 'action': {
         switch (action.id) {
           case 'toggle-preview':
-            setActiveTab((prev) => (prev === 'editor' ? 'preview' : 'editor'));
+            setActiveTab((prev) => {
+              const next = prev === 'editor' ? 'preview' : 'editor';
+              setSurface(next === 'preview' ? 'preview' : 'code');
+              return next;
+            });
             break;
           case 'enhance-ui':
             if (id) {
               vfs.enhanceUi(id).then(() => {
-                toast('UI enhancement applied!', 'success');
+                toast(queuedJobsEnabled ? 'UI candidate prepared. Review the staged changes.' : 'UI enhancement applied!', 'success');
                 setPreviewKey((k) => k + 1);
               }).catch((err: any) => toast(err.message || 'Enhancement failed', 'error'));
             }
@@ -286,8 +305,10 @@ export function AgentPage() {
             break;
           }
           case 'deploy-github':
+            onDeploy?.('github');
+            break;
           case 'export-zip':
-            onDeploy?.();
+            onDeploy?.('zip');
             break;
           default:
             break;
@@ -392,7 +413,7 @@ export function AgentPage() {
     if (surface === 'agent' && followConversation.current) scrollToBottom();
   }, [surface, scrollToBottom]);
 
-  async function handleSend(e?: React.FormEvent, overridePrompt?: string) {
+  async function handleSend(e?: React.FormEvent, overridePrompt?: string, resumeRunId?: string) {
     if (e) e.preventDefault();
     const userMessage = (overridePrompt ?? prompt).trim();
     if (!userMessage || isThinking || isSendingRef.current || vfs.isAgentExecuting || !id || !token) return;
@@ -520,7 +541,7 @@ export function AgentPage() {
           ]);
           toast(errMsg, 'error');
         },
-      });
+      }, resumeRunId);
     } catch (err: any) {
       setLiveThinkingSteps([]);
       setPipelineHeartbeat(null);
@@ -710,10 +731,13 @@ export function AgentPage() {
   }, [pendingDiff, handleAcceptDiff, handleRejectDiff]);
 
   const visibleFiles = files.filter(f => f.path !== 'preview.html');
-  const previewFiles = useMemo(
-    () => Object.fromEntries(files.map(file => [file.path, file.content])),
-    [files]
-  );
+  const previewFiles = useMemo(() => {
+    const current = Object.fromEntries(files.map(file => [file.path, file.content]));
+    for (const [path, diff] of Object.entries(vfs.stagedDiffs)) {
+      current[path] = diff.incomingCode;
+    }
+    return current;
+  }, [files, vfs.stagedDiffs]);
 
   // ── Workspace selector ────────────────────────────────────────────────────
   if (!id) {
@@ -994,7 +1018,7 @@ export function AgentPage() {
               key={previewKey}
               onPromptAgent={(p) => {
                 setPrompt(p);
-                sendMessage(undefined, p);
+                return sendMessage(undefined, p);
               }}
             />
           </div>
@@ -1027,6 +1051,7 @@ export function AgentPage() {
 
         <div className="agent-chat-header"><div><Cpu size={15} /><strong>Project agent</strong></div><span>{isThinking ? 'Working' : 'Ready'}</span></div>
         <div ref={chatScrollRef} className="agent-conversation" onScroll={(event) => { const el = event.currentTarget; followConversation.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64; }} aria-label="Conversation">
+          {id && <AgentRunHistory blueprintId={id} onResume={(runId, text) => void handleSend(undefined, text, runId)} />}
           {messages.length === 0 && !isThinking && <div className="agent-chat-empty"><span><Cpu size={22} /></span><h2>Build on your idea.</h2><p>Ask for a feature, a fix, or a second look at your code.</p></div>}
           {messages.map((message, index) => <AgentMessage key={index} message={message} />)}
           {isThinking && <AgentRunStatus stage={activePipelineStage} elapsedMs={pipelineHeartbeat?.elapsedMs} model={pipelineHeartbeat?.activeModel} steps={liveThinkingSteps} plan={plan} />}
@@ -1037,7 +1062,11 @@ export function AgentPage() {
           <div className="agent-chat-input">
             <textarea rows={2} value={prompt} onChange={event => setPrompt(event.target.value)} aria-label="Message the project agent" placeholder={isThinking ? 'Working on your request…' : 'Ask for a change…'} disabled={isThinking}
               onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void handleSend(event); } }} />
-            <button type="submit" aria-label="Send message" disabled={!prompt.trim() || isThinking}><Send size={15} /></button>
+            {isThinking ? (
+              <button type="button" aria-label="Stop request" onClick={() => vfs.cancelAgentStream()}>Stop</button>
+            ) : (
+              <button type="submit" aria-label="Send message" disabled={!prompt.trim()}><Send size={15} /></button>
+            )}
           </div>
           <div className="agent-compose-hint"><span>Enter to send · Shift + Enter for a new line</span></div>
         </form>
@@ -1051,6 +1080,7 @@ export function AgentPage() {
         isOpen={isPaletteOpen}
         onClose={() => setIsPaletteOpen(false)}
         onAction={handlePaletteAction}
+        scope="agent"
         filePaths={visibleFiles.map(f => f.path)}
         appName={appName}
         isAgentBusy={isThinking}

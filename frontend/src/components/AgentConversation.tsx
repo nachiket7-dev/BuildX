@@ -21,6 +21,8 @@ export interface AgentChatMessage {
   };
 }
 const modelNames: Record<string, string> = {
+  "pipeline": "Auto",
+  "gemini-3.8-flash": "Gemini 3.8 Flash",
   "gemini-3.5-flash": "Gemini 3.5 Flash",
   "gemini-3.1-pro": "Gemini 3.1 Pro",
   "nemotron-3-550b": "Nemotron 3 Ultra",
@@ -29,6 +31,7 @@ const modelNames: Record<string, string> = {
   "kimi-k3": "Kimi K3",
   "kimi-k2.6": "Kimi K2.6",
   "glm-5.2": "GLM 5.2",
+  "glm-5.3": "GLM 5.3",
 };
 function modelName(key: string) {
   return modelNames[key] || key.split("/").pop() || key;
