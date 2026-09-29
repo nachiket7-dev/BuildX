@@ -237,11 +237,13 @@ export function CodeStudio({
     loadGeneratedFiles,
   } = codegen;
 
+  const loadedSourceKey=useRef<string|null>(null);
   useEffect(() => {
-    if (blueprintId && !isGenerating) {
+    if (blueprintId && !isGenerating && codegenProgress.status !== 'review' && loadedSourceKey.current !== `${blueprintId}:${blueprintContentKey}`) {
+      loadedSourceKey.current=`${blueprintId}:${blueprintContentKey}`;
       loadGeneratedFiles(blueprintId);
     }
-  }, [blueprintId, blueprintContentKey, loadGeneratedFiles, isGenerating]);
+  }, [blueprintId, blueprintContentKey, loadGeneratedFiles, isGenerating, codegenProgress.status]);
 
   const isMongo = (blueprint.architecture?.database || '').toLowerCase().includes('mongo');
 
@@ -476,9 +478,8 @@ export function CodeStudio({
       if (!d) continue;
       const filePath = resolveStudioPath(d.filePath || '');
       if (filePath !== activeFile.path) continue;
-      const incoming = d.incomingCode || d.incoming || d.modified || '';
-      let original = d.originalCode || d.original || '';
-      if (!original) original = activeFile.content;
+      const incoming = d.incomingCode ?? d.incoming ?? d.modified ?? '';
+      const original = d.originalCode ?? d.original ?? activeFile.content;
       return { original, incoming, filePath };
     }
     return null;
@@ -865,8 +866,10 @@ export function CodeStudio({
           />
         </div>
         <div className="text-[10px] text-zinc-500 font-sans">
-          File {codegenProgress.currentFileIndex} of {codegenProgress.totalFiles} ({percent}%)
+          {codegenProgress.totalFiles > 0 ? `File ${codegenProgress.currentFileIndex} of ${codegenProgress.totalFiles} (${percent}%)` : 'Waiting for a reviewed candidate'}
         </div>
+        <button type="button" onClick={codegen.cancel}>Stop generation</button>
+        {codegenProgress.error && <p role="alert">{codegenProgress.error}</p>}
       </div>
     );
   }

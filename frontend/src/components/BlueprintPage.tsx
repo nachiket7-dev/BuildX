@@ -64,11 +64,11 @@ export function BlueprintPage() {
 
   const handleBlueprintUpdate = useCallback(
     (updated: Blueprint) => {
-      setRefinedBlueprint((prev) => {
-        const base = prev ?? blueprint;
+        const base = activeBlueprint;
         if (!base) {
+          setRefinedBlueprint(updated);
           updateBlueprint(updated);
-          return updated;
+          return;
         }
         // Full blueprint from refine/regenerate — replace entirely
         const isFullUpdate = Boolean(
@@ -91,14 +91,13 @@ export function BlueprintPage() {
               effort: updated.effort ?? base.effort,
               diagrams: updated.diagrams ?? base.diagrams,
             };
+        setRefinedBlueprint(next);
         updateBlueprint(next);
-        return next;
-      });
     },
-    [blueprint, updateBlueprint],
+    [activeBlueprint, updateBlueprint],
   );
 
-  const { messages, isRefining, refine, clearHistory } = useRefinement(
+  const { messages, isRefining, progress: refinementProgress, refine, clearHistory, stop } = useRefinement(
     activeBlueprint,
     handleBlueprintUpdate,
     effectiveId,
@@ -322,7 +321,9 @@ export function BlueprintPage() {
                 refinement={{
                   messages,
                   isRefining,
+                  progress: refinementProgress,
                   onSend: (msg) => refine(msg, selectedModel),
+                  onStop: stop,
                   onClear: clearHistory,
                   sidebarOpen,
                 }}

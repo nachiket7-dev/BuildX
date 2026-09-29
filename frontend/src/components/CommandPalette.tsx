@@ -8,13 +8,11 @@ import {
   Database,
   Sparkles,
   Zap,
-  Settings,
   Eye,
   Download,
   GitBranch,
   Cpu,
   Palette,
-  Terminal,
   CornerDownLeft,
   ChevronUp,
   ChevronDown,
@@ -48,6 +46,8 @@ interface CommandPaletteProps {
   appName?: string;
   /** Whether the agent is currently running */
   isAgentBusy?: boolean;
+  scope?: 'global' | 'agent';
+  canExport?: boolean;
 }
 
 // ─── Fuzzy Match Utility ──────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ function getFileIcon(path: string) {
 
 // ─── Static Action Items ──────────────────────────────────────────────────────
 
-const STUDIO_ACTIONS: CommandItem[] = [
+const AGENT_ACTIONS: CommandItem[] = [
   {
     id: 'enhance-ui',
     label: 'Enhance UI with Dark Glassmorphism',
@@ -147,62 +147,41 @@ const STUDIO_ACTIONS: CommandItem[] = [
     action: { type: 'action', id: 'export-zip' },
     keywords: ['export', 'zip', 'download', 'scaffold'],
   },
-  {
-    id: 'format-code',
-    label: 'Format Current File',
-    description: 'Auto-format with Prettier conventions',
-    category: 'action',
-    icon: <Terminal size={14} className="text-emerald-400" />,
-    action: { type: 'action', id: 'format-code' },
-    keywords: ['format', 'prettier', 'indent', 'clean'],
-  },
-  {
-    id: 'settings',
-    label: 'Open Studio Settings',
-    description: 'Configure model preferences and display',
-    category: 'action',
-    icon: <Settings size={14} className="text-gray-400" />,
-    action: { type: 'action', id: 'settings' },
-    keywords: ['settings', 'config', 'preferences'],
-  },
+];
+
+const GLOBAL_ACTIONS: CommandItem[] = [
+  { id: 'open-studio', label: 'Open Studio', category: 'action', icon: <Sparkles size={14} />, action: { type: 'action', id: 'open-studio' }, keywords: ['new', 'project', 'blueprint'] },
+  { id: 'open-gallery', label: 'Open Gallery', category: 'action', icon: <Palette size={14} />, action: { type: 'action', id: 'open-gallery' }, keywords: ['projects', 'browse'] },
+  { id: 'open-workspace', label: 'Open Workspace', category: 'action', icon: <FileCode size={14} />, action: { type: 'action', id: 'open-workspace' }, keywords: ['agent', 'code'] },
 ];
 
 const MODEL_ITEMS: CommandItem[] = [
   {
-    id: 'model-nemotron',
-    label: 'Switch to Nemotron 3 Ultra 550B',
-    description: 'NVIDIA NIM — Best for architectural planning',
+    id: 'model-auto',
+    label: 'Switch to Auto',
+    description: 'Use the configured free-tier stage route',
     category: 'model',
-    icon: <Cpu size={14} className="text-green-400" />,
-    action: { type: 'model', modelKey: 'nemotron-3-550b' },
-    keywords: ['nemotron', 'nvidia', '550b', 'planning'],
+    icon: <Cpu size={14} className="text-blue-400" />,
+    action: { type: 'model', modelKey: 'pipeline' },
+    keywords: ['auto', 'pipeline', 'default'],
+  },
+  {
+    id: 'model-gemini-latest',
+    label: 'Switch to Gemini 3.8 Flash',
+    description: 'Google AI Studio — free-tier default',
+    category: 'model',
+    icon: <Cpu size={14} className="text-blue-400" />,
+    action: { type: 'model', modelKey: 'gemini-3.8-flash' },
+    keywords: ['gemini', 'flash', 'google', 'default'],
   },
   {
     id: 'model-gemini-flash',
     label: 'Switch to Gemini 3.5 Flash',
-    description: 'Google AI — Ultra fast, great for iteration',
+    description: 'Google AI Studio — free-tier fallback',
     category: 'model',
     icon: <Cpu size={14} className="text-blue-400" />,
     action: { type: 'model', modelKey: 'gemini-3.5-flash' },
     keywords: ['gemini', 'flash', 'google', 'fast'],
-  },
-  {
-    id: 'model-kimi',
-    label: 'Switch to Kimi K3',
-    description: 'Moonshot AI — Precision code synthesis & reasoning',
-    category: 'model',
-    icon: <Cpu size={14} className="text-violet-400" />,
-    action: { type: 'model', modelKey: 'kimi-k3' },
-    keywords: ['kimi', 'k3', 'moonshot', 'code', 'synthesis', 'reasoning'],
-  },
-  {
-    id: 'model-glm',
-    label: 'Switch to GLM 5.2',
-    description: 'Z-AI — Deep context ingestion',
-    category: 'model',
-    icon: <Cpu size={14} className="text-sky-400" />,
-    action: { type: 'model', modelKey: 'glm-5.2' },
-    keywords: ['glm', 'z-ai', 'context', 'ingestion'],
   },
 ];
 
@@ -265,6 +244,8 @@ export function CommandPalette({
   filePaths = [],
   appName,
   isAgentBusy = false,
+  scope = 'agent',
+  canExport = false,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -289,16 +270,21 @@ export function CommandPalette({
   );
 
   // Merge all items
-  const allItems = useMemo(
-    () => [...fileItems, ...STUDIO_ACTIONS, ...MODEL_ITEMS, ...QUICK_PROMPTS],
-    [fileItems]
-  );
+  const actions = useMemo(() => scope === 'agent' ? AGENT_ACTIONS : [
+    ...GLOBAL_ACTIONS,
+    ...(canExport ? AGENT_ACTIONS.filter(item => item.id === 'deploy-github' || item.id === 'export-zip') : []),
+  ], [scope, canExport]);
+  const allItems = useMemo(() => scope === 'agent'
+    ? [...fileItems, ...actions, ...MODEL_ITEMS, ...QUICK_PROMPTS]
+    : actions, [scope, fileItems, actions]);
 
   // Filter & sort by fuzzy score
   const filteredItems = useMemo(() => {
     if (!query.trim()) {
       // Default: show actions first, then files, then models, then prompts
-      return [...STUDIO_ACTIONS.slice(0, 4), ...fileItems.slice(0, 6), ...MODEL_ITEMS.slice(0, 2), ...QUICK_PROMPTS.slice(0, 2)];
+      return scope === 'agent'
+        ? [...actions.slice(0, 4), ...fileItems.slice(0, 6), ...MODEL_ITEMS.slice(0, 2), ...QUICK_PROMPTS.slice(0, 2)]
+        : actions;
     }
 
     return allItems
@@ -322,7 +308,7 @@ export function CommandPalette({
       .sort((a, b) => b.score - a.score)
       .map((r) => r.item)
       .slice(0, 20);
-  }, [query, allItems, fileItems]);
+  }, [query, allItems, fileItems, scope, actions]);
 
   // Group by category for rendering
   const groupedItems = useMemo(() => {
@@ -404,7 +390,7 @@ export function CommandPalette({
   let flatIdx = 0;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Quick actions" description="Search files, workspace actions, and models." size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Quick actions" description={scope === 'agent' ? 'Search files, workspace actions, and models.' : 'Navigate BuildX and export your project.'} size="lg">
             <div
               className="rounded-2xl border border-white/[0.08] bg-[#0c0c10]/95 backdrop-blur-2xl shadow-2xl shadow-black/60 overflow-hidden"
               onKeyDown={handleKeyDown}

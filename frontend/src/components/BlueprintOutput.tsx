@@ -1,3 +1,5 @@
+import { queuedJobsEnabled } from '../lib/jobClient';
+import { stopSpecJob } from '../lib/specJobs';
 import { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -50,8 +52,10 @@ interface BlueprintOutputProps {
   refinement?: {
     messages: ChatMessage[];
     isRefining: boolean;
+    progress?: string | null;
     onSend: (message: string) => void;
     onClear: () => void;
+    onStop?: () => void;
     sidebarOpen: boolean;
   };
 }
@@ -330,7 +334,7 @@ export function BlueprintOutput({
       if (!controller.signal.aborted && gotComplete && resultBlueprint) {
         const withModel: Blueprint = {
           ...resultBlueprint,
-          modelUsed: effectiveModel,
+          ...(resultBlueprint.modelUsed ? {} : {modelUsed: effectiveModel}),
           ...(blueprint.githubUrl ? { githubUrl: blueprint.githubUrl } : {}),
         };
         toast("Blueprint regenerated successfully!", "success");
@@ -401,6 +405,10 @@ export function BlueprintOutput({
         progress={regenProgress}
         partialBlueprint={regenPartial}
         agentEvents={regenAgentEvents}
+        onCancel={() => {
+          if(queuedJobsEnabled && blueprintId)void stopSpecJob(blueprintId).catch(err=>toast(err.message,'error'));
+          else regenAbortRef.current?.abort();
+        }}
       />
     );
   }
@@ -617,8 +625,10 @@ export function BlueprintOutput({
             layoutSyncKey={refinement.sidebarOpen}
             messages={refinement.messages}
             isRefining={refinement.isRefining}
+            progress={refinement.progress}
             onSend={refinement.onSend}
             onClear={refinement.onClear}
+            onStop={refinement.onStop}
           />
         )}
       </section>

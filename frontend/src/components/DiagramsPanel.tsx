@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import mermaid from "mermaid";
 import type { Blueprint } from "../lib/types";
 import {
   generateERDiagram,
@@ -8,7 +7,9 @@ import {
 } from "../lib/diagrams";
 import { SpotlightCard } from "./SpotlightCard";
 
-// Initialize mermaid with dark theme
+const loadMermaid = (() => {
+  let pending: Promise<typeof import('mermaid')['default']> | undefined;
+  return () => pending ||= import('mermaid').then(({ default: mermaid }) => {
 mermaid.initialize({
   startOnLoad: false,
   theme: "dark",
@@ -29,6 +30,10 @@ mermaid.initialize({
   fontFamily: '"Inter", sans-serif',
   fontSize: 13,
 });
+
+    return mermaid;
+  });
+})();
 
 import { Database, Network, GitMerge } from "./ui/icons";
 
@@ -52,6 +57,8 @@ function MermaidRenderer({ chart, id }: { chart: string; id: string }) {
       setSvg("");
       setError(null);
       try {
+        const mermaid = await loadMermaid();
+        if (cancelled) return;
         const uniqueId = `mermaid-${id}-${Date.now()}`;
         const { svg: renderedSvg } = await mermaid.render(uniqueId, chart);
         if (!cancelled) {
