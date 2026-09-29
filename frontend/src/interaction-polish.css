@@ -7,43 +7,159 @@
 
 .buildx-symbol {
   display: block;
-  width: 48px;
-  height: 34px;
+  width: 42px;
+  height: 38px;
   flex: 0 0 auto;
   color: var(--color-text-1);
-  overflow: visible;
+  overflow: hidden;
+  transition: translate 220ms var(--interaction-ease);
 }
-.buildx-symbol-terminal { color: var(--color-accent); }
-.buildx-symbol-trace { display: none; }
+.brand-cross,
+.brand-name-x { color: var(--color-accent-light, #9999f7); }
 .brand-lockup--md, .brand-lockup--sm, .brand-lockup--lg { gap: 9px; }
-.brand-lockup strong { font-weight: 600; letter-spacing: -0.65px; line-height: 1; }
-.buildx-symbol.demo-symbol { width: 35px; height: 25px; }
-.buildx-symbol { transition: translate 220ms var(--interaction-ease); }
-.brand-lockup--sm .buildx-symbol { width: 40px; height: 28px; }
+.brand-wordmark { display: inline-flex; align-items: center; white-space: nowrap; font-weight: 700; letter-spacing: -.055em; line-height: 1; }
+.brand-name-x { display: block; width: .84em; height: .91em; margin-left: .015em; flex: 0 0 auto; }
+.brand-a11y-x { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.buildx-symbol.demo-symbol { width: 32px; height: 29px; }
+.brand-lockup--sm .buildx-symbol { width: 37px; height: 34px; }
 .brand-lockup--sm strong { font-size: 18px; }
-.brand-lockup--lg .buildx-symbol { width: 64px; height: 44px; }
+.brand-lockup--lg .buildx-symbol { width: 59px; height: 54px; }
 .brand-lockup--lg strong { font-size: 28px; }
-.brand-entrance .buildx-symbol {
-  width: 112px;
-  height: 76px;
-  margin: 0 auto 24px;
+.brand-entrance {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-1);
+  background: var(--color-surface-0);
 }
-.brand-entrance .buildx-symbol { animation: brand-mark-arrive 650ms var(--interaction-ease) both; }
-.brand-entrance .buildx-symbol > path:not(.buildx-symbol-trace) {
-  animation: brand-fill-arrive 550ms 300ms var(--interaction-ease) both;
+.entrance-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(#7c7cf40c 1px, transparent 1px),
+    linear-gradient(90deg, #7c7cf40c 1px, transparent 1px),
+    radial-gradient(ellipse at center, #7c7cf419, transparent 63%);
+  background-size: 56px 56px, 56px 56px, 100% 100%;
+  mask-image: radial-gradient(ellipse at center, black, transparent 82%);
 }
-.brand-entrance .buildx-symbol-trace {
+.entrance-caption {
   display: block;
-  color: var(--color-accent);
-  stroke-dasharray: 1;
-  animation: brand-stroke-draw 950ms var(--interaction-ease) both;
+  margin-bottom: 17px;
+  font: 500 10px var(--font-mono);
+  letter-spacing: .24em;
+  color: var(--color-text-2);
+  animation: brand-caption-arrive 430ms 100ms var(--interaction-ease) both;
 }
-@keyframes brand-fill-arrive { from { opacity: 0; } to { opacity: 1; } }
-@keyframes brand-stroke-draw {
-  0% { stroke-dashoffset: 1; opacity: 1; }
-  70% { stroke-dashoffset: 0; opacity: 1; }
-  100% { stroke-dashoffset: 0; opacity: 0; }
+.entrance-center {
+  position: relative;
+  width: min(88vw, 640px);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateY(-10px);
 }
+.entrance-emblem {
+  position: relative;
+  width: 190px;
+  height: 156px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at center, #7c7cf422, transparent 69%);
+}
+.entrance-mark,
+.entrance-name { position: relative; z-index: 2; will-change: transform; }
+.entrance-symbol { width: 140px; height: 127px; }
+/* Full structural pieces assemble into the shared BX silhouette. */
+.entrance-mark .brand-piece {
+  animation: brand-piece-assemble 620ms var(--piece-delay) cubic-bezier(.22, 1, .36, 1) both;
+}
+.entrance-mark .brand-spine { --piece-x: -7px; --piece-y: 0px; --piece-delay: 80ms; }
+.entrance-mark .brand-upper { --piece-x: 0px; --piece-y: -8px; --piece-delay: 180ms; }
+.entrance-mark .brand-lower { --piece-x: 0px; --piece-y: 8px; --piece-delay: 300ms; }
+.entrance-mark .brand-cross { --piece-x: 8px; --piece-y: 0px; --piece-delay: 430ms; }
+.entrance-name { margin-top: 4px; }
+.entrance-name-art {
+  display: inline-flex;
+  animation: brand-name-arrive 590ms 640ms var(--interaction-ease) both;
+}
+.entrance-name .brand-wordmark { font-size: clamp(46px, 6vw, 60px); }
+.entrance-rule {
+  width: min(340px, 68vw);
+  height: 1px;
+  margin: 25px auto 0;
+  background: linear-gradient(90deg, transparent, var(--color-accent-light, #9999f7) 48%, transparent);
+  transform: scaleX(0);
+  animation: brand-rule-reveal 650ms 880ms var(--interaction-ease) both;
+}
+.entrance-rule span {
+  display: block;
+  width: 5px;
+  height: 5px;
+  position: relative;
+  top: -2px;
+  left: calc(50% - 2px);
+  background: var(--color-accent-light, #9999f7);
+  transform: rotate(45deg);
+}
+.entrance-center p {
+  margin: 20px 0 0;
+  color: var(--color-text-2);
+  font: 13px var(--font-sans);
+  letter-spacing: .02em;
+  animation: brand-caption-arrive 420ms 1120ms var(--interaction-ease) both;
+}
+.brand-entrance--leaving .entrance-caption,
+.brand-entrance--leaving .entrance-center p { animation: brand-support-exit 180ms ease both; }
+.brand-entrance--leaving .entrance-rule { animation: brand-rule-exit 180ms ease both; }
+.entrance-skip {
+  position: absolute;
+  bottom: 32px;
+  right: 32px;
+  padding: 9px 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 30px;
+  color: var(--color-text-2);
+  font-size: 12px;
+  transition: color 180ms, background 180ms;
+}
+.entrance-skip:hover { color: var(--color-text-1); background: #ffffff08; }
+.entrance-skip:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; }
+.route-loading .brand-cross { animation: route-cross-breathe 1800ms ease-in-out infinite; }
+.route-loading .brand-lockup { position: relative; margin-bottom: 6px; }
+.route-loading .brand-lockup::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -13px;
+  height: 1px;
+  background: var(--color-accent-light, #9999f7);
+  transform: scaleX(.2);
+  opacity: .48;
+  animation: route-rule-breathe 1800ms ease-in-out infinite;
+}
+@keyframes brand-piece-assemble {
+  0% { opacity: 0; transform: translate(var(--piece-x), var(--piece-y)); }
+  22% { opacity: 1; transform: translate(calc(var(--piece-x) * .8), calc(var(--piece-y) * .8)); }
+  100% { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes brand-name-arrive {
+  from { opacity: 0; clip-path: inset(100% 0 0 0); transform: translateY(12px); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); transform: translateY(0); }
+}
+@keyframes brand-rule-reveal { to { transform: scaleX(1); } }
+@keyframes brand-support-exit { to { opacity: 0; transform: translateY(-5px); } }
+@keyframes brand-rule-exit { from { opacity: 1; transform: scaleX(1); } to { opacity: 0; transform: scaleX(1); } }
+@keyframes brand-caption-arrive {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes route-cross-breathe { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
+@keyframes route-rule-breathe { 0%, 100% { transform: scaleX(.2); opacity: .3; } 50% { transform: scaleX(.85); opacity: .7; } }
 
 .app-header-nav a { position: relative; }
 .app-header-nav a::after {
@@ -114,20 +230,25 @@ a.brand-lockup:focus-visible { outline: 2px solid var(--color-accent); outline-o
 .workspace-selector-card:focus-visible .workspace-selector-open,
 .project-card:focus-within .project-constellation { color: var(--color-accent); opacity: 1; }
 
-@keyframes brand-mark-arrive {
-  from { opacity: 0; transform: translateY(8px) scale(.94); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
 @keyframes detail-unfold {
   from { opacity: 0; transform: translateY(-3px); }
   to { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .brand-entrance .buildx-symbol-trace { display: none; }
+  .entrance-mark .brand-piece { opacity: 1; transform: none; }
+  .entrance-name-art { clip-path: none; opacity: 1; transform: none; }
+  .entrance-rule { transform: scaleX(1); }
+  .brand-entrance .entrance-caption,
+  .brand-entrance .entrance-center p { opacity: 1; transform: none; }
   .diff-demo, .export-description, .workflow-detail,
   .buildx-symbol,
-  .brand-entrance .buildx-symbol,
-  .brand-entrance .buildx-symbol > path,
+  .entrance-mark .brand-piece,
+  .entrance-name-art,
+  .entrance-rule,
+  .brand-entrance .entrance-caption,
+  .brand-entrance .entrance-center p,
+  .route-loading .brand-cross,
+  .route-loading .brand-lockup::after,
   .app-header-nav a::after,
   .app-header-nav a > svg,
   .sidebar-item__icon,
@@ -147,4 +268,12 @@ a.brand-lockup:focus-visible { outline: 2px solid var(--color-accent); outline-o
     transition: none !important;
     translate: none !important;
   }
+}
+@media (max-width: 560px) {
+  .entrance-caption { font-size: 9px; letter-spacing: .16em; margin-bottom: 16px; }
+  .entrance-emblem { width: 164px; height: 138px; }
+  .entrance-symbol { width: 124px; height: 113px; }
+  .entrance-name .brand-wordmark { font-size: 48px; }
+  .entrance-center p { font-size: 12px; }
+  .entrance-skip { right: 18px; bottom: 18px; }
 }

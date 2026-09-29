@@ -464,29 +464,6 @@
   font-size: 13px;
   margin-top: 10px;
 }
-.create-form {
-  padding: 22px;
-  border-radius: 14px;
-  border-color: #ffffff1a;
-  background: linear-gradient(140deg, #19191f, #111115 65%);
-  box-shadow:
-    0 10px 35px #0002,
-    inset 0 1px #ffffff08;
-}
-.create-form > label {
-  font-size: 12px;
-  color: #c1c1d1;
-  margin-bottom: 10px;
-}
-.create-form > textarea {
-  min-height: 116px;
-  max-height: 320px;
-  padding: 14px;
-  font-size: 14px;
-  background: #0d0d11;
-  border-color: #ffffff13;
-  line-height: 1.7;
-}
 .create-stack {
   padding: 18px 0;
   margin-top: 18px;
@@ -527,40 +504,6 @@
 .create-examples button {
   font-size: 11px;
   padding: 7px 10px;
-}
-.entrance-symbol {
-  display: block;
-  margin: 0 auto 26px;
-  color: #aaaafa;
-  filter: drop-shadow(0 0 18px #9898fb35);
-}
-.entrance-wordmark {
-  font-size: clamp(56px, 10vw, 104px);
-  letter-spacing: -0.06em;
-}
-.brand-entrance .entrance-line {
-  width: 160px;
-  margin-top: 28px;
-}
-.brand-entrance .entrance-line i {
-  animation: entrance-connection 1.2s 0.35s ease-in-out both;
-}
-@keyframes entrance-connection {
-  from {
-    transform: translateX(-110%);
-    opacity: 0;
-  }
-  30% {
-    opacity: 1;
-  }
-  to {
-    transform: translateX(210%);
-    opacity: 0;
-  }
-}
-.brand-entrance .entrance-center p {
-  font: 12px var(--font-sans);
-  letter-spacing: 0.02em;
 }
 @media (max-width: 1050px) {
   .api-explorer {
@@ -636,9 +579,6 @@
   .create-heading {
     padding-right: 36px;
   }
-  .create-form {
-    padding: 16px;
-  }
   .create-stack-options {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -656,8 +596,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .arch-flow-signal,
-  .brand-entrance .entrance-line i {
+  .arch-flow-signal {
     animation: none;
   }
   .api-sandbox-card--active > .relative:last-child {

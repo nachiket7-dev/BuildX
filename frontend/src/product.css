@@ -924,38 +924,6 @@ summary {
   color: #a4a4b4;
   font-size: 14px;
 }
-.create-form {
-  background: #111114;
-  border: 1px solid #ffffff18;
-  border-radius: 12px;
-  padding: 26px;
-}
-.create-form > label {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 12px;
-}
-.create-form > textarea {
-  width: 100%;
-  background: #0d0d10;
-  border: 1px solid #ffffff1c;
-  border-radius: 8px;
-  padding: 16px;
-  color: #eeeef4;
-  resize: vertical;
-  min-height: 150px;
-  font-size: 15px;
-  line-height: 1.7;
-}
-.create-form > textarea::placeholder {
-  color: #9292a3;
-}
-.create-form > p {
-  font-size: 12px;
-  margin-top: 10px;
-  line-height: 1.7;
-}
 .create-stack {
   padding: 24px 0;
   border-top: 1px solid #ffffff0d;
@@ -1414,9 +1382,6 @@ summary {
   }
   .create-heading h1 {
     font-size: 29px;
-  }
-  .create-form {
-    padding: 20px;
   }
   .create-submit {
     flex-direction: column-reverse;

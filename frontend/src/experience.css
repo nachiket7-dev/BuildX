@@ -5,7 +5,6 @@
   --motion-control: 220ms;
   --motion-scene: 380ms;
 }
-/* Brand entrance */
 /* Opt-in page texture; agent surfaces intentionally do not use this class. */
 .page-grid {
   position: relative;
@@ -23,85 +22,6 @@
   background-size: 44px 44px;
   mask-image: linear-gradient(90deg, transparent, black 15%, black 85%, transparent);
   -webkit-mask-image: linear-gradient(90deg, transparent, black 15%, black 85%, transparent);
-}
-.brand-entrance {
-  position: fixed;
-  inset: 0;
-  z-index: 400;
-  background: var(--color-surface-0);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-1);
-}
-.entrance-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(#7c7cf409 1px, transparent 1px),
-    linear-gradient(90deg, #7c7cf409 1px, transparent 1px),
-    radial-gradient(ellipse at center, #7c7cf412, transparent 65%);
-  background-size:
-    56px 56px,
-    56px 56px,
-    100% 100%;
-  mask-image: radial-gradient(ellipse at center, black, transparent 80%);
-}
-.entrance-caption {
-  position: absolute;
-  top: 36px;
-  font: 11px var(--font-mono);
-  letter-spacing: 0.2em;
-  color: var(--text2);
-}
-.entrance-center {
-  text-align: center;
-  width: min(80%, 640px);
-}
-.entrance-wordmark {
-  display: flex;
-  justify-content: center;
-  font: 650 clamp(52px, 12vw, 124px)/1 var(--font-sans);
-  letter-spacing: -0.065em;
-}
-.entrance-wordmark > span {
-  overflow: hidden;
-  padding: 0 0.015em;
-}
-.entrance-wordmark b {
-  display: block;
-  font-weight: inherit;
-}
-.entrance-wordmark > span:last-child {
-  color: var(--accent2);
-}
-.entrance-line {
-  height: 1px;
-  width: 96px;
-  background: var(--color-border-strong);
-  margin: 30px auto 20px;
-  overflow: hidden;
-}
-.entrance-line i {
-  display: block;
-  width: 50%;
-  height: 100%;
-  background: var(--accent2);
-  animation: signal-flow 1.2s ease-in-out infinite;
-}
-.entrance-center p {
-  color: var(--text2);
-  font: 12px var(--font-mono);
-}
-.entrance-skip {
-  position: absolute;
-  bottom: 32px;
-  color: var(--text2);
-  font-size: 12px;
-  padding: 12px;
-}
-.entrance-skip:hover {
-  color: white;
 }
 /* Consistent control feedback */
 .ui-button {
@@ -1218,22 +1138,6 @@
   pointer-events: none;
   background: radial-gradient(ellipse at 70% 90%, #7c7cf40c, transparent 60%);
 }
-.create-form {
-  background: linear-gradient(140deg, #18181e, #111114 70%);
-  border-color: #7c7cf42b;
-  box-shadow:
-    0 12px 50px #0003,
-    inset 0 1px #ffffff07;
-}
-.create-form > textarea {
-  transition:
-    border-color 180ms,
-    box-shadow 180ms;
-}
-.create-form > textarea:focus {
-  border-color: var(--accent2);
-  box-shadow: 0 0 0 4px #7c7cf40a;
-}
 .create-examples button {
   transition:
     color 150ms,
@@ -1500,14 +1404,6 @@
   }
   50% {
     box-shadow: 0 0 0 4px #7c7cf410;
-  }
-}
-@keyframes signal-flow {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(300%);
   }
 }
 @media (max-width: 1000px) {
@@ -1905,17 +1801,6 @@
   font: 11px var(--font-mono);
 }
 
-.route-wordmark {
-  font: 600 32px var(--font-sans);
-  letter-spacing: -1.5px;
-  color: #eeeef9;
-}
-.route-wordmark > span {
-  color: var(--accent2);
-}
-.route-loading .entrance-line {
-  margin: 0 auto;
-}
 .demo-idea-canvas {
   max-width: 520px;
   margin: 12px auto 0;

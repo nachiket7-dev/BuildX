@@ -718,72 +718,7 @@
 .sidebar-panel__accent {
   opacity: 0.3;
 }
-/* Architectural outline and wordmark share one restrained entrance. */
-.brand-entrance {
-  background: #0c0b10;
-}
-.entrance-blueprint {
-  position: absolute;
-  width: min(58vw, 420px);
-  height: 280px;
-  opacity: 0.5;
-  pointer-events: none;
-}
-.entrance-blueprint i {
-  position: absolute;
-  inset: 5% -5%;
-  border: 1px solid #b4a2f322;
-  border-radius: 18px;
-  transform: rotate(-14deg) skewX(10deg);
-  animation: entrance-plane 1.3s var(--ease-build) both;
-}
-.entrance-blueprint i:nth-child(2) {
-  inset: -12% 5% 20%;
-  animation-delay: 0.15s;
-}
-.entrance-blueprint i:nth-child(3) {
-  inset: 20% 5% -12%;
-  animation-delay: 0.3s;
-}
-.entrance-center {
-  position: relative;
-}
-.entrance-symbol {
-  color: #baabf0;
-}
-.brand-entrance .entrance-wordmark {
-  font-size: clamp(68px, 11vw, 118px);
-  letter-spacing: -0.07em;
-}
-.brand-entrance .entrance-wordmark > span:last-child {
-  color: #bcabf3;
-}
-.brand-entrance .entrance-line {
-  width: 144px;
-  margin-top: 24px;
-  background: #b5a0e31a;
-}
-.brand-entrance .entrance-line i {
-  background: #c0aaf5;
-  animation: entrance-connection 1.7s 0.25s ease-in-out both;
-}
-.brand-entrance .entrance-center p {
-  color: #a19aaa;
-  font-size: 11px;
-}
-.entrance-skip {
-  border: 1px solid #ffffff12;
-  border-radius: 30px;
-  padding: 9px 16px;
-  transition:
-    color 0.2s,
-    background 0.2s;
-}
-.entrance-skip:hover {
-  background: #ffffff06;
-}
-.creation-studio button:focus-visible,
-.entrance-skip:focus-visible {
+.creation-studio button:focus-visible {
   outline: 2px solid #beacf3;
   outline-offset: 4px;
 }
@@ -801,16 +736,6 @@
   from {
     opacity: 0;
     translate: 0 28px;
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
-  }
-}
-@keyframes entrance-plane {
-  from {
-    opacity: 0;
-    translate: 0 30px;
   }
   to {
     opacity: 1;
@@ -1016,16 +941,11 @@
 @media (prefers-reduced-motion: reduce) {
   .creation-studio *,
   .creation-studio *::before,
-  .creation-studio *::after,
-  .entrance-blueprint i {
+  .creation-studio *::after {
     animation: none !important;
     transition-duration: 0s !important;
   }
   .studio-example:hover {
     transform: none;
-  }
-  .brand-entrance .entrance-line i {
-    animation: none;
-    width: 100%;
   }
 }
