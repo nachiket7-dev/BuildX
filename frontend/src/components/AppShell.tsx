@@ -10,6 +10,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { ErrorBoundary } from "./ErrorBoundary";
 import type { PaletteAction } from "./CommandPalette";
+import type { ExportTarget } from "./DeployModal";
 const DeployModal = lazy(() =>
   import("./DeployModal").then((m) => ({ default: m.DeployModal })),
 );
@@ -18,13 +19,14 @@ const CommandPalette = lazy(() =>
 );
 export type AppShellOutletContext = {
   sidebarOpen: boolean;
-  onDeploy?: () => void;
+  onDeploy?: (target?: ExportTarget) => void;
 };
 const FULL_BLEED_ROUTES = ["/agent", "/gallery"];
 
 export function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
+  const [exportTarget, setExportTarget] = useState<ExportTarget>("zip");
   const [isGlobalPaletteOpen, setIsGlobalPaletteOpen] = useState(false);
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -43,6 +45,10 @@ export function AppShell() {
   const routeId = routeIdMatch ? routeIdMatch[1] : undefined;
   // Only the IDE owns internal scroll panes; the project picker is a normal page.
   const isAgentWorkspace = isAgentPage && Boolean(routeId);
+  const openExport = useCallback((target: ExportTarget = "zip") => {
+    setExportTarget(target);
+    setIsDeployModalOpen(true);
+  }, []);
 
   useEffect(() => {
     setSidebarOpen(desktop && canShowSidebar);
@@ -72,19 +78,20 @@ export function AppShell() {
       switch (action.type) {
         case "action":
           if (action.id === "deploy-github" || action.id === "export-zip") {
-            if (routeId) setIsDeployModalOpen(true);
-          } else if (action.id === "toggle-preview") {
+            if (routeId) openExport(action.id === "deploy-github" ? "github" : "zip");
+          } else if (action.id === "open-studio") {
+            navigate("/create");
+          } else if (action.id === "open-gallery") {
+            navigate("/gallery");
+          } else if (action.id === "open-workspace") {
             navigate("/agent");
           }
-          break;
-        case "prompt":
-          navigate("/create");
           break;
         default:
           break;
       }
     },
-    [navigate, routeId],
+    [navigate, routeId, openExport],
   );
 
   return (
@@ -99,7 +106,7 @@ export function AppShell() {
             showSidebarToggle={canShowSidebar}
             sidebarOpen={sidebarVisible}
             onDeploy={
-              routeId && user ? () => setIsDeployModalOpen(true) : undefined
+              routeId && user ? () => openExport() : undefined
             }
           />
 
@@ -133,9 +140,7 @@ export function AppShell() {
                       {
                         sidebarOpen: sidebarVisible && desktop,
                         onDeploy:
-                          routeId && user
-                            ? () => setIsDeployModalOpen(true)
-                            : undefined,
+                          routeId && user ? openExport : undefined,
                       } satisfies AppShellOutletContext
                     }
                   />
@@ -150,6 +155,7 @@ export function AppShell() {
                 isOpen={isDeployModalOpen}
                 onClose={() => setIsDeployModalOpen(false)}
                 blueprintId={routeId}
+                initialTarget={exportTarget}
               />
             )}
 
@@ -160,6 +166,8 @@ export function AppShell() {
                 onClose={() => setIsGlobalPaletteOpen(false)}
                 onAction={handleGlobalPaletteAction}
                 appName="BuildX"
+                scope="global"
+                canExport={Boolean(routeId && user)}
               />
             )}
           </Suspense>

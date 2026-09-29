@@ -24,8 +24,10 @@ interface DeployModalProps {
   blueprintId?: string;
   appName?: string;
   blueprint?: Blueprint;
+  initialTarget?: ExportTarget;
 }
-type Target = "sandbox" | "github" | "zip";
+export type ExportTarget = "sandbox" | "github" | "zip";
+type Target = ExportTarget;
 const targets = [
   {
     id: "sandbox" as const,
@@ -51,11 +53,12 @@ export function DeployModal({
   onClose,
   blueprintId,
   appName,
+  initialTarget = "zip",
 }: DeployModalProps) {
   const { user } = useAuth();
   const [project, setProject] = useState<SavedBlueprint | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState<Target>("zip");
+  const [selected, setSelected] = useState<Target>(initialTarget);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ target: Target; url: string } | null>(
@@ -72,7 +75,7 @@ export function DeployModal({
     setResult(null);
     setCopied(false);
     setNeedsGithub(false);
-    setSelected("zip");
+    setSelected(initialTarget);
     setBusy(false);
     operation.current = false;
     if (!isOpen || !blueprintId) {
@@ -96,7 +99,7 @@ export function DeployModal({
     return () => {
       request.current = ticket + 1;
     };
-  }, [isOpen, blueprintId]);
+  }, [isOpen, blueprintId, initialTarget]);
   const permitted =
     !!project && (selected === "zip" || (!!user && project.isOwner));
   async function run() {

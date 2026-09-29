@@ -19,6 +19,7 @@ import { useAuthProvider, AuthContext } from "./hooks/useAuth";
 import { HomePage } from "./components/HomePage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+const StandalonePreview = lazy(() => import('./components/StandalonePreview'));
 const AppShell = lazy(() =>
   import("./components/AppShell").then((m) => ({ default: m.AppShell })),
 );
@@ -68,6 +69,7 @@ export default function App() {
         <ErrorBoundary resetKey={pathname}>
           <Suspense fallback={<RouteLoading />}>
             <Routes>
+              <Route path="/preview/:id" element={<StandalonePreview />} />
               <Route path="/" element={<HomePage ready={!entering} />} />
               {["/home", "/landing"].map((path) => (
                 <Route
