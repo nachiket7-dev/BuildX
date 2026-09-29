@@ -17,7 +17,7 @@ interface LivePreviewProps {
   productArchetype?: ProductArchetype;
   primaryLandingScreenId?: string;
   blueprint?: Partial<Blueprint> | null;
-  onPromptAgent?: (prompt: string) => void;
+  onPromptAgent?: (prompt: string) => Promise<void> | void;
 }
 
 const VIEWPORTS = [
@@ -114,28 +114,25 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
 
   const [isAutoFixing, setIsAutoFixing] = useState(false);
 
-  const handleAutoFix = useCallback((e?: React.MouseEvent) => {
+  const handleAutoFix = useCallback(async (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    if (!runtimeError || isAutoFixing) return;
+    if (!runtimeError || isAutoFixing || !onPromptAgent) return;
     setIsAutoFixing(true);
 
     const errorContext = `Fix runtime preview error in file ${runtimeError.path}:\n${runtimeError.title}: ${runtimeError.message}\n${
       runtimeError.line ? `at line ${runtimeError.line}` : ''
     }`;
 
-    if (onPromptAgent) {
-      onPromptAgent(errorContext);
-    }
-
-    setTimeout(() => {
+    try {
+      await onPromptAgent(errorContext);
+    } finally {
+      // The preview engine clears the error only after a new render succeeds.
       setIsAutoFixing(false);
-      setRuntimeError(null);
-      clearRuntimeError();
-    }, 2000);
-  }, [runtimeError, isAutoFixing, onPromptAgent, clearRuntimeError]);
+    }
+  }, [runtimeError, isAutoFixing, onPromptAgent]);
 
   const activeViewport = VIEWPORTS.find((v) => v.id === selectedViewport) || VIEWPORTS[0];
 
@@ -319,11 +316,11 @@ export const LivePreview: React.FC<LivePreviewProps> = ({
                 <button
                   type="button"
                   onClick={handleAutoFix}
-                  disabled={isAutoFixing}
+                  disabled={isAutoFixing || !onPromptAgent}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold font-sans transition-all shadow-md shadow-red-500/20"
                 >
                   <Zap size={13} className={isAutoFixing ? 'animate-spin' : ''} />
-                  <span>{isAutoFixing ? 'Prompting Agent...' : 'Auto-Heal with Agent'}</span>
+                  <span>{isAutoFixing ? 'Sending to agent...' : 'Ask agent to fix'}</span>
                 </button>
               </div>
             </div>
