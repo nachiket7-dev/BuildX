@@ -7,8 +7,24 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "npm run build && node --test dist/scripts/pure.test.js",
-    "test:stack": "npm run build && node dist/scripts/testStackIntegration.js"
+    "test": "npm run build && node --test dist/scripts/*.test.js test/evaluation-policy.cjs test/evaluation-compare.cjs test/application-fixtures.cjs test/provider-retry.cjs",
+    "test:stack": "npm run build && node dist/scripts/testStackIntegration.js",
+    "test:http": "npm run build && node test/agent-http.cjs",
+    "test:models": "npm run build && node test/model-tools.cjs",
+    "test:sandbox": "npm run build && node test/sandbox-check.cjs",
+    "test:matrix": "npm run build && node test/generated-matrix.cjs",
+    "test:postgres": "npm run build && node test/postgres-agent.cjs",
+    "test:mongo": "npm run build && node test/mongo-runtime.cjs",
+    "evaluate": "npm run build && node evaluation/run.cjs",
+    "test:identity": "npm run build && node test/identity-runtime.cjs",
+    "test:nemotron": "npm run build && node test/nemotron-live.cjs",
+    "test:evaluation-fixtures": "npm run build && node test/evaluation-fixtures.cjs",
+    "worker": "node dist/agent-worker.js",
+    "test:queue": "npm run build && node test/queue-postgres.cjs && node test/queue-http.cjs && node test/queue-process.cjs && node test/queue-blueprint.cjs && node test/queue-spec.cjs && node test/queue-operations.cjs",
+    "agent:maintenance": "node dist/agent-maintenance.js",
+    "test:queue-engine": "npm run build && node test/queue-engine.cjs",
+    "test:release-drill": "npm run build && node test/queue-release-drill.cjs",
+    "test:identity-login": "npm run build && node test/identity-login.cjs"
   },
   "dependencies": {
     "archiver": "^7.0.1",
@@ -21,7 +37,8 @@
     "jsonwebtoken": "^9.0.3",
     "openai": "^6.34.0",
     "pg": "^8.20.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "typescript": "^5.3.2"
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",
@@ -31,7 +48,6 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.10.0",
     "@types/pg": "^8.20.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.3.2"
+    "ts-node-dev": "^2.0.0"
   }
 }

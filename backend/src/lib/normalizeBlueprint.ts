@@ -348,6 +348,7 @@ export function applyBlueprintFallbacks(
     ...(typeof partial.githubUrl === 'string' && partial.githubUrl.trim() && partial.githubUrl.includes('github.com')
       ? { githubUrl: partial.githubUrl.trim() }
       : {}),
+    ...(partial.stack ? { stack: partial.stack } : {}),
     ...(typeof partial.modelUsed === 'string' && partial.modelUsed.trim()
       ? { modelUsed: partial.modelUsed.trim() }
       : {}),

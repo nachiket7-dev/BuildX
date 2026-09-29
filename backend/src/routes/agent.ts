@@ -1,269 +1,145 @@
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../lib/auth';
 import { getBlueprintOwnedByUser, getBlueprintFiles, saveChatMessage, getChatMessages } from '../lib/db';
-import { runSubagentRefinementPipeline } from '../lib/orchestrator';
-import type { PipelineStage } from '../lib/llm/types';
-import type { PatchFile, PlannerOutput } from '../lib/types';
+import { runEngineeringAgent } from '../lib/agent/engine';
+import { newRun, saveRun, readRun, acquireWorkspace, listRuns, requestCancellation } from '../lib/agent/store';
+import { revision } from '../lib/agent/validation';
+import { resolveModelKey } from '../lib/llm/router';
 
 const router = Router();
-
-// Set of workspace IDs currently running an active subagent pipeline
-const activePipelines = new Set<string>();
-
-// Helper: emit a single SSE event safely
-function sseEvent(res: Response, event: string, data: object, isAborted?: boolean) {
-  if (isAborted || res.writableEnded) return;
-  try {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  } catch (err: any) {
-    console.warn(`[Agent SSE] Write failed (${event}):`, err.message);
+router.use((req, res, next) => {
+  if (process.env.AGENT_QUEUE_ENABLED === 'true' && req.method === 'POST' && /^\/[^/]+\/(chat|auto-heal)$/.test(req.path)) {
+    res.status(409).json({ error: 'Durable execution is enabled. Reload the updated application to submit a queued job.' });
+    return;
   }
+  next();
+});
+const controllers = new Map<string, AbortController>();
+router.use(rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }));
+function write(res: Response, event: string, data: unknown, sequence?: number) {
+  if (res.destroyed || res.writableEnded) return;
+  res.write(`${sequence ? `id: ${sequence}\n` : ''}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
 const chatHandler = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
-  const {
-    prompt,
-    model,
-    activeFilePath,
-    activeFileContent,
-    previewErrors,
-    consoleLogs,
-  } = req.body;
-
-  if (!prompt || typeof prompt !== 'string') {
-    res.status(400).json({ error: 'Prompt is required' });
-    return;
-  }
-
-  // Set SSE headers — must happen before any async work
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
-
-  // Disable socket-level idle timeouts for this long-lived SSE connection.
-  // Without this, Node.js may close the socket during long LLM calls (60s+),
-  // which fires req 'close' and falsely aborts the pipeline.
-  if (req.socket) {
-    req.socket.setTimeout(0);
-    req.socket.setKeepAlive(true, 30000);
-  }
-  if (res.setTimeout) {
-    res.setTimeout(0);
-  }
-
-  // Guard against concurrent executions for the same workspace ID
-  if (activePipelines.has(id)) {
-    console.warn(`[Agent] Pipeline execution already in progress for workspace ${id}. Rejecting concurrent request.`);
-    sseEvent(res, 'error', { error: 'A pipeline execution is already in progress for this workspace. Please wait for it to finish.' });
-    if (!res.writableEnded) res.end();
-    return;
-  }
-
-  activePipelines.add(id);
-  let isAborted = false;
-  const pipelineStartTime = Date.now();
-  let currentStage: PipelineStage = 'INGESTION';
-  let currentModelName = 'GLM 5.2';
-
-  // ── Continuous 2-second SSE keepalive & progress heartbeat ────────────────
-  const heartbeatInterval = setInterval(() => {
-    if (isAborted || res.writableEnded) {
-      clearInterval(heartbeatInterval);
-      return;
-    }
-    try {
-      res.write(': keepalive-ping\n\n');
-      sseEvent(res, 'pipeline_heartbeat', {
-        elapsedMs: Date.now() - pipelineStartTime,
-        activeStage: currentStage,
-        activeModel: currentModelName,
-      }, isAborted);
-    } catch {
-      clearInterval(heartbeatInterval);
-    }
-  }, 2000);
-
-  // DIAGNOSTIC: Track socket-level events to find the true abort source
-  let closeReason = 'unknown';
-  if (req.socket) {
-    req.socket.on('timeout', () => {
-      closeReason = 'socket-timeout';
-      console.warn(`[Agent:DIAG] Socket TIMEOUT fired for workspace ${id} after ${((Date.now() - pipelineStartTime) / 1000).toFixed(1)}s`);
-    });
-    req.socket.on('error', (err: any) => {
-      closeReason = `socket-error: ${err.code || err.message}`;
-      console.warn(`[Agent:DIAG] Socket ERROR for workspace ${id}: ${err.code || err.message}`);
-    });
-  }
-
-  req.on('close', () => {
-    clearInterval(heartbeatInterval);
-
-    const elapsed = ((Date.now() - pipelineStartTime) / 1000).toFixed(1);
-    const diagnostics = {
-      elapsed: `${elapsed}s`,
-      resWritableFinished: res.writableFinished,
-      resWritableEnded: res.writableEnded,
-      reqDestroyed: req.destroyed,
-      reqComplete: req.complete,
-      socketDestroyed: req.socket?.destroyed,
-      socketReadableEnded: req.socket?.readableEnded,
-      closeReason,
-      currentStage,
-    };
-
-    if (res.writableFinished) {
-      // Normal completion — we called res.end() ourselves. NOT a client abort.
-      activePipelines.delete(id);
-      console.log(`[Agent] Normal close for workspace ${id} after ${elapsed}s`);
-      return;
-    }
-
-    // Something closed the connection while pipeline was still running
-    isAborted = true;
-    activePipelines.delete(id);
-    console.warn(`[Agent] Connection closed mid-pipeline for workspace ${id}`, JSON.stringify(diagnostics, null, 2));
-  });
-
-  const think = (step: string, stage?: PipelineStage) => {
-    if (isAborted) return;
-    if (stage) currentStage = stage;
-    console.log(`[Agent:think${stage ? `:${stage}` : ''}] ${step}`);
-    sseEvent(res, 'thinking', { step, stage }, isAborted);
-  };
-
-  const notifyPipelineStage = (stage: PipelineStage, state: 'start' | 'completed' | 'fallback', detail?: string) => {
-    if (isAborted) return;
-    currentStage = stage;
-    sseEvent(res, 'pipeline_stage', { stage, state, detail }, isAborted);
-  };
-
+  const { prompt, model, resumeRunId, requestId } = req.body;
+  const controller = new AbortController();
+  if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 16000) { res.status(400).json({ error: 'A prompt of 1–16000 characters is required' }); return; }
+  let release: (() => Promise<void>) | undefined;
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
   try {
-    // Initial connection comment
-    res.write(': connection-active\n\n');
-    // ─── STAGE 1: INGESTION ──────────────────────────────────────────────────
-    notifyPipelineStage('INGESTION', 'start', 'Parsing workspace VFS and runtime context');
-    think('🔍 Verifying workspace access and loading blueprint metadata…', 'INGESTION');
+    if (model && model !== 'pipeline') resolveModelKey(model);
     const blueprint = await getBlueprintOwnedByUser(id, req.user!.userId);
-    if (!blueprint) {
-      console.error(`[Agent] Workspace ${id} not found for user ${req.user!.userId}`);
-      sseEvent(res, 'error', { error: 'Workspace not found or access denied' });
-      res.end();
-      return;
+    if (!blueprint) { res.status(404).json({ error: 'Workspace not found' }); return; }
+    const previous = resumeRunId ? await readRun(resumeRunId) : null;
+    if (resumeRunId && (!previous || previous.userId !== req.user!.userId || previous.blueprintId !== id || !previous.state || previous.status === 'completed')) {
+      res.status(409).json({ error: 'No resumable checkpoint for this workspace' }); return;
     }
-
-    think('📋 Loading application blueprint & database schema specifications…', 'INGESTION');
-    think('📁 Reading current Virtual File System (VFS)…', 'INGESTION');
+    if (requestId && !/^[a-f0-9-]{36}$/.test(requestId)) { res.status(400).json({ error: 'Invalid request ID' }); return; }
+    if (requestId) {
+      const existing = await readRun(requestId);
+      if (existing) { res.status(409).json({ error: 'Request already started. Retrieve its saved run.', runId: existing.userId === req.user!.userId ? existing.id : undefined }); return; }
+    }
+    release = await acquireWorkspace(id, () => controller.abort(new Error('Workspace lock lost')));
     const files = await getBlueprintFiles(id);
-    console.log(`[Agent] VFS contains ${files.length} file(s)`);
-
-    think('💬 Loading conversation history for context…', 'INGESTION');
-    const history = await getChatMessages(id, req.user!.userId);
-
-    await saveChatMessage(id, req.user!.userId, 'user', prompt);
-
-    // Build clean file context
-    const cleanFiles = files
-      .filter(f => f.path !== 'preview.html')
-      .map(f => ({
-        path: f.path,
-        content: f.content,
-      }));
-
-    notifyPipelineStage('INGESTION', 'completed', `VFS ingested (${cleanFiles.length} files) with runtime telemetry`);
-
-    // ─── STAGES 2, 3, 4: SUBAGENT REFINEMENT PIPELINE (Planner -> Patch Gen -> Verifier) ─
-    const bp = blueprint.parsedBlueprint;
-    const schemaContext = {
-      schema: bp.schema || [],
-      endpoints: bp.endpoints || [],
-      screens: bp.screens || [],
+    if (!files.length) { res.status(409).json({ error: 'Initialize the workspace before starting the agent' }); return; }
+    const run = newRun(req.user!.userId, id, previous?.prompt || prompt);
+    if (requestId) run.id = requestId;
+    await saveRun(run);
+    controllers.set(run.id, controller);
+    const deadline = setTimeout(() => controller.abort(new Error('Run deadline exceeded')), 8 * 60_000);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.setTimeout(0);
+    write(res, 'run_started', { runId: run.id });
+    let polling = false;
+    heartbeat = setInterval(async () => {
+      if (polling || run.status !== 'running') return;
+      polling = true;
+      try {
+        if ((await readRun(run.id))?.cancelRequested) controller.abort();
+        await saveRun(run);
+        write(res, 'pipeline_heartbeat', { runId: run.id, status: run.status });
+      } catch { controller.abort(new Error('Run persistence unavailable')); }
+      finally { polling = false; }
+    }, 1000);
+    // A browser disconnect detaches the transport. Explicit cancel stops the run.
+    // Transport detachment does not stop durable heartbeat/cancellation polling.
+    const emit = (event: string, data: unknown) => {
+      const sequence = run.events.length + 1;
+      run.events.push({ sequence, event, data });
+      write(res, event, data, sequence);
     };
-
-    const pipelineResult = await runSubagentRefinementPipeline(
-      prompt,
-      cleanFiles,
-      {
-        appName: bp.appName || (bp as any).title || 'BuildX App',
-        schema: schemaContext,
-        activeFilePath,
-        activeFileContent,
-        previewErrors,
-        consoleLogs,
-        requestedModel: typeof model === 'string' ? model : undefined,
-        history: history.slice(-6).map((h: any) => ({ role: h.role, content: h.content })),
-      },
-      {
-        think,
-        pipelineStage: notifyPipelineStage,
-        agentPlan: (planData: PlannerOutput & { modelUsed?: string; executionTimeMs?: number; wasFallback?: boolean }) => {
-          sseEvent(res, 'agent_plan', planData, isAborted);
-        },
-        filePatch: (patch: PatchFile & { modelUsed?: string; executionTimeMs?: number; wasFallback?: boolean }) => {
-          sseEvent(res, 'file_patch', patch, isAborted);
-        },
-        agentPatch: (patch: PatchFile & { modelUsed?: string; executionTimeMs?: number; wasFallback?: boolean }) => {
-          sseEvent(res, 'agent_patch', patch, isAborted);
-        },
-        stagedDiff: (diff: { path: string; original: string; modified: string }) => {
-          sseEvent(res, 'staged_diff', diff, isAborted);
-        },
-        agentTelemetry: (telemetry: { stage: string; modelName?: string; modelUsed: string; executionTimeMs: number; wasFallback: boolean }) => {
-          sseEvent(res, 'agent_telemetry', telemetry, isAborted);
-        },
-      }
-    );
-
-    // Keep generated files staged until the user explicitly accepts them in the UI.
-    const modifiedPaths = pipelineResult.modifiedFiles.map((file) => file.path);
-
-    const planSummary = pipelineResult.plan.length > 0
-      ? pipelineResult.plan.map((p) => `- [x] ${p}`).join('\n')
-      : '- [x] Completed requested modifications';
-
-    await saveChatMessage(id, req.user!.userId, 'assistant', pipelineResult.message);
-    console.log(`[Agent] Subagent pipeline complete. Staged ${modifiedPaths.length} files: ${modifiedPaths.join(', ')}`);
-
-    // Emit agent_complete event with telemetry
-    sseEvent(res, 'agent_complete', {
-      success: true,
-      modifiedFiles: modifiedPaths,
-      message: pipelineResult.message,
-      plan: planSummary,
-      stagedDiffs: pipelineResult.stagedDiffs,
-      telemetry: pipelineResult.telemetry,
-    }, isAborted);
-
-    // Emit done event for backwards-compatible listeners
-    sseEvent(res, 'done', {
-      success: true,
-      message: pipelineResult.message,
-      plan: planSummary,
-      modifiedFiles: modifiedPaths,
-      stagedDiffs: pipelineResult.stagedDiffs,
-      telemetry: pipelineResult.telemetry,
-    }, isAborted);
-
-    if (!isAborted && !res.writableEnded) {
-      res.end();
-    }
-  } catch (err: any) {
-    console.error('[Agent] Pipeline error:', err.message, err.stack);
     try {
-      await saveChatMessage(id, req.user!.userId, 'assistant', '⚠️ Agent pipeline failed unexpectedly.');
-    } catch {}
-    sseEvent(res, 'error', { error: 'Agent pipeline failed unexpectedly. Please try again.' }, isAborted);
-    if (!isAborted && !res.writableEnded) {
-      res.end();
+      await saveChatMessage(id, req.user!.userId, 'user', run.prompt);
+      const history = await getChatMessages(id, req.user!.userId);
+      const result = await runEngineeringAgent(run.prompt, files, {
+        model, signal: controller.signal, history: history.slice(-6), schema: blueprint.parsedBlueprint,
+        previewErrors: req.body.previewErrors, activeFilePath: req.body.activeFilePath,
+        resume: previous?.state,
+        checkpoint: async state => { run.state = state; await saveRun(run); },
+      }, emit);
+      controller.signal.throwIfAborted();
+      const current = Object.fromEntries((await getBlueprintFiles(id)).map(f => [f.path, f.content]));
+      if (revision(current) !== result.revision) throw new Error('Workspace changed during generation. Changes were not applied; start a fresh run.');
+      run.result = result;
+      run.status = 'completed';
+      await saveRun(run);
+      await saveChatMessage(id, req.user!.userId, 'assistant', result.message);
+      for (const [path, diff] of Object.entries(result.stagedDiffs)) emit('staged_diff', { path, ...diff });
+      emit('agent_complete', { ...result, success: true, modifiedFiles: result.modifiedFiles.map(f => f.path) });
+      emit('done', { ...result, success: true });
+    } catch (error: any) {
+      run.status = controller.signal.aborted ? 'cancelled' : 'failed';
+      run.error = controller.signal.aborted ? 'Run cancelled or timed out. Saved workspace was not modified.' : error.message;
+      emit('error', { error: run.error, runId: run.id });
+    } finally {
+      clearTimeout(deadline);
+      controllers.delete(run.id);
+      await saveRun(run);
+      if (!res.destroyed && !res.writableEnded) res.end();
     }
+  } catch (error: any) {
+    if (!res.headersSent) res.status(error.status || 400).json({ error: error.message });
+    else { write(res, 'error', { error: error.message }); res.end(); }
   } finally {
-    clearInterval(heartbeatInterval);
-    activePipelines.delete(id);
+    if (heartbeat) clearInterval(heartbeat);
+    await release?.();
   }
 };
+
+router.get('/:id/runs', requireAuth, async (req, res, next) => {
+  try {
+    if (!await getBlueprintOwnedByUser(req.params.id, req.user!.userId)) { res.status(404).json({ error: 'Workspace not found' }); return; }
+    const runs = await listRuns(req.user!.userId, req.params.id);
+    res.json({ runs: runs.map(run => ({ id: run.id, prompt: run.prompt, updatedAt: run.updatedAt,
+      status: run.status === 'running' && Date.now() - Date.parse(run.updatedAt) > 30000 ? 'interrupted' : run.status,
+      resumable: Boolean(run.state && run.status !== 'completed'), error: run.error })) });
+  } catch (error) { next(error); }
+});
+
+router.get('/:id/runs/:runId', requireAuth, async (req, res, next) => {
+  try {
+    const run = await readRun(req.params.runId);
+    if (!run || run.userId !== req.user!.userId || run.blueprintId !== req.params.id) { res.status(404).json({ error: 'Run not found' }); return; }
+    const after = Number(req.query.after || 0);
+    res.json({ id: run.id, status: run.status === 'running' && Date.now() - Date.parse(run.updatedAt) > 30000 ? 'interrupted' : run.status, result: run.result, error: run.error, events: run.events.filter(e => e.sequence > after), updatedAt: run.updatedAt });
+  } catch (error) { next(error); }
+});
+router.post('/:id/runs/:runId/cancel', requireAuth, async (req, res, next) => {
+  try {
+    const run = await readRun(req.params.runId);
+    if (!run || run.userId !== req.user!.userId || run.blueprintId !== req.params.id) { res.status(404).json({ error: 'Run not found' }); return; }
+    const controller = controllers.get(run.id);
+    if (run.status !== 'running') { res.status(409).json({ error: 'Run is not active' }); return; }
+    await requestCancellation(run.id);
+    controller?.abort(); res.json({ success: true });
+  } catch (error) { next(error); }
+});
 
 router.post('/:id/chat', requireAuth, chatHandler);
 
@@ -297,7 +173,7 @@ router.post('/:id/auto-heal', requireAuth, async (req: Request, res: Response): 
   // Delegate to the existing chat handler by rewriting the body and forwarding
   req.body = {
     prompt: healPrompt,
-    model: model || 'gemini-3.5-flash',
+    model: model || 'pipeline',
     mode: 'auto-heal',
     activeFilePath: errorPath,
     activeFileContent,

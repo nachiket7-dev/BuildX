@@ -1,13 +1,12 @@
 import { Response } from 'express';
+import { buildBlueprint } from './agent/blueprint';
+import { validateFile } from './agent/validation';
 import {
   completeWithPipelineFallback,
   completeForSubagent,
   getPipelineMaxTokens,
   getFriendlyModelName,
   PATCH_MODEL,
-  INGEST_MODEL,
-  VERIFIER_MODEL,
-  PIPELINE_ROUTES,
 } from './llm/router';
 import { Blueprint, PlannerOutput, PlannerOutputSchema, PatchFile, StackSpec } from './types';
 import { initSSE, sendSSE } from './stream';
@@ -53,13 +52,14 @@ export function createSSEAgenticSink(res: Response): AgenticEventSink {
       sendSSE(res, 'pipeline_heartbeat', {
         elapsedMs: Date.now() - startTime,
         activeStage: currentStage,
-        activeModel: PIPELINE_ROUTES[currentStage]?.primary || 'gemini-3.5-flash',
+        activeModel: 'Awaiting model result',
       });
     } catch {
       clearInterval(heartbeatInterval);
     }
   }, 2000);
 
+  res.once('close', () => clearInterval(heartbeatInterval));
   return {
     status: (message) => sendSSE(res, 'status', { message }),
     progress: (percent) => sendSSE(res, 'progress', { percent }),
@@ -142,6 +142,7 @@ export async function runAgenticBlueprintPipeline(
   sink?: AgenticEventSink,
   stack?: StackSpec
 ): Promise<Blueprint> {
+  if (process.env.AGENT_RUNTIME !== 'legacy') return buildBlueprint(idea, requestedModel, stack, sink ?? createLogAgenticSink());
   const events = sink ?? createLogAgenticSink();
   const modelUsage: Array<{ stage: PipelineStage; model: string; usedFallback: boolean }> = [];
 
@@ -429,13 +430,15 @@ export async function runAgenticBlueprintPipeline(
     team: '1 Developer + 1 QA Designer',
   };
 
-  notifyAgent('coder', 'completed', 'Finished compiling complete frontend & backend boilerplate workspaces.', 'DIFF_GENERATION');
+  notifyAgent('coder', 'completed', 'Generated frontend and backend source for validation.', 'DIFF_GENERATION');
   events.section?.('architecture', architecture);
   events.section?.('code', code);
   events.section?.('effort', effort);
 
   // ─── STAGE 6: QA EVALUATOR AGENT (AUTO_FIX Stage) ─────────────────────────
-  notifyAgent('qa', 'thinking', 'Running QA tests and auditing consistency check suite...', 'AUTO_FIX');
+  notifyAgent('qa', 'thinking', 'Checking generated source syntax...', 'AUTO_FIX');
+  const syntaxErrors = [...validateFile('App.tsx', code.frontend), ...validateFile('app.ts', code.backend)];
+  if (syntaxErrors.length) throw new Error('Generated code failed syntax validation: ' + syntaxErrors.join('; '));
   events.progress?.(90);
 
   notifyAgent(
@@ -460,7 +463,7 @@ export async function runAgenticBlueprintPipeline(
     }
   }
 
-  notifyAgent('qa', 'completed', 'Audit passed: specifications verified successfully.', 'AUTO_FIX');
+  notifyAgent('qa', 'completed', 'Source syntax checked. Build and runtime behavior have not been verified.', 'AUTO_FIX');
   events.section?.('code', code);
 
   events.progress?.(100);
@@ -479,6 +482,7 @@ export async function runAgenticBlueprintPipeline(
     layoutParadigm,
     primaryLandingScreenId,
     architecture,
+    stack: { framework: frameworkChoice, db: dbChoice, auth: authChoice },
     modelUsed: modelUsage[0]?.model || requestedModel,
     code,
     effort,
@@ -497,7 +501,12 @@ export async function generateBlueprintAgentic(
   stack?: StackSpec
 ): Promise<Blueprint> {
   const sink = createSSEAgenticSink(res);
-  return runAgenticBlueprintPipeline(idea, requestedModel, sink, stack);
+  const controller = new AbortController();
+  const close = () => { if (!res.writableEnded) controller.abort(); };
+  res.once('close', close);
+  try {
+    return process.env.AGENT_RUNTIME === 'legacy' ? await runAgenticBlueprintPipeline(idea, requestedModel, sink, stack) : await buildBlueprint(idea, requestedModel, stack, sink, controller.signal);
+  } finally { res.removeListener('close', close); }
 }
 
 function pmPrompt(idea: string, stack?: StackSpec): string {
@@ -1137,7 +1146,7 @@ export function runSchemaVerifierSubagent(
     needsFallbackRewrite = true;
   }
 
-  const isCode = isPlausibleSourceCode(finalContent, patch.filePath);
+  const isCode = isPlausibleSourceCode(finalContent, patch.filePath) && validateFile(patch.filePath, finalContent).length === 0;
   if (!isCode) {
     console.warn(`[Verifier] Content for ${patch.filePath} failed syntax plausibility check. Flagging for full rewrite.`);
     needsFallbackRewrite = true;
@@ -1201,8 +1210,8 @@ export async function runSubagentRefinementPipeline(
   if (events.agentTelemetry) {
     events.agentTelemetry({
       stage: 'INGESTION',
-      modelName: 'GLM 5.2',
-      modelUsed: INGEST_MODEL,
+      modelName: 'Local workspace inspection',
+      modelUsed: 'local',
       executionTimeMs: 0,
       wasFallback: false,
     });
@@ -1409,8 +1418,8 @@ ${existingContent}
   if (events.agentTelemetry) {
     events.agentTelemetry({
       stage: 'SCHEMA_VERIFIER',
-      modelName: 'Gemini 3.5 Flash',
-      modelUsed: VERIFIER_MODEL,
+      modelName: 'Local syntax validation',
+      modelUsed: 'local',
       executionTimeMs: 0,
       wasFallback: false,
     });

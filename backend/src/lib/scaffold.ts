@@ -1,3 +1,5 @@
+import dependencyVersions from './generatedDependencyVersions.json';
+import { generatedAuth, generatedRepository, generatedHandler } from './scaffoldRuntime';
 import archiver from 'archiver';
 import { Response } from 'express';
 import type { Blueprint } from './types';
@@ -114,7 +116,7 @@ function generateBackendPackageJson(bp: Blueprint): string {
   }
 
   if (isClerk) {
-    dependencies['@clerk/clerk-sdk-node'] = '^4.13.0';
+    dependencies['@clerk/backend'] = '^2.0.0';
   } else if (isNextAuth) {
     dependencies['next-auth'] = '^4.24.5';
   } else {
@@ -124,6 +126,7 @@ function generateBackendPackageJson(bp: Blueprint): string {
     devDependencies['@types/bcryptjs'] = '^2.4.6';
   }
 
+  if (!isMongo) { dependencies.pg = '^8.20.0'; devDependencies['@types/pg'] = '^8.20.0'; }
   return JSON.stringify(
     {
       name,
@@ -134,8 +137,9 @@ function generateBackendPackageJson(bp: Blueprint): string {
         build: 'tsc',
         start: 'node dist/index.js',
       },
-      dependencies,
-      devDependencies,
+      dependencies: Object.fromEntries(Object.entries(dependencies).map(([name, version]) => [name, (dependencyVersions as Record<string,string>)[name] || version])),
+      devDependencies: Object.fromEntries(Object.entries(devDependencies).map(([name, version]) => [name, (dependencyVersions as Record<string,string>)[name] || version])),
+      overrides: { qs: '^6.16.0', ...(devDependencies.postcss ? { postcss: '$postcss', rolldown: '1.2.5' } : {}) },
     },
     null,
     2
@@ -257,6 +261,7 @@ function generateBackendApp(bp: Blueprint): string {
   const isFastify = bp.architecture.backend.toLowerCase().includes('fastify');
   // Collect unique resource names from endpoints
   const resources = new Set<string>();
+  if (/jwt/i.test(bp.architecture.auth)) resources.add('auth');
   for (const ep of bp.endpoints) {
     const parts = ep.path.split('/').filter(Boolean);
     // e.g. /api/auth/login → auth, /api/products → products
@@ -328,175 +333,26 @@ export default app;
 }
 
 function generateRouteFile(resource: string, endpoints: Blueprint['endpoints'], isFastify = false): string {
-  if (isFastify) return generateFastifyRouteFile(resource, endpoints);
-
-  const filtered = endpoints.filter((ep) => {
-    const parts = ep.path.split('/').filter(Boolean);
-    return parts.length >= 2 && parts[1] === resource;
-  });
-
-  let code = `import crypto from 'crypto';
-import { Router, Request, Response, NextFunction } from 'express';
-
-type ResourceRecord = Record<string, unknown> & { id: string };
-const router = Router();
-const records: ResourceRecord[] = [];
-
-function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (!req.headers.authorization) {
-    res.status(401).json({ error: 'Authorization header is required' });
-    return;
-  }
-  next();
-}
-
-function requestId(req: Request): string | undefined {
-  const values = Object.values(req.params);
-  return values.length > 0 ? String(values[0]) : undefined;
-}
-
-`;
-
+  const filtered = endpoints.filter(ep => ep.path.split('/').filter(Boolean)[1] === resource);
+  const imports = isFastify ? "import type { FastifyInstance } from 'fastify';" : "import { Router } from 'express';";
+  let code = imports + "\nimport { handle } from '../runtime/handler';\n";
+  code += isFastify ? 'export default async function routes(app: FastifyInstance) {\n' : 'const app = Router();\n';
   for (const ep of filtered) {
-    // Get the sub-path after /api/<resource>
-    const parts = ep.path.split('/').filter(Boolean);
-    const subPath = '/' + parts.slice(2).join('/') || '/';
-    const expressPath = subPath.replace(/:(\w+)/g, ':$1');
+    const route = '/' + ep.path.split('/').filter(Boolean).slice(2).join('/').replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, ':$1');
     const method = ep.method.toLowerCase();
-    const routeDescription = JSON.stringify(ep.description || `${method.toUpperCase()} ${expressPath}`);
-    const authGuard = ep.auth ? 'requireAuth, ' : '';
-
-    code += `// ${ep.description}${ep.auth ? ' [AUTH]' : ''}
-router.${method}(${JSON.stringify(expressPath)}, ${authGuard}async (req: Request, res: Response) => {
-  try {
-    const id = requestId(req);
-    if ('${method}' === 'get') {
-      const data = id ? records.filter((record) => record.id === id) : records;
-      res.json({ data, message: ${routeDescription} });
-      return;
-    }
-    if ('${method}' === 'post') {
-      const record: ResourceRecord = { id: crypto.randomUUID(), ...(req.body || {}) };
-      records.push(record);
-      res.status(201).json({ data: record, message: ${routeDescription} });
-      return;
-    }
-    if ('${method}' === 'put' || '${method}' === 'patch') {
-      if (!id) {
-        res.status(400).json({ error: 'A resource id is required for updates' });
-        return;
-      }
-      const record = records.find((candidate) => candidate.id === id);
-      if (!record) {
-        res.status(404).json({ error: 'Resource not found' });
-        return;
-      }
-      Object.assign(record, req.body || {});
-      res.json({ data: record, message: ${routeDescription} });
-      return;
-    }
-    if ('${method}' === 'delete') {
-      if (!id) {
-        res.status(400).json({ error: 'A resource id is required for deletion' });
-        return;
-      }
-      const index = records.findIndex((candidate) => candidate.id === id);
-      if (index === -1) {
-        res.status(404).json({ error: 'Resource not found' });
-        return;
-      }
-      const [deleted] = records.splice(index, 1);
-      res.json({ data: deleted, message: ${routeDescription} });
-      return;
-    }
-    res.status(501).json({ error: 'HTTP method is not supported by this generated route' });
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' });
+    code += `app.${method}(${JSON.stringify(route)}, async (req, res) => {
+  const params = (req.params || {}) as Record<string, string>;
+  const id = Object.values(params).slice(-1)[0];
+  const result = await handle(${JSON.stringify(resource)}, ${JSON.stringify(method)}, ${Boolean(ep.auth)}, req.headers.authorization, id, req.body, ${JSON.stringify(route)});
+  res.${isFastify ? 'code' : 'status'}(result.status).send(result.body);
+});\n`;
   }
-});
-
-`;
-  }
-
-  code += 'export default router;\n';
-  return code;
-}
-
-function generateFastifyRouteFile(resource: string, endpoints: Blueprint['endpoints']): string {
-  const filtered = endpoints.filter((ep) => {
-    const parts = ep.path.split('/').filter(Boolean);
-    return parts.length >= 2 && parts[1] === resource;
-  });
-  const functionName = `${toCamelCase(resource)}Routes`;
-  let code = `import crypto from 'crypto';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-
-type ResourceRecord = Record<string, unknown> & { id: string };
-const records: ResourceRecord[] = [];
-
-function requireAuth(request: FastifyRequest, reply: FastifyReply, done: () => void): void {
-  if (!request.headers.authorization) {
-    reply.code(401).send({ error: 'Authorization header is required' });
-    return;
-  }
-  done();
-}
-
-export default async function ${functionName}(app: FastifyInstance): Promise<void> {
-`;
-
-  for (const ep of filtered) {
-    const parts = ep.path.split('/').filter(Boolean);
-    const routePath = '/' + parts.slice(2).join('/') || '/';
-    const method = ep.method.toLowerCase();
-    const description = JSON.stringify(ep.description || `${method.toUpperCase()} ${routePath}`);
-    const options = ep.auth ? `, { preHandler: requireAuth }` : '';
-
-    code += `  app.${method}(${JSON.stringify(routePath)}${options}, async (request, reply) => {
-    const params = (request.params || {}) as Record<string, string>;
-    const body = (request.body || {}) as Record<string, unknown>;
-    const id = Object.values(params)[0];
-    if ('${method}' === 'get') {
-      reply.send({ data: id ? records.filter((record) => record.id === id) : records, message: ${description} });
-      return;
-    }
-    if ('${method}' === 'post') {
-      const record: ResourceRecord = { id: crypto.randomUUID(), ...body };
-      records.push(record);
-      reply.code(201).send({ data: record, message: ${description} });
-      return;
-    }
-    if ('${method}' === 'put' || '${method}' === 'patch') {
-      if (!id) { reply.code(400).send({ error: 'A resource id is required for updates' }); return; }
-      const record = records.find((candidate) => candidate.id === id);
-      if (!record) { reply.code(404).send({ error: 'Resource not found' }); return; }
-      Object.assign(record, body);
-      reply.send({ data: record, message: ${description} });
-      return;
-    }
-    if ('${method}' === 'delete') {
-      if (!id) { reply.code(400).send({ error: 'A resource id is required for deletion' }); return; }
-      const index = records.findIndex((candidate) => candidate.id === id);
-      if (index === -1) { reply.code(404).send({ error: 'Resource not found' }); return; }
-      const [deleted] = records.splice(index, 1);
-      reply.send({ data: deleted, message: ${description} });
-      return;
-    }
-    reply.code(501).send({ error: 'HTTP method is not supported by this generated route' });
-  });
-
-`;
-  }
-
-  code += `}
-`;
-  return code;
+  return code + (isFastify ? '}\n' : 'export default app;\n');
 }
 
 function generateFrontendPackageJson(bp: Blueprint): string {
   const name = toKebabCase(bp.appName) + '-frontend';
   const isNext = bp.architecture.frontend.toLowerCase().includes('next');
-  const isClerk = bp.architecture.auth.toLowerCase().includes('clerk');
   const isSupabase = bp.architecture.database.toLowerCase().includes('supabase');
 
   const dependencies: Record<string, string> = {
@@ -524,10 +380,7 @@ function generateFrontendPackageJson(bp: Blueprint): string {
     devDependencies['vite'] = '^5.0.8';
   }
 
-  if (isClerk) {
-    dependencies['@clerk/clerk-react'] = '^4.30.0';
-    if (isNext) dependencies['@clerk/nextjs'] = '^4.29.0';
-  }
+
 
   if (isSupabase) {
     dependencies['@supabase/supabase-js'] = '^2.39.0';
@@ -542,7 +395,7 @@ function generateFrontendPackageJson(bp: Blueprint): string {
       scripts: isNext
         ? {
             dev: 'next dev',
-            build: 'next build',
+            build: 'next build --webpack',
             start: 'next start',
           }
         : {
@@ -550,8 +403,9 @@ function generateFrontendPackageJson(bp: Blueprint): string {
             build: 'tsc && vite build',
             preview: 'vite preview',
           },
-      dependencies,
-      devDependencies,
+      dependencies: Object.fromEntries(Object.entries(dependencies).map(([name, version]) => [name, (dependencyVersions as Record<string,string>)[name] || version])),
+      devDependencies: Object.fromEntries(Object.entries(devDependencies).map(([name, version]) => [name, (dependencyVersions as Record<string,string>)[name] || version])),
+      overrides: { qs: '^6.16.0', ...(devDependencies.postcss ? { postcss: '$postcss', rolldown: '1.2.5' } : {}) },
     },
     null,
     2
@@ -1866,7 +1720,7 @@ function generateApiClient(bp: Blueprint): string {
   let code = `import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
+  baseURL: ${bp.architecture.frontend.toLowerCase().includes('next') ? "process.env.NEXT_PUBLIC_API_URL" : "import.meta.env.VITE_API_URL"} || 'http://localhost:3001',
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -1886,16 +1740,19 @@ const api = axios.create({
     code += `// ─── ${toPascalCase(resource)} ─────────────────────────────\n\n`;
     for (const ep of endpoints) {
       const parts = ep.path.split('/').filter(Boolean);
-      const funcName = toCamelCase(ep.method.toLowerCase() + '_' + parts.slice(1).join('_'));
+      const funcName = toCamelCase(ep.method.toLowerCase() + '_' + parts.slice(1).join('_').replace(/[^a-zA-Z0-9_]/g, '_'));
       const method = ep.method.toLowerCase();
       const hasBody = ['post', 'put', 'patch'].includes(method);
 
-      code += `/** ${ep.description} */\n`;
-      code += `export async function ${funcName}(${hasBody ? 'data: Record<string, unknown>' : ''}) {\n`;
+      const params = Array.from(ep.path.matchAll(/:([A-Za-z_][A-Za-z0-9_]*)|\[([A-Za-z_][A-Za-z0-9_]*)\]/g)).map(m => m[1] || m[2]);
+      const requestPath = ep.path.replace(/:([A-Za-z_][A-Za-z0-9_]*)|\[([A-Za-z_][A-Za-z0-9_]*)\]/g, (_, a, b) => '${encodeURIComponent(params[' + JSON.stringify(a || b) + '])}');
+      const args = [...(params.length ? ['params: Record<string, string>'] : []), ...(hasBody ? ['data: Record<string, unknown>'] : [])].join(', ');
+      code += `/** ${ep.description.replace(/\*\//g, '')} */\n`;
+      code += `export async function ${funcName}(${args}) {\n`;
       if (hasBody) {
-        code += `  const response = await api.${method}('${ep.path}', data);\n`;
+        code += `  const response = await api.${method}(\`${requestPath}\`, data);\n`;
       } else {
-        code += `  const response = await api.${method}('${ep.path}');\n`;
+        code += `  const response = await api.${method}(\`${requestPath}\`);\n`;
       }
       code += '  return response.data;\n';
       code += '}\n\n';
@@ -2092,6 +1949,14 @@ function generateEnvExample(bp: Blueprint): string {
   return `# Database
 DATABASE_URL=${defaultUrl}
 
+# Authentication: configure only the selected provider
+JWT_SECRET=
+JWT_ISSUER=buildx-app
+JWT_AUDIENCE=buildx-api
+CLERK_SECRET_KEY=
+AUTHORIZED_PARTIES=http://localhost:5173
+NEXTAUTH_SECRET=
+
 # Server
 PORT=3001
 NODE_ENV=development
@@ -2158,138 +2023,19 @@ function looksLikeSql(code: string): boolean {
   return /\bCREATE\s+TABLE\b|\bALTER\s+TABLE\b|\bINSERT\s+INTO\b/i.test(code);
 }
 
-export function streamScaffoldZip(bp: Blueprint, res: Response): void {
-  const appSlug = toKebabCase(bp.appName);
-  const isMongo = bp.architecture.database.toLowerCase().includes('mongo');
-
+export function streamScaffoldZip(bp: Blueprint, res: Response, savedFiles?: Record<string, string>): void {
   res.setHeader('Content-Type', 'application/zip');
-  res.setHeader(
-    'Content-Disposition',
-    `attachment; filename="${appSlug}-scaffold.zip"`
-  );
-
+  res.setHeader('Content-Disposition', `attachment; filename="${toKebabCase(bp.appName).replace(/[^a-z0-9-]/g, '') || 'project'}-scaffold.zip"`);
   const archive = archiver('zip', { zlib: { level: 6 } });
-
-  archive.on('error', (err) => {
-    console.error('[Scaffold] Archive error:', err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to generate project ZIP' });
-    } else {
-      res.destroy(); // Destroy socket to signal corrupted/partial download
-    }
-  });
-
+  archive.on('error', () => res.destroy());
   archive.pipe(res);
-
-  // ─── Root files ────────────────────────────────────────
-  archive.append(generateRootPackageJson(bp), { name: 'package.json' });
-  archive.append(generateDockerCompose(bp), { name: 'docker-compose.yml' });
-  archive.append(generateReadme(bp), { name: 'README.md' });
-  archive.append(generateGitignore(), { name: '.gitignore' });
-
-  // ─── Backend ───────────────────────────────────────────
-  archive.append(generateBackendPackageJson(bp), { name: 'backend/package.json' });
-  archive.append(generateBackendTsconfig(), { name: 'backend/tsconfig.json' });
-  // Env example
-  archive.append(generateEnvExample(bp), { name: 'backend/.env.example' });
-  if (!isMongo) {
-    archive.append(generatePrismaSchema(bp), { name: 'backend/prisma/schema.prisma' });
+  for (const [name, content] of Object.entries(savedFiles || generateMonorepoFiles(bp))) {
+    if (!name || name.startsWith('/') || name.includes('\\') || name.split('/').includes('..')) continue;
+    archive.append(content, { name });
   }
-  archive.append(generateBackendIndex(bp), { name: 'backend/src/index.ts' });
-  archive.append(
-    isPlausibleSourceCode(bp.code.backend, 'app.ts') ? bp.code.backend : generateBackendApp(bp),
-    { name: 'backend/src/app.ts' }
-  );
-
-  // Route files — one per resource
-  const resources = new Set<string>();
-  for (const ep of bp.endpoints) {
-    const parts = ep.path.split('/').filter(Boolean);
-    if (parts.length >= 2) resources.add(parts[1]);
-  }
-  for (const resource of resources) {
-    archive.append(generateRouteFile(
-      resource,
-      bp.endpoints,
-      bp.architecture.backend.toLowerCase().includes('fastify')
-    ), {
-      name: `backend/src/routes/${resource}.ts`,
-    });
-  }
-
-  // ─── Frontend ──────────────────────────────────────────
-  const isNext = bp.architecture.frontend.toLowerCase().includes('next');
-  archive.append(generateFrontendPackageJson(bp), { name: 'frontend/package.json' });
-  archive.append(generateTailwindConfig(isNext), {
-    name: isNext ? 'frontend/tailwind.config.cjs' : 'frontend/tailwind.config.js',
-  });
-  archive.append(generatePostcssConfig(isNext), {
-    name: isNext ? 'frontend/postcss.config.cjs' : 'frontend/postcss.config.js',
-  });
-  if (!isNext) {
-    archive.append(generateFrontendViteConfig(), { name: 'frontend/vite.config.ts' });
-  }
-  if (isNext) {
-    archive.append(generateNextPage(bp), { name: 'frontend/src/app/page.tsx' });
-    archive.append(generateNextLayout(bp), { name: 'frontend/src/app/layout.tsx' });
-    archive.append('@tailwind base;\n@tailwind components;\n@tailwind utilities;\n', {
-      name: 'frontend/src/app/globals.css',
-    });
-  } else {
-    archive.append(
-      isPlausibleSourceCode(bp.code.frontend, 'App.tsx') ? bp.code.frontend : generateFrontendApp(bp),
-      { name: 'frontend/src/App.tsx' }
-    );
-    archive.append(
-      `import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n`,
-      { name: 'frontend/src/main.tsx' }
-    );
-    archive.append('@tailwind base;\n@tailwind components;\n@tailwind utilities;\n', {
-      name: 'frontend/src/index.css',
-    });
-  }
-  archive.append(generateApiClient(bp), { name: 'frontend/src/lib/api.ts' });
-
-  // Page files — one per screen
-  for (const screen of bp.screens) {
-    const name = toPascalCase(screen.name.replace(/[^a-zA-Z0-9]/g, ''));
-    archive.append(generateFrontendPage(screen), {
-      name: `frontend/src/pages/${name}Page.tsx`,
-    });
-  }
-
-  // Index HTML (Vite only; Next owns the document shell in layout.tsx)
-  if (!isNext) {
-    archive.append(
-      `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${bp.appName}</title>\n</head>\n<body>\n  <div id="root"></div>\n  <script type="module" src="/src/main.tsx"></script>\n</body>\n</html>\n`,
-      { name: 'frontend/index.html' }
-    );
-  }
-
-  // DB Schema File
-  if (isMongo) {
-    // For MongoDB, emit Mongoose models. Use the AI-provided code.sql ONLY if
-    // it actually contains JS/Mongoose (not raw SQL and not empty); otherwise
-    // generate models from bp.schema so schema.js is never blank.
-    const aiCode = (bp.code.sql || '').trim();
-    const useAiCode = aiCode.length > 0 && !looksLikeSql(aiCode);
-    const mongoSchema = useAiCode ? aiCode : generateMongooseSchema(bp);
-    archive.append(mongoSchema, { name: 'backend/schema.js' });
-  } else {
-    const sql = (bp.code.sql || '').trim();
-    archive.append(sql.length > 0 ? sql : '-- No SQL schema generated', {
-      name: 'backend/schema.sql',
-    });
-  }
-
-  archive.finalize();
+  void archive.finalize();
 }
 
-/**
- * Build a flat dictionary of all scaffold files (path → content).
- * This is the same set of files written to the ZIP archive, but returned
- * as a Record so the frontend Code Studio can display them inline.
- */
 export function generateMonorepoFiles(bp: Blueprint): Record<string, string> {
   const files: Record<string, string> = {};
   const isMongo = bp.architecture.database.toLowerCase().includes('mongo');
@@ -2307,11 +2053,15 @@ export function generateMonorepoFiles(bp: Blueprint): Record<string, string> {
   if (!isMongo) {
     files['backend/prisma/schema.prisma'] = generatePrismaSchema(bp);
   }
+  files['backend/src/runtime/auth.ts'] = generatedAuth(bp);
+  files['backend/src/runtime/repository.ts'] = generatedRepository(bp);
+  files['backend/src/runtime/handler.ts'] = generatedHandler();
   files['backend/src/index.ts'] = generateBackendIndex(bp);
   files['backend/src/app.ts'] = isPlausibleSourceCode(bp.code.backend, 'app.ts') ? bp.code.backend : generateBackendApp(bp);
 
   // Route files — one per resource
   const resources = new Set<string>();
+  if (/jwt/i.test(bp.architecture.auth)) resources.add('auth');
   for (const ep of bp.endpoints) {
     const parts = ep.path.split('/').filter(Boolean);
     if (parts.length >= 2) resources.add(parts[1]);
@@ -2319,7 +2069,7 @@ export function generateMonorepoFiles(bp: Blueprint): Record<string, string> {
   for (const resource of resources) {
     files[`backend/src/routes/${resource}.ts`] = generateRouteFile(
       resource,
-      bp.endpoints,
+      resource === 'auth' && /jwt/i.test(bp.architecture.auth) ? [...bp.endpoints.filter(ep => !['/api/auth/login','/api/auth/signup'].includes(ep.path)), { method: 'POST', path: '/api/auth/login', description: 'Sign in', auth: false }, { method: 'POST', path: '/api/auth/signup', description: 'Create account', auth: false }] : bp.endpoints,
       bp.architecture.backend.toLowerCase().includes('fastify')
     );
   }
@@ -2327,12 +2077,14 @@ export function generateMonorepoFiles(bp: Blueprint): Record<string, string> {
   // ─── Frontend ──────────────────────────────────────────
   const isNext = bp.architecture.frontend.toLowerCase().includes('next');
   files['frontend/package.json'] = generateFrontendPackageJson(bp);
+  files['frontend/tsconfig.json'] = JSON.stringify({ compilerOptions: { target: 'ES2020', lib: ['DOM', 'DOM.Iterable', 'ES2020'], module: 'ESNext', moduleResolution: 'Bundler', jsx: isNext ? 'preserve' : 'react-jsx', strict: true, esModuleInterop: true, skipLibCheck: true, resolveJsonModule: true, noEmit: true, ...(isNext ? { plugins: [{ name: 'next' }] } : { types: ['vite/client'] }) }, include: ['src', ...(isNext ? ['next-env.d.ts', '.next/types/**/*.ts'] : [])] }, null, 2);
   files[isNext ? 'frontend/tailwind.config.cjs' : 'frontend/tailwind.config.js'] = generateTailwindConfig(isNext);
   files[isNext ? 'frontend/postcss.config.cjs' : 'frontend/postcss.config.js'] = generatePostcssConfig(isNext);
   if (!isNext) {
     files['frontend/vite.config.ts'] = generateFrontendViteConfig();
   }
   if (isNext) {
+    files['frontend/next.config.js'] = 'module.exports = { experimental: { cpus: 1 } };\n';
     files['frontend/src/app/page.tsx'] = generateNextPage(bp);
     files['frontend/src/app/layout.tsx'] = generateNextLayout(bp);
     files['frontend/src/app/globals.css'] = '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n';

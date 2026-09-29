@@ -1,3 +1,4 @@
+import { buildBlueprint } from './agent/blueprint';
 import { completeWithPipelineFallback, getPipelineMaxTokens } from './llm/router';
 import { extractJSON } from './jsonExtract';
 import { tryParsePartial } from './stream';
@@ -326,6 +327,7 @@ export async function refineBlueprint(
   refinementMessage: string,
   requestedModel?: string
 ): Promise<Blueprint> {
+  if (process.env.AGENT_RUNTIME !== 'legacy') return buildBlueprint(refinementMessage, requestedModel, originalBlueprint.stack, {}, undefined, originalBlueprint);
   const maxTokens = getPipelineMaxTokens('REFINEMENT');
   const context = buildRefineContext(originalBlueprint);
 

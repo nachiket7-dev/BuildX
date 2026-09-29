@@ -12,9 +12,9 @@ export type StackSpec = z.infer<typeof StackSpecSchema>;
 export const BlueprintRequestSchema = z.object({
   idea: z
     .string()
+    .trim()
     .min(10, 'Idea must be at least 10 characters')
-    .max(1000, 'Idea must be under 1000 characters')
-    .trim(),
+    .max(1000, 'Idea must be under 1000 characters'),
   model: z.string().optional(),
   stack: StackSpecSchema,
 });
@@ -98,6 +98,7 @@ export type LayoutParadigm =
   | 'SPLIT_CONSOLE';
 
 export interface Blueprint {
+  stack?: StackSpec;
   appName: string;
   description: string;
   targetUsers: string;
@@ -127,6 +128,7 @@ export interface SavedBlueprint extends Blueprint {
 
 // ─── Zod schema for validating AI output ──────────────────
 export const BlueprintSchema = z.object({
+  stack: StackSpecSchema,
   appName: z.string().min(1),
   description: z.string().min(1),
   targetUsers: z.string().min(1),

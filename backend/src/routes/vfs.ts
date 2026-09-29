@@ -1,22 +1,22 @@
 import { Router, Request, Response } from 'express';
 import { generateVFSFromBlueprint, getLanguageFromPath } from '../services/vfsService';
 import { enhanceVfsUi } from '../services/uiEnhancerService';
-import { generateFrontendPage } from '../lib/scaffold';
+
 import {
   getBlueprintForUser,
   getBlueprintOwnedByUser,
   getBlueprintFiles,
-  saveBlueprintFile,
-  clearBlueprintFiles,
+
+  saveBlueprintFilesAtomically,
 } from '../lib/db';
-import { isPlausibleSourceCode } from '../lib/codegen/skeletonizer';
+import { isWorkspacePath } from '../lib/agent/validation';
 import { optionalAuth, requireAuth } from '../lib/auth';
 
 const router = Router();
 
 /**
  * POST /api/blueprints/:id/vfs/init
- * Initialize or re-generate VFS file tree for a blueprint
+ * Initialize a missing VFS file tree without replacing saved work
  */
 router.post('/:id/vfs/init', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -34,23 +34,21 @@ router.post('/:id/vfs/init', requireAuth, async (req: Request, res: Response) =>
     // Generate full VFS map dictionary (filePath -> content)
     const vfsMap = generateVFSFromBlueprint(spec);
 
-    // Clear existing DB files and persist new VFS files
-    await clearBlueprintFiles(id);
-
-    const savedFiles: Array<{ path: string; content: string; language: string }> = [];
-
-    for (const [filePath, content] of Object.entries(vfsMap)) {
-      const language = getLanguageFromPath(filePath);
-      await saveBlueprintFile(id, filePath, content, language);
-      savedFiles.push({ path: filePath, content, language });
+    // Initialization is idempotent: never replace an existing workspace.
+    const existing = await getBlueprintFiles(id);
+    if (existing.length) {
+      return res.json({ success: true, data: { id, files: existing, fileTree: Object.fromEntries(existing.map(f => [f.path, f.content])) } });
     }
+    const savedFiles = Object.entries(vfsMap).map(([path, content]) => ({ path, content, language: getLanguageFromPath(path) }));
+    await saveBlueprintFilesAtomically(id, savedFiles, { onlyIfEmpty: true });
+    const authoritative = await getBlueprintFiles(id);
 
     return res.json({
       success: true,
       data: {
         id,
-        files: savedFiles,
-        fileTree: vfsMap,
+        files: authoritative,
+        fileTree: Object.fromEntries(authoritative.map(file => [file.path, file.content])),
       },
     });
   } catch (err: any) {
@@ -61,7 +59,7 @@ router.post('/:id/vfs/init', requireAuth, async (req: Request, res: Response) =>
 
 /**
  * GET /api/blueprints/:id/vfs
- * Get all stored VFS files for a blueprint with universal auto-heal validation
+ * Read the stored VFS snapshot without mutating it
  */
 router.get('/:id/vfs', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -75,67 +73,9 @@ router.get('/:id/vfs', optionalAuth, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Blueprint not found or access denied' });
     }
 
-    const canPersist = Boolean(req.user?.userId && blueprint.userId === req.user.userId);
-    let files = await getBlueprintFiles(id);
-    const appFile = files.find(f => f.path === 'frontend/src/App.tsx' || f.path === 'src/App.tsx');
-    const isAppCorrupt = appFile && !isPlausibleSourceCode(appFile.content, 'App.tsx');
-
-    // Universal Auto-Heal: If files are missing OR core App.tsx is corrupt/prose, regenerate from spec
-    if (files.length === 0 || !appFile || isAppCorrupt) {
-      const vfsMap = generateVFSFromBlueprint(blueprint.parsedBlueprint);
-      const generatedFiles = Object.entries(vfsMap).map(([filePath, content]) => ({
-        path: filePath,
-        content,
-        language: getLanguageFromPath(filePath),
-      }));
-
-      if (canPersist) {
-        await clearBlueprintFiles(id);
-        for (const file of generatedFiles) {
-          await saveBlueprintFile(id, file.path, file.content, file.language);
-        }
-      }
-      files = generatedFiles;
-    }
-    
-    // Universal Page Auto-Heal: Upgrade skeleton/placeholder pages to full interactive React screens
-    const screens = blueprint.parsedBlueprint?.screens || [];
-    for (const file of files) {
-      if (file.path.includes('pages/') && (file.content.includes('Components needed:') || file.content.includes('Implement:') || file.content.includes('Example record'))) {
-        const matchingScreen = screens.find((s: any) => {
-          const cleanName = s.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-          const cleanPath = file.path.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-          return cleanPath.includes(cleanName);
-        }) || { name: file.path.split('/').pop()?.replace(/Page\.tsx|\.tsx/, '') || 'Overview', icon: '•', components: '' };
-
-        const richPageCode = generateFrontendPage(matchingScreen, blueprint.parsedBlueprint);
-        file.content = richPageCode;
-        if (canPersist) {
-          saveBlueprintFile(id, file.path, richPageCode, file.language).catch(() => {});
-        }
-      }
-    }
-
-    // Construct key-value fileTree dictionary with automatic JSON-wrapper unpacking
-    const fileTree: Record<string, string> = {};
-    for (const file of files) {
-      let content = file.content;
-      // Auto-unpack accidental JSON wrappers in non-JSON source files
-      if (!file.path.endsWith('.json') && content.startsWith('{') && (content.includes('"content"') || content.includes('"filePath"'))) {
-        try {
-          const parsed = JSON.parse(content);
-          if (parsed && typeof parsed.content === 'string') {
-            content = parsed.content;
-            // Update database so it's clean permanently
-            if (canPersist) {
-              saveBlueprintFile(id, file.path, content, file.language).catch(() => {});
-            }
-          }
-        } catch {}
-      }
-      fileTree[file.path] = content;
-      file.content = content;
-    }
+    // Reading a workspace must never repair, unwrap, or overwrite saved files.
+    const files = await getBlueprintFiles(id);
+    const fileTree = Object.fromEntries(files.map(file => [file.path, file.content]));
 
     return res.json({
       success: true,
@@ -158,11 +98,11 @@ router.get('/:id/vfs', optionalAuth, async (req: Request, res: Response) => {
 const handleVfsFileUpdate = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { path, content } = req.body ?? {};
+    const { path, content, expectedContent } = req.body ?? {};
 
     if (
       !id ||
-      typeof path !== 'string' ||
+      !isWorkspacePath(path) ||
       path.length > 512 ||
       path.startsWith('/') ||
       path.split('/').includes('..') ||
@@ -179,7 +119,8 @@ const handleVfsFileUpdate = async (req: Request, res: Response) => {
     }
 
     const language = getLanguageFromPath(path);
-    await saveBlueprintFile(id, path, content, language);
+    if (expectedContent !== undefined && typeof expectedContent !== 'string') return res.status(400).json({ error: 'expectedContent must be a string' });
+    await saveBlueprintFilesAtomically(id, [{ path, content, language }], expectedContent !== undefined ? { expected: { [path]: expectedContent } } : undefined);
 
     return res.json({
       success: true,
@@ -192,6 +133,7 @@ const handleVfsFileUpdate = async (req: Request, res: Response) => {
       },
     });
   } catch (err: any) {
+    if (err.code === 'WORKSPACE_CONFLICT') return res.status(409).json({ error: err.message });
     console.error('[VFS File Update Error]', err);
     return res.status(500).json({ error: 'Failed to update VFS file' });
   }
@@ -206,6 +148,7 @@ router.patch('/:id/vfs/file', requireAuth, handleVfsFileUpdate);
  * The LLM rewrites the primary app component with KPI cards, charts, tables, and realistic mock data.
  */
 router.post('/:id/enhance-ui', requireAuth, async (req: Request, res: Response) => {
+  if (process.env.AGENT_QUEUE_ENABLED === 'true') return res.status(409).json({error:'Use a queued agent request to stage UI changes for review.'});
   try {
     const { id } = req.params;
     if (!id) {

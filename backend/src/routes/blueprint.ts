@@ -1,9 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { randomBytes } from 'crypto';
 import { BlueprintRequestSchema, BlueprintSchema, type Blueprint } from '../lib/types';
 import { generateBlueprintAgentic, runAgenticBlueprintPipeline } from '../lib/orchestrator';
 import { generateApplicationCode } from '../lib/codegen/agent';
-import { buildDeterministicPreview } from '../lib/codegen/preview';
+import { revision } from '../lib/agent/validation';
 import {
   saveBlueprint,
   getBlueprintForUser,
@@ -19,7 +18,7 @@ import {
   getBlueprintAny,
   getBlueprintFiles,
   getBlueprintFile,
-  clearBlueprintFiles,
+
 } from '../lib/db';
 import { initSSE, sendSSE, endSSE } from '../lib/stream';
 import { streamScaffoldZip, generateMonorepoFiles } from '../lib/scaffold';
@@ -34,6 +33,17 @@ import { generatePreviewToken, isValidPreviewToken, requireAuth, optionalAuth } 
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+// When the durable transport is activated, old clients must upgrade rather than
+// bypass queue admission, fencing and candidate review through legacy endpoints.
+router.use((req, res, next) => {
+  if (process.env.AGENT_QUEUE_ENABLED === 'true' && req.method === 'POST' &&
+      (/^\/(generate|generate-stream|refine|regenerate|regenerate-stream)$/.test(req.path) || /^\/[^/]+\/(codegen|refine)$/.test(req.path))) {
+    res.status(409).json({ error: 'Durable execution is enabled. Reload the updated application to submit a queued job.' });
+    return;
+  }
+  next();
+});
 
 // Stricter limiter for AI generation only (expensive Groq calls)
 const blueprintLimiter = rateLimit({
@@ -121,9 +131,12 @@ router.get('/health', (_req: Request, res: Response) => {
   res.json({
     service: 'blueprint',
     ready: configured.length > 0,
+    autoReady: providers.gemini.configured,
     providers,
-    message: configured.length > 0
-      ? `${configured.map((p) => p.label).join(', ')} configured`
+    message: providers.gemini.configured
+      ? `${configured.map((p) => p.label).join(', ')} configured; provider availability is checked per request`
+      : configured.length > 0
+      ? `${configured.map((p) => p.label).join(', ')} configured; Auto requires GEMINI_API_KEY`
       : 'No LLM API keys configured — add GROQ_API_KEY, GEMINI_API_KEY, or NVIDIA_API_KEY',
   });
 });
@@ -286,7 +299,8 @@ router.post('/export', optionalAuth, async (req: Request, res: Response): Promis
         return;
       }
       console.log(`[Scaffold] Exporting blueprint ${id}: ${result.parsedBlueprint.appName}`);
-      streamScaffoldZip(result.parsedBlueprint, res);
+      const savedFiles = await getBlueprintFiles(id);
+      streamScaffoldZip(result.parsedBlueprint, res, savedFiles.length ? Object.fromEntries(savedFiles.map(f => [f.path, f.content])) : undefined);
       return;
     }
 
@@ -310,7 +324,16 @@ router.post('/export', optionalAuth, async (req: Request, res: Response): Promis
 
 router.post('/export-github', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { blueprint, id: blueprintId } = req.body;
+    const { id: blueprintId } = req.body;
+    let { blueprint } = req.body;
+    let exportFiles: Record<string, string> | undefined;
+    if (blueprintId) {
+      const owned = await getBlueprintOwnedByUser(blueprintId, req.user!.userId);
+      if (!owned) { res.status(404).json({ error: "Blueprint not found" }); return; }
+      blueprint = owned.parsedBlueprint;
+      const saved = await getBlueprintFiles(blueprintId);
+      if (saved.length) exportFiles = Object.fromEntries(saved.map(f => [f.path, f.content]));
+    }
     if (!blueprint || typeof blueprint !== 'object') {
       res.status(400).json({ error: 'Blueprint data is required for exporting' });
       return;
@@ -486,7 +509,7 @@ router.post('/export-github', requireAuth, async (req: Request, res: Response): 
     const baseTreeSha = commitData.tree.sha;
 
     // 4. Generate monorepo files dictionary
-    const files = generateMonorepoFiles(blueprint);
+    const files = exportFiles || generateMonorepoFiles(blueprint);
 
     // 5. Create a new Git Tree with all files
     const treeEntries = Object.entries(files).map(([filepath, content]) => ({
@@ -731,7 +754,7 @@ router.post('/refine', requireAuth, blueprintLimiter, async (req: Request, res: 
         res.status(404).json({ error: 'Blueprint not found or not owned by you' });
         return;
       }
-      await clearBlueprintFiles(blueprintId);
+    // Saved workspace files remain authoritative; specification changes do not delete edits.
     }
 
     await recordPremiumUsageIfNeeded(userId, model);
@@ -787,7 +810,7 @@ router.post('/regenerate-stream', requireAuth, blueprintLimiter, async (req: Req
     console.log(`[Regenerate:stream] Re-generating blueprint ${blueprintId} from idea: "${originalIdea.slice(0, 80)}..."`);
 
     await assertPremiumUsageAllowed(userId, model);
-    const blueprint = await generateBlueprintAgentic(originalIdea, res, model);
+    const blueprint = await generateBlueprintAgentic(originalIdea, res, model, existing.parsedBlueprint.stack);
 
     if (isClientAborted(req)) {
       return;
@@ -807,7 +830,7 @@ router.post('/regenerate-stream', requireAuth, blueprintLimiter, async (req: Req
       return;
     }
 
-    await clearBlueprintFiles(blueprintId);
+    // Saved workspace files remain authoritative; specification changes do not delete edits.
     await recordPremiumUsageIfNeeded(userId, model);
 
     console.log(`[Regenerate:stream] Success: ${blueprint.appName} (id: ${blueprintId})`);
@@ -857,7 +880,7 @@ router.post('/regenerate', requireAuth, blueprintLimiter, async (req: Request, r
     console.log(`[Regenerate] Re-generating blueprint ${blueprintId} from idea: "${originalIdea.slice(0, 80)}..."`);
 
     await assertPremiumUsageAllowed(userId, model);
-    const blueprint = await runAgenticBlueprintPipeline(originalIdea, model);
+    const blueprint = await runAgenticBlueprintPipeline(originalIdea, model, undefined, existing.parsedBlueprint.stack);
 
     if (existing.parsedBlueprint.githubUrl) {
       blueprint.githubUrl = existing.parsedBlueprint.githubUrl;
@@ -870,7 +893,7 @@ router.post('/regenerate', requireAuth, blueprintLimiter, async (req: Request, r
       return;
     }
 
-    await clearBlueprintFiles(blueprintId);
+    // Saved workspace files remain authoritative; specification changes do not delete edits.
     await recordPremiumUsageIfNeeded(userId, model);
 
     console.log(`[Regenerate] Success: ${blueprint.appName} (id: ${blueprintId})`);
@@ -1080,32 +1103,28 @@ router.get('/:id/preview', optionalAuth, async (req: Request, res: Response): Pr
       return;
     }
 
-    console.log(`[Preview Route] Serving rich interactive UI preview for ${id}...`);
-    const nonce = randomBytes(16).toString('base64');
-    const html = buildDeterministicPreview(blueprint.parsedBlueprint, nonce);
-
-    // The preview is a fully self-contained page (no external scripts, images or
-    // fonts), so it gets a far tighter policy than helmet's global default. This
-    // per-response header replaces helmet's for this route only — required because
-    // helmet's `script-src 'self'` would otherwise block the inline <script>.
-    res.setHeader(
-      'Content-Security-Policy',
-      [
-        "default-src 'none'",
-        `script-src 'nonce-${nonce}'`,
-        "style-src 'unsafe-inline'",
-        "img-src data:",
-        "base-uri 'none'",
-        "form-action 'none'",
-      ].join('; ')
-    );
-    res.setHeader('Content-Type', 'text/html');
-    res.setHeader('X-Preview-Source', 'deterministic');
-    res.send(html);
+    const origin = (process.env.FRONTEND_URL || process.env.ALLOWED_ORIGINS?.split(',')[0] || 'http://localhost:5173').replace(/\/$/, '');
+    res.redirect(302, `${origin}/preview/${encodeURIComponent(id)}${previewToken ? '?token=' + encodeURIComponent(previewToken) : ''}`);
   } catch (err: any) {
     console.error('[Preview Route] Error:', err.message);
     res.status(500).send('<html><body><h3>Preview Generation Failed</h3><p>Unable to generate preview.</p></body></html>');
   }
+});
+
+/** Read-only frontend snapshot; signed preview access never exposes backend files. */
+router.get('/:id/preview/source', optionalAuth, async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const token = typeof req.query.token === 'string' ? req.query.token : '';
+    const blueprint = await getBlueprintForUser(id, req.user?.userId || '', { incrementViews: false }) ||
+      (token && isValidPreviewToken(token, id) ? await getBlueprintAny(id) : null);
+    if (!blueprint) { res.status(404).json({ error: 'Preview not found' }); return; }
+    const saved = await getBlueprintFiles(id);
+    const source = saved.length ? Object.fromEntries(saved.map(file => [file.path, file.content])) : generateMonorepoFiles(blueprint.parsedBlueprint);
+    const files = Object.fromEntries(Object.entries(source).filter(([name]) => name.startsWith('frontend/') && !/(^|\/)\.env($|\.)/.test(name)));
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ appName: blueprint.parsedBlueprint.appName, files, revision: revision(files), source: saved.length ? 'saved-workspace' : 'initial-scaffold' });
+  } catch (error) { next(error); }
 });
 
 /** Create a short-lived URL that can be opened in a new tab or shared. */
@@ -1187,7 +1206,7 @@ router.post('/:id/refine', requireAuth, blueprintLimiter, async (req: Request, r
     }
 
     // Clear any stale generated files so next file-tree load regenerates fresh
-    await clearBlueprintFiles(id);
+    // Saved workspace files remain authoritative; specification changes do not delete edits.
 
     await recordPremiumUsageIfNeeded(userId, model);
 
