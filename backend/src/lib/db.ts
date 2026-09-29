@@ -60,9 +60,12 @@ function writeLocalDb(data: LocalDbSchema) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
+    const temporaryPath = LOCAL_DB_PATH + '.tmp';
+    fs.writeFileSync(temporaryPath, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(temporaryPath, LOCAL_DB_PATH);
   } catch (err) {
     console.error('Error writing local fallback database:', err);
+    throw err;
   }
 }
 
@@ -1229,42 +1232,7 @@ export async function saveBlueprintFile(
   content: string,
   language: string
 ): Promise<void> {
-  await ensureDb();
-  const fileId = `${blueprintId}:${filePath}`;
-
-  if (dbMode === 'fallback') {
-    await withLocalDbLock(() => {
-      const db = readLocalDb();
-      if (!db.blueprint_files) db.blueprint_files = [];
-      const index = db.blueprint_files.findIndex(f => f.blueprint_id === blueprintId && f.file_path === filePath);
-      
-      const fileRecord = {
-        id: fileId,
-        blueprint_id: blueprintId,
-        file_path: filePath,
-        content,
-        language,
-        generated_at: new Date().toISOString()
-      };
-
-      if (index > -1) {
-        db.blueprint_files[index] = fileRecord;
-      } else {
-        db.blueprint_files.push(fileRecord);
-      }
-      writeLocalDb(db);
-    });
-    return;
-  }
-
-  // UPSERT using Postgres ON CONFLICT clause
-  await pool.query(
-    `INSERT INTO blueprint_files (id, blueprint_id, file_path, content, language)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (blueprint_id, file_path)
-     DO UPDATE SET content = EXCLUDED.content, language = EXCLUDED.language`,
-    [fileId, blueprintId, filePath, content, language]
-  );
+  return saveBlueprintFilesAtomically(blueprintId, [{ path: filePath, content, language }]);
 }
 
 /**
@@ -1274,7 +1242,8 @@ export async function saveBlueprintFile(
  */
 export async function saveBlueprintFilesAtomically(
   blueprintId: string,
-  files: SavedBlueprintFile[]
+  files: SavedBlueprintFile[],
+  options?: { onlyIfEmpty?: boolean; expected?: Record<string, string> }
 ): Promise<void> {
   await ensureDb();
 
@@ -1283,6 +1252,11 @@ export async function saveBlueprintFilesAtomically(
       const db = readLocalDb();
       if (!db.blueprint_files) db.blueprint_files = [];
 
+      const existing = db.blueprint_files.filter(f => f.blueprint_id === blueprintId);
+      if (options?.onlyIfEmpty && existing.length) return;
+      for (const [path, content] of Object.entries(options?.expected || {})) {
+        if ((existing.find(f => f.file_path === path)?.content || '') !== content) throw Object.assign(new Error('Workspace changed. Reload before accepting this patch.'), { code: 'WORKSPACE_CONFLICT' });
+      }
       for (const file of files) {
         const fileId = `${blueprintId}:${file.path}`;
         const record = {
@@ -1308,6 +1282,12 @@ export async function saveBlueprintFilesAtomically(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query('SELECT id FROM blueprints WHERE id = $1 FOR UPDATE', [blueprintId]);
+    const existing = await client.query('SELECT file_path, content FROM blueprint_files WHERE blueprint_id = $1', [blueprintId]);
+    if (options?.onlyIfEmpty && existing.rows.length) { await client.query('COMMIT'); return; }
+    for (const [path, content] of Object.entries(options?.expected || {})) {
+      if ((existing.rows.find(f => f.file_path === path)?.content || '') !== content) throw Object.assign(new Error('Workspace changed. Reload before accepting this patch.'), { code: 'WORKSPACE_CONFLICT' });
+    }
     for (const file of files) {
       const fileId = `${blueprintId}:${file.path}`;
       await client.query(
@@ -1370,4 +1350,10 @@ export async function getBlueprintFile(blueprintId: string, filePath: string): P
   );
   if (result.rows.length === 0) return null;
   return result.rows[0];
+}
+
+/** Agent persistence shares the configured database; development fallback stays local. */
+export async function getAgentPool(): Promise<Pool | null> {
+  await ensureDb();
+  return dbMode === 'postgresql' ? pool : null;
 }
