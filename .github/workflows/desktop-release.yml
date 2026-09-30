@@ -63,7 +63,13 @@ jobs:
         run: |
           node -e "const required = ['CSC_LINK', 'CSC_KEY_PASSWORD']; if (process.platform === 'darwin') required.push('APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'); for (const key of required) if (!process.env[key]) throw new Error('Missing release secret: ' + key);"
       - run: npm ci
-      - run: npm run desktop:package -- --${{ matrix.target }}
+      - name: Build installer
+        shell: bash
+        run: |
+          # Missing optional secrets must be absent, not empty certificate paths.
+          if [ -z "${CSC_LINK:-}" ]; then unset CSC_LINK; fi
+          if [ -z "${CSC_KEY_PASSWORD:-}" ]; then unset CSC_KEY_PASSWORD; fi
+          npm run desktop:package -- --${{ matrix.target }}
       - name: Install and smoke-check Windows app
         if: matrix.target == 'win'
         shell: pwsh
