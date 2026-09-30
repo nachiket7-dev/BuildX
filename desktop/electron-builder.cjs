@@ -4,8 +4,9 @@ const signed = process.env.BUILDX_SIGNED_RELEASE === 'true';
 
 module.exports = {
   appId: 'dev.buildx.desktop', productName: 'BuildX',
-  directories: { output: 'dist' },
-  files: ['main.cjs', 'url-policy.cjs', 'package.json'],
+  directories: { output: 'dist', buildResources: 'assets' },
+  icon: 'assets/icon.svg',
+  files: ['main.cjs', 'url-policy.cjs', 'package.json', 'assets/icon.png'],
   extraMetadata: { buildxUrl: url },
   artifactName: 'BuildX-${version}-${os}-${arch}.${ext}',
   forceCodeSigning: signed,

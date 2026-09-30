@@ -43,10 +43,23 @@ Build macOS on a Mac and Windows on Windows. Outputs are in `desktop/dist/`:
 
 These commands create development installers. The macOS build uses ad-hoc signing;
 it is not a notarized public distribution. Windows builds have no publisher
-signature unless signing credentials are supplied. The initial app uses Electron's
-default installer icon. Native Windows ARM64 and automatic updates are not included.
+signature unless signing credentials are supplied. Native Windows ARM64 and
+automatic updates are not included.
+
+The app and installers use the existing BuildX logo. `assets/icon.svg` is copied
+from the website's `frontend/public/favicon.svg`; Electron Builder converts it
+into the macOS ICNS and Windows ICO formats. `assets/icon.png` is a 512-pixel export
+of the same logo used for the window icon and the macOS development Dock icon.
 
 ## Release and website downloads
+
+Public downloads are the installer files attached to a published GitHub release.
+They do not require a Mac App Store or Microsoft Store listing. Unsigned installers
+can also be hosted publicly, but macOS Gatekeeper and Windows SmartScreen may warn
+or block installation. Signing identifies the publisher; macOS notarization adds
+Apple's automated security check. The workflow's `create_release` option currently
+requires signing credentials so unsigned internal test builds are not published
+accidentally. An explicitly chosen unsigned demo release can use those artifacts.
 
 1. Deploy the website changes and verify the hosted frontend/API.
 2. Open GitHub Actions → **Desktop installers** → **Run workflow**. Enter the real
