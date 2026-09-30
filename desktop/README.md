@@ -57,7 +57,8 @@ default installer icon. Native Windows ARM64 and automatic updates are not inclu
    `WIN_CSC_KEY_PASSWORD` (a CI-compatible Windows signing certificate).
    Certificate links may be base64-encoded certificates. Never commit credentials.
 4. Run the workflow with **create_release** enabled. It runs application checks,
-   creates signed installers, notarizes macOS, and creates a **draft** release.
+   creates signed installers, notarizes macOS, installs and launches both apps,
+   checks that download controls and Node access are absent, and creates a **draft** release.
 5. Download and test both installers on clean machines: launch, email login,
    GitHub login/linking, preview, ZIP export, external links, quit with unsaved edits,
    and reopen. Test macOS on Apple Silicon and Intel. Account-backed GitHub login

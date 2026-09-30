@@ -64,12 +64,32 @@ jobs:
           node -e "const required = ['CSC_LINK', 'CSC_KEY_PASSWORD']; if (process.platform === 'darwin') required.push('APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'); for (const key of required) if (!process.env[key]) throw new Error('Missing release secret: ' + key);"
       - run: npm ci
       - run: npm run desktop:package -- --${{ matrix.target }}
+      - name: Install and smoke-check Windows app
+        if: matrix.target == 'win'
+        shell: pwsh
+        run: |
+          $installer = Get-Item desktop/dist/BuildX-*-win-x64.exe
+          $installPath = Join-Path $env:RUNNER_TEMP 'buildx-installed'
+          $result = Start-Process $installer.FullName -ArgumentList '/S', "/D=$installPath" -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw 'Windows installation failed' }
+          node desktop/test/installed-smoke.cjs "$installPath/BuildX.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows desktop smoke check failed' }
+      - name: Install and smoke-check macOS app
+        if: matrix.target == 'mac'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/buildx-volume" "$RUNNER_TEMP/buildx-installed"
+          hdiutil attach desktop/dist/BuildX-*-mac-universal.dmg -readonly -nobrowse -mountpoint "$RUNNER_TEMP/buildx-volume"
+          ditto "$RUNNER_TEMP/buildx-volume/BuildX.app" "$RUNNER_TEMP/buildx-installed/BuildX.app"
+          hdiutil detach "$RUNNER_TEMP/buildx-volume"
+          node desktop/test/installed-smoke.cjs "$RUNNER_TEMP/buildx-installed/BuildX.app/Contents/MacOS/BuildX"
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.target }}
           path: |
             desktop/dist/*.dmg
             desktop/dist/*.exe
+            desktop/dist/desktop-smoke-*.png
           if-no-files-found: error
           retention-days: 14
 
