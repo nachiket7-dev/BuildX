@@ -1,5 +1,7 @@
 const { app, BrowserWindow, dialog, Menu, shell } = require('electron');
+const path = require('node:path');
 const { websiteURL, isExternalURL, canNavigate } = require('./url-policy.cjs');
+const icon = path.join(__dirname, 'assets', 'icon.png');
 
 // Packaging embeds the website URL; development defaults to the Vite server.
 const site = websiteURL(app.isPackaged
@@ -19,6 +21,7 @@ async function openExternal(url) {
 function createWindow() {
   window = new BrowserWindow({
     title: 'BuildX', width: 1400, height: 900, minWidth: 800, minHeight: 600,
+    icon,
     backgroundColor: '#0a0a0b',
     webPreferences: {
       nodeIntegration: false, contextIsolation: true, sandbox: true,
@@ -76,6 +79,7 @@ async function loadWebsite() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'darwin' && !app.isPackaged) app.dock.setIcon(icon);
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
     { role: 'fileMenu' }, { role: 'editMenu' },
