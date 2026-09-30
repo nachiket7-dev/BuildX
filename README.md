@@ -129,7 +129,7 @@ Set these values in `backend/.env` using your own credentials:
 | `JWT_SECRET` | Strong randomly generated signing secret |
 | `GEMINI_API_KEY` | Default Gemini author/reviewer routes |
 | `GROQ_API_KEY` | Optional GPT-OSS selection and review route |
-| `ALLOWED_ORIGINS` | Frontend origins; locally `http://localhost:5173` |
+| `ALLOWED_ORIGINS` | Comma-separated frontend origins; locally `http://localhost:5173`. Production also permits the shipped `https://my-buildx.vercel.app` website used by Electron. |
 | `AGENT_MODEL_PROFILE` | Keep `baseline` for the current default behavior |
 | `AGENT_ALLOW_PROTOTYPE_MODELS` | Keep `false` unless evaluating prototype endpoints locally |
 
@@ -228,4 +228,3 @@ The current source is suitable for a reviewable GitHub checkpoint. It is not yet
 - Real Clerk tenant flows, GitHub OAuth/export, and generated-app external NextAuth sign-in need their account-backed checks; local Credentials tests do not cover external providers.
 - MongoDB 7 persistence was tested locally; MongoDB 8 needs a compatible test host.
 - The local Docker runner is a verification baseline, not a hardened public multi-tenant execution service.
-
