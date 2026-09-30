@@ -1,1 +1,21 @@
-[]
+[
+  {
+    "tag_name": "desktop-v0.1.0",
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      {
+        "name": "BuildX-0.1.0-mac-universal.dmg",
+        "state": "uploaded",
+        "size": 227982200,
+        "browser_download_url": "https://github.com/nachiket7-dev/BuildX/releases/download/desktop-v0.1.0/BuildX-0.1.0-mac-universal.dmg"
+      },
+      {
+        "name": "BuildX-0.1.0-win-x64.exe",
+        "state": "uploaded",
+        "size": 111246963,
+        "browser_download_url": "https://github.com/nachiket7-dev/BuildX/releases/download/desktop-v0.1.0/BuildX-0.1.0-win-x64.exe"
+      }
+    ]
+  }
+]
