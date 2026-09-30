@@ -22,7 +22,7 @@ let pool,server,heartbeat;const shutdown=new AbortController();
 (async()=>{
  const email='browser-'+randomUUID()+'@example.test',password='Synthetic-browser-123';
  const owner=await db.createUser('Local browser test',email,await bcrypt.hash(password,10));
- const fixture=require('../../audit/backend-2026-09-20/fixture.json');
+ const fixture=require('./fixtures/blueprint.json');
  const id=await db.saveBlueprint('Local queue end-to-end',fixture,owner);
  await db.saveBlueprintFile(id,'main.ts','export const count = 1;','typescript');
  await db.saveBlueprintFile(id,'tsconfig.json','{"compilerOptions":{"skipLibCheck":true,"strict":true},"include":["main.ts"]}','json');

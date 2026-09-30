@@ -19,7 +19,7 @@ let server,pool,base;
 async function request(path,method='GET',body,token){return fetch(base+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body)});}
 (async()=>{
  const owner=await db.createUser('Queue test',randomUUID()+'@example.test','unused-test-hash');
- const fixture=require('../../audit/backend-2026-09-20/fixture.json');
+ const fixture=require('./fixtures/blueprint.json');
  workspace=await db.saveBlueprint('queue fixture',fixture,owner);
  await db.saveBlueprintFile(workspace,'main.ts','original','typescript');
  pool=await db.getAgentPool();const queue=new AgentQueue(pool);await queue.initialize();

@@ -1,6 +1,6 @@
 const {generateMonorepoFiles}=require('../dist/lib/scaffold');
 const {runSandboxCheck}=require('../dist/lib/agent/sandbox');
-const fixture=require('../../audit/backend-2026-09-20/fixture.json');
+const fixture=require('./fixtures/blueprint.json');
 process.env.AGENT_SANDBOX_IMAGE='buildx-checks:local';
 (async()=>{
  const results=[];

@@ -469,7 +469,7 @@ test('backend checks cannot stand in for a changed frontend project', async () =
 
 test('blueprint refinement uses checked specification edits and independent review', async () => {
   const { buildBlueprint } = await import('../lib/agent/blueprint');
-  const fixture = require('../../../audit/backend-2026-09-20/fixture.json');
+  const fixture = require('../../test/fixtures/blueprint.json');
   const queue = [tool('define_acceptance',{criteria:[{id:'spec',description:'Blueprint contract remains valid',project:'.',kind:'typecheck'}]}),tool('read_file',{path:'blueprint.json'}),tool('apply_patch',{path:'blueprint.json',before:JSON.stringify(fixture.appName),after:'"Verified project"'}),tool('run_check',{kind:'typecheck',project:'.'}),tool('finish',{summary:'Refined name'})];
   let reviewed = false;
   const result = await buildBlueprint('Rename to Verified project',undefined,fixture.stack,{},undefined,fixture,async model=>{

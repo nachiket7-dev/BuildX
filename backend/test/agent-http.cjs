@@ -35,7 +35,7 @@ async function run() {
   const signup = await request('/api/auth/signup', 'POST', { name: 'Test', email: 'test@example.test', password: 'test-pass-123' });
   assert.equal(signup.status, 201);
   const { token, user } = await signup.json();
-  const bp = JSON.parse(fs.readFileSync(path.join(root, 'audit/backend-2026-09-20/fixture.json')));
+  const bp = JSON.parse(fs.readFileSync(path.join(root, 'backend/test/fixtures/blueprint.json')));
   projectId = await db.saveBlueprint('Test workspace', bp, user.id);
   const vfs = `/api/blueprints/${projectId}/vfs`;
   assert.deepEqual((await (await request(vfs, 'GET', undefined, token)).json()).data.files, []);

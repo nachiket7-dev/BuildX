@@ -36,7 +36,7 @@ const server=app.listen(5189,'127.0.0.1');
 (async()=>{
  const bcrypt=require('bcryptjs');
  const userId=await db.createUser('Recovery Test','recovery@example.test',await bcrypt.hash('Recovery-test-123',10));
- const fixture=require('../../audit/backend-2026-09-20/fixture.json');
+ const fixture=require('./fixtures/blueprint.json');
  const id=await db.saveBlueprint('Recovery test workspace',fixture,userId);
  await db.saveBlueprintFile(id,'main.ts','export const n = 1;','typescript');
  console.log(JSON.stringify({url:'http://127.0.0.1:5189',email:'recovery@example.test',password:'Recovery-test-123',blueprintId:id}));

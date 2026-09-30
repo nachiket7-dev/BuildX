@@ -7,7 +7,7 @@ const express=require('express');
 const NextAuth=require('../sandbox/node_modules/next-auth').default;
 const Credentials=require('../sandbox/node_modules/next-auth/providers/credentials').default;
 const jwt=require('../sandbox/node_modules/next-auth/jwt');
-const fixture=structuredClone(require('../../audit/backend-2026-09-20/fixture.json'));
+const fixture=structuredClone(require('./fixtures/blueprint.json'));
 fixture.architecture.auth='NextAuth';
 const source=require('../dist/lib/scaffoldRuntime').generatedAuth(fixture);
 const mod=new Module(__filename,module);mod.filename=__filename;mod.paths=module.paths;

@@ -4,7 +4,7 @@ const {randomUUID}=require('node:crypto');
 for(const key of Object.keys(process.env))if(/API_KEY|DATABASE_URL|JWT_SECRET/.test(key))delete process.env[key];
 Object.assign(process.env,{DATABASE_URL:'postgresql://postgres:buildx-test-only@127.0.0.1:55439/buildx_test',ALLOW_DB_FALLBACK:'false',JWT_SECRET:'queue-spec-test-only',NODE_ENV:'test',AGENT_QUEUE_ENABLED:'true'});
 const db=require('../dist/lib/db');
-const fixture=require('../../audit/backend-2026-09-20/fixture.json');
+const fixture=require('./fixtures/blueprint.json');
 let calls=0,lastPrompt='';
 require('../dist/lib/agent/engine').runEngineeringAgent=async(prompt,files,options)=>{
  calls++;lastPrompt=prompt;

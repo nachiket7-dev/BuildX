@@ -7,7 +7,7 @@ const db = require('../dist/lib/db');
 const store = require('../dist/lib/agent/store');
 (async () => {
   const userId = await db.createUser('Test', randomUUID() + '@example.test', 'not-a-real-hash');
-  const fixture = require('../../audit/backend-2026-09-20/fixture.json');
+  const fixture = require('./fixtures/blueprint.json');
   const id = await db.saveBlueprint('isolated', fixture, userId);
   await db.saveBlueprintFilesAtomically(id, [{ path:'main.ts',content:'original',language:'typescript' }]);
   const results = await Promise.allSettled(['first','second'].map(content => db.saveBlueprintFilesAtomically(id, [{path:'main.ts',content,language:'typescript'}], {expected:{'main.ts':'original'}})));

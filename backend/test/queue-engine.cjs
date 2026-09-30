@@ -22,7 +22,7 @@ const {queuedWorkspaceHandler}=require('../dist/lib/agent/queued-workspace');
 let pool,server;
 (async()=>{
  const owner=await db.createUser('Engine test',randomUUID()+'@example.test','unused');
- const workspace=await db.saveBlueprint('Engine integration',require('../../audit/backend-2026-09-20/fixture.json'),owner);
+ const workspace=await db.saveBlueprint('Engine integration',require('./fixtures/blueprint.json'),owner);
  for(const [path,content] of Object.entries({'main.ts':'export const count = 1;','tsconfig.json':'{"compilerOptions":{"skipLibCheck":true,"strict":true},"include":["main.ts"]}'}))await db.saveBlueprintFile(workspace,path,content,path.endsWith('json')?'json':'typescript');
  pool=await db.getAgentPool();const queue=new AgentQueue(pool);await queue.initialize();
  server=require('../dist/app').default.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
