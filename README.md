@@ -94,6 +94,16 @@ These candidates have not passed the application-quality gate. In the latest bou
 
 ## Local setup
 
+### Desktop app
+
+BuildX also includes a small Electron wrapper for macOS and Windows. It opens the
+existing website and requires internet access. Run `npm run dev`, then
+`npm run desktop:dev` in another terminal. The landing page's **Download Desktop**
+button offers installers once a desktop GitHub release is published.
+
+See [desktop/README.md](desktop/README.md) for packaging, signing, release setup,
+and a short explanation for a viva.
+
 ### Prerequisites
 
 - Node.js 22 and npm.

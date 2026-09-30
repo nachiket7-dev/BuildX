@@ -33,6 +33,7 @@ jobs:
       - run: npm run lint
       - run: npm test --workspace=backend
       - run: npm test --workspace=frontend
+      - run: npm run desktop:test
       - run: git diff --check
 
   durable-agent:

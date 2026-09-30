@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUpRight } from "../ui/icons";
 import { Link } from "react-router-dom";
 import { ProductDemo } from "./ProductDemo";
+import { DesktopDownload } from "../DesktopDownload";
 export function LandingHero({ ready = true }: { ready?: boolean }) {
   return (
     <section className="landing-hero" id="product">
@@ -33,6 +34,7 @@ export function LandingHero({ ready = true }: { ready?: boolean }) {
               <a href="#product-demo" className="landing-text-link">
                 Watch it take shape <ArrowDown size={15} />
               </a>
+              <DesktopDownload />
             </div>
           </div>
         </div>

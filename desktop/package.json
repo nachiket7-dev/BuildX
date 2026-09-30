@@ -1,0 +1,19 @@
+{
+  "name": "buildx-desktop",
+  "productName": "BuildX",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BuildX desktop — the AI architecture studio in a desktop window",
+  "author": "BuildX",
+  "main": "main.cjs",
+  "buildxUrl": "https://my-buildx.vercel.app",
+  "scripts": {
+    "start": "electron .",
+    "package": "electron-builder --config electron-builder.cjs --publish never",
+    "test": "node --test test/*.test.cjs"
+  },
+  "devDependencies": {
+    "electron": "44.5.0",
+    "electron-builder": "26.15.3"
+  }
+}

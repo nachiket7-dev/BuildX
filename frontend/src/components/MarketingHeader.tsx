@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, Menu } from './ui/icons';
 import { NavOverlay } from "./NavOverlay";
+import { DesktopDownload } from "./DesktopDownload";
 export function MarketingHeader() {
   const [open, setOpen] = useState(false);
   return (
@@ -25,6 +26,7 @@ export function MarketingHeader() {
             </a>
           </nav>
           <div className="marketing-header-actions">
+            <div className="hidden sm:block"><DesktopDownload /></div>
             <Link to="/create" className="ui-button ui-button--secondary">
               Launch Studio <ArrowUpRight size={15} />
             </Link>

@@ -26,6 +26,48 @@ const { Input } = require("../src/components/ui/Input.tsx");
 const { Textarea } = require("../src/components/ui/Textarea.tsx");
 const { Button } = require("../src/components/ui/Button.tsx");
 const tick = () => new Promise((resolve) => setImmediate(resolve));
+test('download controls are absent in BuildX desktop and available in web browsers', () => {
+  const { DesktopDownload } = require('../src/components/DesktopDownload.tsx');
+  const { QueryClient, QueryClientProvider } = require('@tanstack/react-query');
+  const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const renderFor = (userAgent) => {
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent } });
+    return renderToStaticMarkup(React.createElement(QueryClientProvider,
+      { client: new QueryClient() }, React.createElement(DesktopDownload)));
+  };
+  try {
+    assert.equal(renderFor('Mozilla/5.0 Electron/44.5.0 BuildXDesktop/0.1.0'), '');
+    assert.match(renderFor('Mozilla/5.0 Chrome/144.0 Safari/537.36'), /Download Desktop/);
+    assert.match(renderFor('Mozilla/5.0 Electron/44.5.0'), /Download Desktop/);
+  } finally {
+    if (originalNavigator) Object.defineProperty(globalThis, 'navigator', originalNavigator);
+    else delete globalThis.navigator;
+  }
+});
+
+const { parseDesktopRelease } = require('../src/lib/desktopReleases.ts');
+test('desktop downloads only advertise published desktop installers from this repository', () => {
+  const asset = (name, url) => ({ name, browser_download_url: url, state: 'uploaded', size: 1024 });
+  const base = 'https://github.com/nachiket7-dev/BuildX/releases/download/desktop-v0.1.0/';
+  const release = { tag_name: 'desktop-v0.1.0', draft: false, prerelease: false, assets: [
+    asset('BuildX-0.1.0-mac-universal.dmg', base + 'BuildX-0.1.0-mac-universal.dmg'),
+    asset('BuildX-0.1.0-win-x64.exe', base + 'BuildX-0.1.0-win-x64.exe'),
+  ] };
+  const parsed = parseDesktopRelease([
+    { ...release, draft: true }, { ...release, prerelease: true },
+    { ...release, tag_name: 'v1.0.0' }, release,
+  ]);
+  assert.equal(parsed.version, '0.1.0');
+  assert.equal(parsed.mac.url, base + 'BuildX-0.1.0-mac-universal.dmg');
+  assert.equal(parsed.windows.url, base + 'BuildX-0.1.0-win-x64.exe');
+  assert.equal(parseDesktopRelease([{ ...release, draft: true }]), null);
+  assert.equal(parseDesktopRelease([]), null);
+  const badAssets = [null, asset('BuildX-0.1.0-win-x64.exe', 'https://attacker.test/setup.exe')];
+  assert.equal(parseDesktopRelease([{ ...release, assets: badAssets }]).windows, undefined);
+  assert.equal(parseDesktopRelease([{ ...release, assets: [] }]).mac, undefined);
+  assert.throws(() => parseDesktopRelease({}));
+});
+
 test("guided demo exposes playback and inspection without a live composer", () => {
   const markup = renderToStaticMarkup(React.createElement(ProductDemo));
   assert.match(markup, /<figure[^>]+aria-label=/);
