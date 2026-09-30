@@ -16,7 +16,13 @@ app.use(helmet());
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
   .split(',')
-  .map((o) => o.trim());
+  .map((o) => o.trim().replace(/\/+$/, ''));
+
+// The shipped website and Electron app share this production origin.
+// Keep it available even when the hosting allowlist is missing or stale.
+if (process.env.NODE_ENV === 'production') {
+  allowedOrigins.push('https://my-buildx.vercel.app');
+}
 
 app.use(
   cors({
