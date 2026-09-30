@@ -13,7 +13,14 @@ const turns=[tool('define_acceptance',{criteria:[{id:'types',description:'Change
 let shutdown=new AbortController(),interrupt=true,index=0,reviewed=false,resumed=false;
 engine.runEngineeringAgent=(prompt,files,options,emit)=>{
  resumed=!!options.resume;
- return realEngine(prompt,files,{...options,checkpoint:async state=>{await options.checkpoint(state);if(interrupt && state.calls===2){interrupt=false;shutdown.abort();}},call:async(model,messages,tools)=>{
+ return realEngine(prompt,files,{...options,checkpoint:async state=>{
+  await options.checkpoint(state);
+  // The engine also checkpoints immediately before dispatch. Interrupt only after
+  // the second tool result is in the saved transcript, not before that model call.
+  if(interrupt && index===2 && state.calls===2 && state.messages.at(-1)?.role==='tool'){
+   interrupt=false;shutdown.abort();
+  }
+ },call:async(model,messages,tools)=>{
   if(model==='gemini-3.5-flash'){reviewed=true;assert.ok(!messages.some(m=>m.tool_calls?.some(t=>t.function.name==='finish')));const text='{"findings":[],"limitations":["Scripted reviewer; not a model-quality evaluation"]}';return {message:{role:'assistant',content:text},text,toolCalls:[],finishReason:'stop'};}
   assert.ok(index<turns.length,'Unexpected extra model call');return turns[index++];
  }},emit);
@@ -31,6 +38,7 @@ let pool,server;
  const submission=await fetch(base,{method:'POST',headers,body:JSON.stringify({key:randomUUID(),kind:'chat',prompt:'Change count to 2 and typecheck'})});assert.equal(submission.status,202);const {jobId}=await submission.json();
  await workOnce(queue,{chat:queuedWorkspaceHandler},shutdown.signal);
  const interrupted=await queue.get(jobId,owner);assert.equal(interrupted.status,'running');assert.equal(interrupted.checkpoint.state.calls,2);
+ assert.equal(index,2);assert.equal(interrupted.checkpoint.state.messages.at(-1).role,'tool');
  await pool.query("UPDATE agent_jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",[jobId]);
  shutdown=new AbortController();await workOnce(queue,{chat:queuedWorkspaceHandler},shutdown.signal);
  const result=await(await fetch(base+'/'+jobId,{headers})).json();
