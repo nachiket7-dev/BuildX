@@ -1,0 +1,126 @@
+name: Desktop installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      website_url:
+        description: 'Deployed BuildX website (HTTPS)'
+        type: string
+        required: true
+        default: 'https://my-buildx.vercel.app'
+      create_release:
+        description: 'Sign installers and create a draft GitHub release (requires signing secrets)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: npm test --workspace=backend
+      - run: npm test --workspace=frontend
+      - run: npm run desktop:test
+
+  package:
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: mac
+          - os: windows-latest
+            target: win
+    runs-on: ${{ matrix.os }}
+    env:
+      BUILDX_DESKTOP_URL: ${{ inputs.website_url }}
+      BUILDX_SIGNED_RELEASE: ${{ inputs.create_release }}
+      CSC_LINK: ${{ matrix.target == 'mac' && secrets.MAC_CSC_LINK || secrets.WIN_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ matrix.target == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || secrets.WIN_CSC_KEY_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Check signing configuration
+        if: inputs.create_release
+        shell: bash
+        run: |
+          node -e "const required = ['CSC_LINK', 'CSC_KEY_PASSWORD']; if (process.platform === 'darwin') required.push('APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'); for (const key of required) if (!process.env[key]) throw new Error('Missing release secret: ' + key);"
+      - run: npm ci
+      - run: npm run desktop:package -- --${{ matrix.target }}
+      - name: Install and smoke-check Windows app
+        if: matrix.target == 'win'
+        shell: pwsh
+        run: |
+          $installer = Get-Item desktop/dist/BuildX-*-win-x64.exe
+          $installPath = Join-Path $env:RUNNER_TEMP 'buildx-installed'
+          $result = Start-Process $installer.FullName -ArgumentList '/S', "/D=$installPath" -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw 'Windows installation failed' }
+          node desktop/test/installed-smoke.cjs "$installPath/BuildX.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows desktop smoke check failed' }
+      - name: Install and smoke-check macOS app
+        if: matrix.target == 'mac'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/buildx-volume" "$RUNNER_TEMP/buildx-installed"
+          hdiutil attach desktop/dist/BuildX-*-mac-universal.dmg -readonly -nobrowse -mountpoint "$RUNNER_TEMP/buildx-volume"
+          ditto "$RUNNER_TEMP/buildx-volume/BuildX.app" "$RUNNER_TEMP/buildx-installed/BuildX.app"
+          hdiutil detach "$RUNNER_TEMP/buildx-volume"
+          node desktop/test/installed-smoke.cjs "$RUNNER_TEMP/buildx-installed/BuildX.app/Contents/MacOS/BuildX"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.exe
+            desktop/dist/desktop-smoke-*.png
+          if-no-files-found: error
+          retention-days: 14
+
+  draft-release:
+    if: inputs.create_release
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: installers
+      - name: Create release notes and checksums
+        env:
+          BUILDX_DESKTOP_URL: ${{ inputs.website_url }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const files = fs.readdirSync('installers').sort();
+          if (!files.some(f => f.endsWith('.dmg')) || !files.some(f => f.endsWith('.exe'))) throw new Error('Both installers are required');
+          fs.writeFileSync('installers/SHA256SUMS.txt', files.map(f => crypto.createHash('sha256').update(fs.readFileSync('installers/' + f)).digest('hex') + '  ' + f).join('\n') + '\n');
+          fs.writeFileSync('desktop-release-notes.md', 'BuildX desktop opens ' + process.env.BUILDX_DESKTOP_URL + '. Internet access is required.\n\nmacOS: open the DMG and drag BuildX into Applications.\nWindows: run the x64 EXE installer.\n\nBefore publishing, verify clean installation, login, GitHub linking, previews, ZIP export and unsaved-edit protection on both platforms.\n');
+          NODE
+      - name: Create draft for manual installation checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./desktop/package.json').version")
+          gh release create "desktop-v$version" installers/* --target "$GITHUB_SHA" --draft --title "BuildX Desktop $version" --notes-file desktop-release-notes.md

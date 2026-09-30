@@ -1,0 +1,42 @@
+name: Update desktop download links
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  downloads:
+    if: startsWith(github.event.release.tag_name, 'desktop-v') && !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Save verified public installer links
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const release = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')).release;
+          if (release.draft || release.prerelease || !/^desktop-v\d+\.\d+\.\d+$/.test(release.tag_name)) throw new Error('Not a stable desktop release');
+          const version = release.tag_name.slice('desktop-v'.length);
+          const names = [`BuildX-${version}-mac-universal.dmg`, `BuildX-${version}-win-x64.exe`];
+          const assets = names.map(name => {
+            const asset = release.assets.find(item => item.name === name && item.state === 'uploaded' && item.size > 0);
+            const expected = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${release.tag_name}/${name}`;
+            if (!asset || asset.browser_download_url !== expected) throw new Error('Missing verified installer: ' + name);
+            return { name, state: 'uploaded', size: asset.size, browser_download_url: expected };
+          });
+          const data = [{ tag_name: release.tag_name, draft: false, prerelease: false, assets }];
+          fs.writeFileSync('frontend/public/desktop-releases.json', JSON.stringify(data, null, 2) + '\n');
+          NODE
+      - name: Commit links for Vercel deployment
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/public/desktop-releases.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'chore(desktop): publish installer download links'
+          git push origin HEAD:main
