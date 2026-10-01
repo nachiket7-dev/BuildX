@@ -67,6 +67,7 @@ export {
   Package as Package,
   ColorPalette as Palette,
   SidePanelOpen as PanelLeft,
+  SidePanelClose as PanelLeftClose,
   Pause as Pause,
   Edit as Pencil,
   Play as Play,

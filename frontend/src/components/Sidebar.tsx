@@ -293,5 +293,5 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
           )}
         </div>
     </>;
-  return desktop ? <aside className={`sidebar-panel ${isOpen ? 'sidebar-panel--open' : ''}`} aria-label="Project history" hidden={!isOpen}>{content}</aside> : <Modal isOpen={isOpen} onClose={onToggle} title="Your projects" size="sm"><div className="mobile-project-history">{content}</div></Modal>;
+  return desktop ? <aside className={`sidebar-panel ${isOpen ? 'sidebar-panel--open' : ''}`} aria-label="Project history" aria-hidden={!isOpen} ref={(element) => { if (element) element.inert = !isOpen; }}>{content}</aside> : <Modal isOpen={isOpen} onClose={onToggle} title="Your projects" size="sm"><div className="mobile-project-history">{content}</div></Modal>;
 }

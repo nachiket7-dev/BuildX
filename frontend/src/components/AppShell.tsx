@@ -122,7 +122,7 @@ export function AppShell() {
             <div
               id="main-content"
               tabIndex={-1}
-              className={`flex-1 h-full min-h-0 min-w-0 ${
+              className={`app-shell__main flex-1 h-full min-h-0 min-w-0 ${
                 isFullBleed ? "w-full m-0 p-0" : ""
               } ${
                 isAgentWorkspace

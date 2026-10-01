@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu,
   PanelLeft,
+  PanelLeftClose,
   Plus,
 } from './ui/icons';
 import { useAuth } from "../hooks/useAuth";
@@ -42,14 +43,18 @@ export function Header({
         <div className="app-header-left">
           {showSidebarToggle && (
             <button
-              className="ui-icon-button"
+              className="ui-icon-button sidebar-toggle"
               onClick={onToggleSidebar}
               aria-label={
                 sidebarOpen ? "Close projects sidebar" : "Open projects sidebar"
               }
               aria-expanded={sidebarOpen}
+              type="button"
             >
-              <PanelLeft size={18} />
+              <span className="sidebar-toggle__icon" aria-hidden="true">
+                <PanelLeft size={18} className="sidebar-toggle__open" />
+                <PanelLeftClose size={18} className="sidebar-toggle__close" />
+              </span>
             </button>
           )}
           <Link to="/" className="brand-lockup" aria-label="BuildX home">

@@ -2189,8 +2189,35 @@ summary {
 .mobile-project-history .sidebar-panel__footer {
   margin-top: 20px;
 }
-.sidebar-panel[hidden] {
-  display: none;
+.sidebar-toggle {
+  transition: color 180ms ease, background-color 180ms ease;
+}
+.sidebar-toggle__icon {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+.sidebar-toggle__icon svg {
+  position: absolute;
+  inset: 0;
+  transition: opacity 180ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sidebar-toggle__open {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+.sidebar-toggle__close {
+  opacity: 0;
+  transform: translateX(4px) scale(0.85);
+}
+.sidebar-toggle[aria-expanded="true"] .sidebar-toggle__open {
+  opacity: 0;
+  transform: translateX(-4px) scale(0.85);
+}
+.sidebar-toggle[aria-expanded="true"] .sidebar-toggle__close {
+  opacity: 1;
+  transform: translateX(0) scale(1);
 }
 @media (max-width: 900px) {
   .auth-story {
